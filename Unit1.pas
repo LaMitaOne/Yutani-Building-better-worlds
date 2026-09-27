@@ -18,7 +18,8 @@ uses
   System.Classes, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Winapi.UxTheme, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, RaylibSandbox,
   ModelEngine, TypInfo, JoltPhysics, Vcl.Grids, Raylib, Vcl.Menus,
-  Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain;
+  Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain,
+  uYutaniSkiaIntro;
 
 type
   TForm1 = class(TForm)
@@ -117,6 +118,7 @@ type
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
     FIsUpdatingGrid: Boolean;
+    FYutaniIntro: TYutaniSkiaIntro;
     procedure RefreshHierarchy;
     procedure HandleViewportReady(Sender: TObject);
     procedure HandleActorSpawned(Sender: TObject; const Args: TActorEventArgs);
@@ -163,10 +165,36 @@ begin
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
+var
+  LastTick, NowTick: Cardinal;
+  DeltaSec: Double;
 const
   clrBackground = clBlack;
   clrFontSilver = clSilver;
 begin
+  FYutaniIntro := TYutaniSkiaIntro.Create;
+  FYutaniIntro.Start;
+
+  LastTick := GetTickCount;
+  while not FYutaniIntro.IntroFinished do
+  begin
+    NowTick := GetTickCount;
+    DeltaSec := (NowTick - LastTick) / 1000.0;
+    LastTick := NowTick;
+
+    FYutaniIntro.UpdateAndRender(DeltaSec);
+
+    Application.ProcessMessages;
+
+    Sleep(15);
+  end;
+
+  while not FYutaniIntro.IntroFinished do
+  begin
+    Application.ProcessMessages;
+    Sleep(10);
+  end;
+
   Width := 1200;
   Height := 800;
   // --- DARK MODE INTEGRATION ---
