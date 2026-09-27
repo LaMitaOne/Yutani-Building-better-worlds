@@ -91,13 +91,12 @@ Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/
 Looking for more `.glb` / `.gltf` assets to test in the sandbox? Check out these awesome free resources:     
 - [Kenney](https://kenney.nl) | [Quaternius](https://quaternius.com) | [Kay Lousberg](https://kaylousberg.com)    
 - [Poly Pizza](https://poly.pizza) | [Poly Haven](https://polyhaven.com) | [The Base Mesh](https://thebasemesh.com)
-- [SketchFab](https://sketchfab.com)     
-      
-   
-
-
-       
+- [SketchFab](https://sketchfab.com)          
+              
 ## 📄 License
 This project is licensed under the **Apache License 2.0** - see the LICENSE file for details. This protects the core Yutani Engine assets, graphics, and unique architecture configurations while enabling powerful open-source expansion.   
    
-*"The engine is the code you write." — John Carmack.*   
+*"The engine is the code you write." — John Carmack.*     
+      
+### 🛸 Trivia / Easter Egg      
+**Fun Fact:** The very first custom 3D `.glb` model successfully loaded and simulated into this engine's pipeline was the iconic **M577 Alien APC**. So choosing the name **Yutani** wasn't just a random sci-fi choice—it was practically hardcoded by fate! 🪐  
