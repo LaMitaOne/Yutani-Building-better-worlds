@@ -11585,6 +11585,8 @@ object Form1: TForm1
     Top = 0
     Width = 5
     Height = 647
+    Color = 3684408
+    ParentColor = False
     ExplicitLeft = 201
     ExplicitHeight = 441
   end
@@ -11594,6 +11596,8 @@ object Form1: TForm1
     Width = 5
     Height = 647
     Align = alRight
+    Color = 3684408
+    ParentColor = False
     ExplicitLeft = 208
     ExplicitTop = 8
     ExplicitHeight = 600
@@ -11604,26 +11608,33 @@ object Form1: TForm1
     Width = 200
     Height = 647
     Align = alLeft
+    BevelOuter = bvNone
     Color = clBlack
     ParentBackground = False
     TabOrder = 0
     ExplicitHeight = 646
     object Splitter2: TSplitter
-      Left = 1
-      Top = 289
-      Width = 198
+      Left = 0
+      Top = 288
+      Width = 200
       Height = 8
       Cursor = crVSplit
       Align = alTop
-      Color = clTeal
+      Color = 3684408
       ParentColor = False
+      ExplicitLeft = 1
+      ExplicitTop = 289
+      ExplicitWidth = 198
     end
     object tvSceneHierarchy: TTreeView
-      Left = 1
-      Top = 1
-      Width = 198
+      Left = 0
+      Top = 0
+      Width = 200
       Height = 288
       Align = alTop
+      BevelInner = bvNone
+      BevelOuter = bvNone
+      BorderStyle = bsNone
       Color = clBlack
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clSilver
@@ -11638,21 +11649,29 @@ object Form1: TForm1
       OnKeyUp = tvSceneHierarchyKeyUp
     end
     object Panel1: TPanel
-      Left = 1
-      Top = 297
-      Width = 198
-      Height = 349
+      Left = 0
+      Top = 296
+      Width = 200
+      Height = 351
       Align = alClient
+      BevelOuter = bvNone
       Color = clBlack
       ParentBackground = False
       TabOrder = 1
+      ExplicitLeft = 1
+      ExplicitTop = 297
+      ExplicitWidth = 198
       ExplicitHeight = 348
       object StringGrid1: TStringGrid
-        Left = 1
-        Top = 1
-        Width = 196
-        Height = 347
+        Left = 0
+        Top = 0
+        Width = 200
+        Height = 351
         Align = alClient
+        BevelInner = bvNone
+        BevelOuter = bvNone
+        BorderStyle = bsNone
+        Color = clBlack
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
         Font.Height = -12
@@ -11665,7 +11684,10 @@ object Form1: TForm1
         OnDrawCell = StringGrid1DrawCell
         OnSelectCell = StringGrid1SelectCell
         OnSetEditText = StringGrid1SetEditText
-        ExplicitHeight = 346
+        ExplicitLeft = 1
+        ExplicitTop = 1
+        ExplicitWidth = 196
+        ExplicitHeight = 347
       end
     end
   end
@@ -11739,25 +11761,30 @@ object Form1: TForm1
     Width = 200
     Height = 647
     Align = alRight
+    BevelOuter = bvNone
     Caption = 'pnlRight'
     TabOrder = 2
     ExplicitLeft = 896
     ExplicitHeight = 646
     object PageControl1: TPageControl
-      Left = 1
-      Top = 1
-      Width = 198
-      Height = 645
+      Left = 0
+      Top = 0
+      Width = 200
+      Height = 647
+      Margins.Left = 0
+      Margins.Top = 0
+      Margins.Right = 0
+      Margins.Bottom = 0
       ActivePage = tsScene
       Align = alClient
       Font.Charset = DEFAULT_CHARSET
-      Font.Color = clSilver
+      Font.Color = clBlack
       Font.Height = -12
       Font.Name = 'Segoe UI'
       Font.Style = []
       ParentFont = False
       TabOrder = 0
-      ExplicitHeight = 644
+      StyleElements = [seFont, seClient]
       object tsScene: TTabSheet
         Caption = 'Scene'
         Font.Charset = DEFAULT_CHARSET
@@ -11767,13 +11794,13 @@ object Form1: TForm1
         Font.Style = []
         ParentFont = False
         DesignSize = (
-          190
-          615)
+          192
+          617)
         object Shape1: TShape
           Left = 0
           Top = 0
-          Width = 190
-          Height = 615
+          Width = 192
+          Height = 617
           Align = alClient
           Brush.Color = clBlack
           ExplicitLeft = 88
@@ -11793,17 +11820,17 @@ object Form1: TForm1
           Font.Name = 'Segoe UI'
           Font.Style = []
           ParentFont = False
+          Transparent = True
         end
         object btnClearScene: TButton
           Left = 65
-          Top = 581
+          Top = 583
           Width = 33
           Height = 25
           Anchors = [akLeft, akBottom]
           Caption = 'Clear'
           TabOrder = 0
           OnClick = btnClearSceneClick
-          ExplicitTop = 580
         end
         object btnSpawnCubes: TButton
           Left = 13
@@ -11843,25 +11870,23 @@ object Form1: TForm1
         end
         object btnSceneSave: TButton
           Left = 144
-          Top = 581
+          Top = 583
           Width = 33
           Height = 25
           Anchors = [akLeft, akBottom]
           Caption = 'Save'
           TabOrder = 5
           OnClick = btnSceneSaveClick
-          ExplicitTop = 580
         end
         object btnSceneLoad: TButton
           Left = 105
-          Top = 581
+          Top = 583
           Width = 33
           Height = 25
           Anchors = [akLeft, akBottom]
           Caption = 'Load'
           TabOrder = 6
           OnClick = btnSceneLoadClick
-          ExplicitTop = 580
         end
         object btnSpawn3DModel: TButton
           Left = 13
@@ -11883,7 +11908,7 @@ object Form1: TForm1
         end
         object Memo1: TMemo
           Left = 13
-          Top = 352
+          Top = 354
           Width = 164
           Height = 222
           Anchors = [akLeft, akBottom]
@@ -11899,29 +11924,26 @@ object Form1: TForm1
           ParentFont = False
           ReadOnly = True
           TabOrder = 9
-          ExplicitTop = 351
         end
         object btnSelectPrev: TButton
           Left = 13
-          Top = 581
+          Top = 583
           Width = 20
           Height = 25
           Anchors = [akLeft, akBottom]
           Caption = '<'
           TabOrder = 10
           OnClick = btnSelectPrevClick
-          ExplicitTop = 580
         end
         object btnSelectNext: TButton
           Left = 39
-          Top = 581
+          Top = 583
           Width = 20
           Height = 25
           Anchors = [akLeft, akBottom]
           Caption = '>'
           TabOrder = 11
           OnClick = btnSelectNextClick
-          ExplicitTop = 580
         end
         object btnSpawnSandbox: TButton
           Left = 13
@@ -11962,7 +11984,7 @@ object Form1: TForm1
         object cbStatic: TCheckBox
           Left = 125
           Top = 21
-          Width = 25
+          Width = 16
           Height = 17
           Hint = 'spawn static'
           Color = clBlack
@@ -12017,6 +12039,12 @@ object Form1: TForm1
           Width = 35
           Height = 15
           Caption = 'Speed:'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
         end
         object cbFPS: TComboBox
           Left = 16
@@ -12174,6 +12202,15 @@ object Form1: TForm1
           StyleElements = [seClient, seBorder]
           OnClick = chkSlowMotionClick
         end
+        object btnFullscreen: TButton
+          Left = 21
+          Top = 262
+          Width = 98
+          Height = 25
+          Caption = 'Fullscreen'
+          TabOrder = 9
+          OnClick = btnFullscreenClick
+        end
       end
       object tsControls: TTabSheet
         Caption = 'Controls'
@@ -12186,6 +12223,44 @@ object Form1: TForm1
           Caption = 'Gamepad Core'
           TabOrder = 0
           OnClick = btnGamepadCoreClick
+        end
+      end
+      object tsAudio: TTabSheet
+        Caption = 'Audio'
+        ImageIndex = 3
+        object lblMasterVolume: TLabel
+          Left = 16
+          Top = 11
+          Width = 76
+          Height = 15
+          Caption = 'MasterVolume'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object tbMasterVolume: TTrackBar
+          Left = 16
+          Top = 32
+          Width = 150
+          Height = 45
+          Max = 100
+          Position = 100
+          ShowSelRange = False
+          TabOrder = 0
+          TickStyle = tsNone
+          OnChange = tbMasterVolumeChange
+        end
+        object btnTestSFX: TButton
+          Left = 29
+          Top = 134
+          Width = 98
+          Height = 25
+          Caption = 'Test audio'
+          TabOrder = 1
+          OnClick = btnTestSFXClick
         end
       end
     end

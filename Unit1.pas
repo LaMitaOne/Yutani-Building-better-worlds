@@ -1,7 +1,7 @@
 unit Unit1;
 
 {==============================================================================*
- *  Mainform of raylib sandbox & jolt phsics v0.62
+ *  Mainform of raylib sandbox & jolt phsics v0.63
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -19,7 +19,7 @@ uses
   Winapi.UxTheme, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, RaylibSandbox,
   ModelEngine, TypInfo, JoltPhysics, Vcl.Grids, Raylib, Vcl.Menus,
   Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain,
-  uYutaniSkiaIntro;
+  uYutaniSkiaIntro, MiniAudio4Delphi;
 
 type
   TForm1 = class(TForm)
@@ -75,6 +75,11 @@ type
     lblstatic: TLabel;
     tsControls: TTabSheet;
     btnGamepadCore: TButton;
+    tsAudio: TTabSheet;
+    btnFullscreen: TButton;
+    tbMasterVolume: TTrackBar;
+    lblMasterVolume: TLabel;
+    btnTestSFX: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -114,6 +119,9 @@ type
     procedure StringGrid1DrawCell(Sender: TObject; ACol, ARow: Integer; Rect: TRect; State: TGridDrawState);
     procedure tvSceneHierarchyAdvancedCustomDrawItem(Sender: TCustomTreeView; Node: TTreeNode; State: TCustomDrawState; Stage: TCustomDrawStage; var PaintImages, DefaultDraw: Boolean);
     procedure btnGamepadCoreClick(Sender: TObject);
+    procedure btnFullscreenClick(Sender: TObject);
+    procedure tbMasterVolumeChange(Sender: TObject);
+    procedure btnTestSFXClick(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -175,21 +183,16 @@ const
 begin
   FYutaniIntro := TYutaniSkiaIntro.Create;
   FYutaniIntro.Start;
-
   LastTick := GetTickCount;
   while not FYutaniIntro.IntroFinished do
   begin
     NowTick := GetTickCount;
     DeltaSec := (NowTick - LastTick) / 1000.0;
     LastTick := NowTick;
-
     FYutaniIntro.UpdateAndRender(DeltaSec);
-
     Application.ProcessMessages;
-
     Sleep(15);
   end;
-
 
   Width := 1200;
   Height := 800;
@@ -268,7 +271,7 @@ begin
     if cdsSelected in State then
     begin
       Sender.Canvas.Brush.Color := $00404040;
-      Sender.Canvas.Font.Color := clWhite;
+      Sender.Canvas.Font.Color := clTeal;
     end
     else
     begin
@@ -278,6 +281,11 @@ begin
   end;
 end;
 // --------------------------------
+
+procedure TForm1.btnTestSFXClick(Sender: TObject);
+begin
+  FSandbox.PlayTestSound;
+end;
 
 procedure TForm1.btnToolDragThrowClick(Sender: TObject);
 begin
@@ -441,6 +449,20 @@ begin
   FSandbox.ClearItems;
   StringGrid1.Visible := False;
   lblInfo.Caption := 'Scene Cleared.';
+end;
+
+procedure TForm1.btnFullscreenClick(Sender: TObject);
+begin
+  if BorderStyle = bsNone then
+  begin
+    BorderStyle := bsSizeable;
+    WindowState := wsNormal;
+  end
+  else
+  begin
+    BorderStyle := bsNone;
+    WindowState := wsMaximized;
+  end;
 end;
 
 procedure TForm1.btnGamepadCoreClick(Sender: TObject);
@@ -641,6 +663,11 @@ begin
   end;
 end;
 
+procedure TForm1.tbMasterVolumeChange(Sender: TObject);
+begin
+  ma_engine_set_volume(FSandbox.FAudioEngine, tbMasterVolume.Position / 100.0);
+end;
+
 procedure TForm1.TimePicker1Change(Sender: TObject);
 begin
   FSandbox.DayNightTime := TImepicker1.Time;
@@ -717,9 +744,7 @@ var
 begin
   if Args.Actor = nil then
     Exit;
-
   NodeToDelete := nil;
-
   // Search through all nodes in the TreeView to find the one holding the destroyed Actor
   for i := 0 to tvSceneHierarchy.Items.Count - 1 do
   begin
@@ -729,7 +754,6 @@ begin
       Break; // Found it, no need to search further
     end;
   end;
-
   // If the node was found, delete it from the TreeView
   if Assigned(NodeToDelete) then
     tvSceneHierarchy.Items.Delete(NodeToDelete);

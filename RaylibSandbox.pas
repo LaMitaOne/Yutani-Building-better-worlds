@@ -1,10 +1,9 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.62 - multi-threaded Raylib + Jolt Editor
+ *  Yutani RaylibSandbox v0.63 - multi-threaded Raylib + Jolt Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
- *  License: Follows the licensing of the original Jolt Physics project.
  *
  *  Description:
  *    This component embeds a Raylib rendering window inside a standard Delphi
@@ -235,7 +234,6 @@ type
     FPopupCloseLock: Boolean;
     FLoadModelQueued: Boolean;
     FQueuedModelPath: string;
-    FAudioEngine: ma_engine;
     FNavIndex: Integer;
 
     // Manual Day/Night Properties
@@ -313,7 +311,6 @@ type
     procedure SetFrustumCulling(const Value: Boolean);
     procedure SetDistanceCulling(const Value: Boolean);
     procedure SetMaxRenderDistance(const Value: Single);
-    procedure PlayTestSound;
     procedure PlayImpactSound;
     procedure PlaySpawnSound;
 
@@ -333,6 +330,7 @@ type
     FSpawnStatic: Boolean;
     FGhostVisible: Boolean;
     FIsBrushActive: Boolean;
+    FAudioEngine: ma_engine;
     function ItemCount: Integer;
     procedure ClearItems;
     procedure DeleteSelectedActor;
@@ -364,6 +362,7 @@ type
     procedure SetSelectedActor(AActor: TA3DComponent);
     procedure SetGizmoMode(AMode: TGizmoMode);
     procedure PublicShootBall;
+    procedure PlayTestSound;
     property Engine: TModelEngine read FEngine;
     property FrustumCulling: Boolean read FFrustumCulling write SetFrustumCulling;
     property DistanceCulling: Boolean read FDistanceCulling write SetDistanceCulling;
@@ -4230,11 +4229,8 @@ var
 begin
   if not Assigned(FBombActor) then
     Exit;
-
   FBombExploded := True;
-
   PlayImpactSound;
-
   // Loop through all items and apply massive explosion force
   for i := 0 to High(FItems) do
   begin
@@ -4245,7 +4241,6 @@ begin
       if not Actor.IsStatic then
       begin
         Dist := Vector3Distance(Actor.Position, FBombActor.Position);
-
         // Affect blocks within a 25 unit radius
         if Dist < 25.0 then
         begin
@@ -4254,27 +4249,21 @@ begin
             Dir := Vector3Normalize(Dir)
           else
             Dir := Vector3Create(0, 1, 0); // Fallback if exactly inside
-
           // Force is stronger closer to the bomb (Massive magnitude!)
           ForceMag := (25.0 - Dist) * 5000.0;
-
           // CRITICAL: Wake up the body from Sleep Mode before applying force!
           Actor.ActivateBody;
-
           // Apply the explosive impulse
           Actor.ApplyImpulse(Vector3Scale(Dir, ForceMag));
-
           // Add a strong upward kick for dramatic effect
           Actor.ApplyImpulse(Vector3Create(0, ForceMag * 0.3, 0));
         end;
       end;
     end;
   end;
-
   // ====================================================================
   // HARD DELETE BOMB
   // ====================================================================
-
   // 1. Find the bomb's index in the FItems array
   BombIdx := -1;
   for i := 0 to High(FItems) do
@@ -4285,36 +4274,29 @@ begin
       Break;
     end;
   end;
-
   // 2. If found, remove from Physics Engine and memory
   if BombIdx >= 0 then
   begin
     // Notify the VCL Form to remove the node from the TreeView!
     DoActorDestroyed(FBombActor, BombIdx);
-
     // Remove and destroy from Jolt Physics
     if FBombActor.FBodyID <> 0 then
     begin
       JPH_BodyInterface_RemoveAndDestroyBody(FEngine.BodyInterface, FBombActor.FBodyID);
       FBombActor.FBodyID := 0;
     end;
-
     // Free UserData if it exists
     if FBombActor.UserData <> nil then
       Dispose(PItemData(FBombActor.UserData));
-
     // Free the class instance
     FBombActor.Visible := False;
     FBombActor.Free;
-
     // Close the gap in the array
     for i := BombIdx to High(FItems) - 1 do
       FItems[i] := FItems[i + 1];
-
     // Resize array
     SetLength(FItems, Length(FItems) - 1);
   end;
-
   // Clear the reference
   FBombActor := nil;
 end;
