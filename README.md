@@ -105,7 +105,7 @@ Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/
 Looking for more `.glb` / `.gltf` assets to test in the sandbox? Check out these awesome free resources:     
 - [Kenney](https://kenney.nl) | [Quaternius](https://quaternius.com) | [Kay Lousberg](https://kaylousberg.com)    
 - [Poly Pizza](https://poly.pizza) | [Poly Haven](https://polyhaven.com) | [The Base Mesh](https://thebasemesh.com)
-- [SketchFab](https://sketchfab.com)          
+- [SketchFab](https://sketchfab.com) | [Tripo3D](https://studio.tripo3d.ai)         
               
 ## 📄 License
 This project is licensed under the **Apache License 2.0** - see the LICENSE file for details. This protects the core Yutani Engine assets, graphics, and unique architecture configurations while enabling powerful open-source expansion.   
