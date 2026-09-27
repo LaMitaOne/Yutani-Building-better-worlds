@@ -81,7 +81,7 @@ Latest Changes:
      
 v0.62:    
      
-    Changed name to yutani engine for new single repo out of the joltphysics wrapper repo
+    Changed name for new single repo out of the joltphysics wrapper repo
     Added MRX Gamepad Core
     Added new Tab Controls
                
