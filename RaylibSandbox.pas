@@ -49,6 +49,8 @@
  *      is cleanly re-attached to the physics world with its new transform.
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
+ *
+ * Apache-2.0 license
  *==============================================================================}
 
 {$POINTERMATH ON}
