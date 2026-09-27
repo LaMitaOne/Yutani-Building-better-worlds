@@ -189,11 +189,6 @@ begin
     Sleep(15);
   end;
 
-  while not FYutaniIntro.IntroFinished do
-  begin
-    Application.ProcessMessages;
-    Sleep(10);
-  end;
 
   Width := 1200;
   Height := 800;
