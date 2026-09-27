@@ -11757,6 +11757,7 @@ object Form1: TForm1
       Font.Style = []
       ParentFont = False
       TabOrder = 0
+      ExplicitHeight = 644
       object tsScene: TTabSheet
         Caption = 'Scene'
         Font.Charset = DEFAULT_CHARSET

@@ -10,7 +10,8 @@ uses
   MPVManager in 'MPVManager.pas',
   MPVEmbedded in 'MPVEmbedded.pas',
   uMRX_GamepadCore in 'uMRX_GamepadCore.pas',
-  uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {Form2};
+  uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {Form2},
+  uYutaniSkiaIntro in 'uYutaniSkiaIntro.pas';
 
 {$R *.res}
 
