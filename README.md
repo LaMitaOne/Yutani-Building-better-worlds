@@ -84,7 +84,7 @@ v0.62:
     Changed name for new single repo out of the joltphysics wrapper repo
     Added MRX Gamepad Core
     Added new Tab Controls
-    Added splash intro
+    Added skia4delphi rendered splash intro
                
 includes:      
 Raylib 3d Wrapper https://github.com/LaMitaOne/r3d-delphi   
