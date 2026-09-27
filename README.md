@@ -81,10 +81,12 @@ Latest Changes:
      
 v0.62:    
      
-    Changed name for new single repo out of the joltphysics wrapper repo
+    Changed project name for new single repo out of the joltphysics wrapper repo
     Added MRX Gamepad Core
     Added new Tab Controls
     Added skia4delphi rendered splash intro
+    Added OnActorDestroyed event
+    Fixed bombs not getting removed after explode
                
 includes:      
 Raylib 3d Wrapper https://github.com/LaMitaOne/r3d-delphi   
