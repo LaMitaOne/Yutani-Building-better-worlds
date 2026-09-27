@@ -11757,7 +11757,6 @@ object Form1: TForm1
       Font.Style = []
       ParentFont = False
       TabOrder = 0
-      ExplicitHeight = 644
       object tsScene: TTabSheet
         Caption = 'Scene'
         Font.Charset = DEFAULT_CHARSET
@@ -12175,23 +12174,36 @@ object Form1: TForm1
           OnClick = chkSlowMotionClick
         end
       end
+      object tsControls: TTabSheet
+        Caption = 'Controls'
+        ImageIndex = 2
+        object btnGamepadCore: TButton
+          Left = 21
+          Top = 25
+          Width = 98
+          Height = 25
+          Caption = 'Gamepad Core'
+          TabOrder = 0
+          OnClick = btnGamepadCoreClick
+        end
+      end
     end
   end
   object tmrStatsUpdater: TTimer
     Enabled = False
     Interval = 500
     OnTimer = tmrStatsUpdaterTimer
-    Left = 713
-    Top = 131
+    Left = 241
+    Top = 19
   end
   object OpenDialog1: TOpenDialog
     DefaultExt = 'd3dfm'
-    Left = 808
-    Top = 168
+    Left = 352
+    Top = 24
   end
   object SaveDialog1: TSaveDialog
     DefaultExt = 'd3dfm'
-    Left = 840
-    Top = 120
+    Left = 440
+    Top = 24
   end
 end

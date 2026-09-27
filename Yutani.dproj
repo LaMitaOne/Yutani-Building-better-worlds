@@ -141,6 +141,10 @@
         <DCCReference Include="MPVManager.pas"/>
         <DCCReference Include="MPVEmbedded.pas"/>
         <DCCReference Include="uMRX_GamepadCore.pas"/>
+        <DCCReference Include="uMRX_GamepadCoreMain.pas">
+            <Form>Form2</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  RaylibSandbox v0.61 - VCL Wrapper for a multi-threaded Raylib + Jolt Editor
+ *  Yutani RaylibSandbox v0.62 - multi-threaded Raylib + Jolt Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *  License: Follows the licensing of the original Jolt Physics project.
