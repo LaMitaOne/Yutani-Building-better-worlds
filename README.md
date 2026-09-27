@@ -113,4 +113,5 @@ This project is licensed under the **Apache License 2.0** - see the LICENSE file
 *"The engine is the code you write." — John Carmack.*     
       
 ### 🛸 Trivia / Easter Egg      
-**Fun Fact:** The very first custom 3D `.glb` model successfully loaded and simulated into this engine's pipeline was the iconic **M577 Alien APC**. So choosing the name **Yutani** wasn't just a random sci-fi choice—it was practically hardcoded by fate! 🪐  
+**Fun Fact:** The very first custom 3D `.glb` model successfully loaded and simulated into this engine's pipeline was the iconic **M577 Alien APC**. So choosing the name **Yutani** wasn't just a random sci-fi choice—it was practically hardcoded by fate! 🪐     
+Cultural Note: In Japanese, Yutani (由谷) translates to "Valley of Origin"...     
