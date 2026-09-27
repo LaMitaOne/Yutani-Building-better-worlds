@@ -122,6 +122,7 @@ type
     procedure RefreshHierarchy;
     procedure HandleViewportReady(Sender: TObject);
     procedure HandleActorSpawned(Sender: TObject; const Args: TActorEventArgs);
+    procedure HandleActorDestroyed(Sender: TObject; const Args: TActorEventArgs);
     procedure HandleSceneCleared(Sender: TObject);
     procedure HandleEngineException(Sender: TObject; const Args: TEngineExceptionEventArgs);
     procedure LoadPropertiesIntoGrid(AComponent: TA3DComponent);
@@ -219,6 +220,7 @@ begin
   FSandbox.Active := True;
   FSandbox.OnViewportReady := HandleViewportReady;
   FSandbox.OnActorSpawned := HandleActorSpawned;
+  FSandbox.OnActorDestroyed := HandleActorDestroyed;
   FSandbox.OnSceneCleared := HandleSceneCleared;
   FSandbox.OnEngineException := HandleEngineException;
   FSandbox.OnObjectSelected := HandleObjectSelected;
@@ -706,6 +708,31 @@ procedure TForm1.HandleViewportReady(Sender: TObject);
 begin
   lblInfo.Caption := 'Engine Viewport Ready.';
   btnPlayPause.Caption := 'PAUSE';
+end;
+
+procedure TForm1.HandleActorDestroyed(Sender: TObject; const Args: TActorEventArgs);
+var
+  i: Integer;
+  NodeToDelete: TTreeNode;
+begin
+  if Args.Actor = nil then
+    Exit;
+
+  NodeToDelete := nil;
+
+  // Search through all nodes in the TreeView to find the one holding the destroyed Actor
+  for i := 0 to tvSceneHierarchy.Items.Count - 1 do
+  begin
+    if tvSceneHierarchy.Items[i].Data = Args.Actor then
+    begin
+      NodeToDelete := tvSceneHierarchy.Items[i];
+      Break; // Found it, no need to search further
+    end;
+  end;
+
+  // If the node was found, delete it from the TreeView
+  if Assigned(NodeToDelete) then
+    tvSceneHierarchy.Items.Delete(NodeToDelete);
 end;
 
 procedure TForm1.HandleActorSpawned(Sender: TObject; const Args: TActorEventArgs);

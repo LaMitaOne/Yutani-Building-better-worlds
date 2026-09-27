@@ -198,6 +198,7 @@ type
     FRightClickWasPressed: Boolean;
     FOnViewportReady: TNotifyEngineEvent;
     FOnActorSpawned: TActorEvent;
+    FOnActorDestroyed: TActorEvent;
     FOnSceneCleared: TNotifyEngineEvent;
     FOnEngineException: TEngineExceptionEvent;
     FOnObjectSelected: TObjectSelectedEvent;
@@ -300,6 +301,7 @@ type
     procedure StopThread;
     procedure DoViewportReady;
     procedure DoActorSpawned(Actor: TA3DComponent; Index: Integer);
+    procedure DoActorDestroyed(Actor: TA3DComponent; Index: Integer);
     procedure DoSceneCleared;
     procedure DoEngineException(const Msg, Context: string);
     procedure DoObjectSelected(Actor: TA3DComponent);
@@ -352,6 +354,7 @@ type
     destructor Destroy; override;
     property OnViewportReady: TNotifyEngineEvent read FOnViewportReady write FOnViewportReady;
     property OnActorSpawned: TActorEvent read FOnActorSpawned write FOnActorSpawned;
+    property OnActorDestroyed: TActorEvent read FOnActorDestroyed write FOnActorDestroyed;
     property OnSceneCleared: TNotifyEngineEvent read FOnSceneCleared write FOnSceneCleared;
     property OnEngineException: TEngineExceptionEvent read FOnEngineException write FOnEngineException;
     property OnObjectSelected: TObjectSelectedEvent read FOnObjectSelected write FOnObjectSelected;
@@ -3919,6 +3922,22 @@ begin
   end;
 end;
 
+procedure TRaylibSandbox.DoActorDestroyed(Actor: TA3DComponent; Index: Integer);
+var
+  Args: TActorEventArgs;
+begin
+  if Assigned(FOnActorDestroyed) then
+  begin
+    Args.Actor := Actor;
+    Args.Index := Index;
+    TThread.Queue(nil,
+      procedure
+      begin
+        FOnActorDestroyed(Self, Args);
+      end);
+  end;
+end;
+
 procedure TRaylibSandbox.DoSceneCleared;
 begin
   if Assigned(FOnSceneCleared) then
@@ -4205,6 +4224,7 @@ var
   Dist: Single;
   Dir: TVector3;
   ForceMag: Single;
+  BombIdx: Integer;
 begin
   if not Assigned(FBombActor) then
     Exit;
@@ -4249,11 +4269,54 @@ begin
     end;
   end;
 
-  // Hide the bomb actor (it's consumed)
-  FBombActor.Visible := False;
-  FBombActor.FIsDead := True;
+  // ====================================================================
+  // HARD DELETE BOMB
+  // ====================================================================
+
+  // 1. Find the bomb's index in the FItems array
+  BombIdx := -1;
+  for i := 0 to High(FItems) do
+  begin
+    if FItems[i] = FBombActor then
+    begin
+      BombIdx := i;
+      Break;
+    end;
+  end;
+
+  // 2. If found, remove from Physics Engine and memory
+  if BombIdx >= 0 then
+  begin
+    // Notify the VCL Form to remove the node from the TreeView!
+    DoActorDestroyed(FBombActor, BombIdx);
+
+    // Remove and destroy from Jolt Physics
+    if FBombActor.FBodyID <> 0 then
+    begin
+      JPH_BodyInterface_RemoveAndDestroyBody(FEngine.BodyInterface, FBombActor.FBodyID);
+      FBombActor.FBodyID := 0;
+    end;
+
+    // Free UserData if it exists
+    if FBombActor.UserData <> nil then
+      Dispose(PItemData(FBombActor.UserData));
+
+    // Free the class instance
+    FBombActor.Visible := False;
+    FBombActor.Free;
+
+    // Close the gap in the array
+    for i := BombIdx to High(FItems) - 1 do
+      FItems[i] := FItems[i + 1];
+
+    // Resize array
+    SetLength(FItems, Length(FItems) - 1);
+  end;
+
+  // Clear the reference
   FBombActor := nil;
 end;
+
 // External accessor to toggle slow motion from VCL/UI
 
 procedure TRaylibSandbox.SetSlowMotion(Active: Boolean);
