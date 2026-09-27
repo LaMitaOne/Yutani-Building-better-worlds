@@ -80,6 +80,8 @@ includes:
 Raylib 3d Wrapper https://github.com/LaMitaOne/r3d-delphi   
 MiniAudio4Delphi Wrapper https://github.com/LaMitaOne/MiniAudio4Delphi    
 JoltPhysics4Delphi https://github.com/LaMitaOne/JoltPhysics4Delphi    
+
+Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
 3D Test Models by https://kenney.nl/     
        
