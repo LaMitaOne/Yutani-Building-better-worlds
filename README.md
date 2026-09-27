@@ -14,10 +14,10 @@ This framework breaks the boundaries of traditional Delphi development by fusing
 ### 🛠️ The Tech-Stack Powering the Core:    
 * **3D Physics Core:** Powered by **Jolt Physics** via a robust, custom multi-threaded wrapper with precise continuous collision detection (CCD).    
 * **Blazing Fast Rendering:** Driven by **Raylib & r3d**, utilizing custom GLSL shaders for advanced lighting and shadows directly on the GPU.    
-* **Procedural UI & HUD(to do):** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
+* **Procedural Textures & HUD(to do):** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
 * **Cinematic Multimedia:** Integrated **libmpv** engine streaming hardware-accelerated video feeds straight into real-time 3D OpenGL textures.    
-* **Input Layer:** Multi-threaded **SDL3 Gamepad Core** featuring cross-platform axis mapping and zero-latency feedback.    
-* **Spatial Audio:** Implemented via **MiniAudio** for real-time 3D sound attenuation and positional acoustics.
+* **Input Layer:** Multi-threaded **SDL3 Gamepad Core** featuring button mapping and zero-latency feedback.    
+* **Spatial Audio:** Implemented via **MiniAudio** for real-time 3D sound attenuation and positional acoustics.     
     
 Status: Work in Progress (Alpha v0.62)    
          
