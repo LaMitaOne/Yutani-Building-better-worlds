@@ -8,7 +8,8 @@ uses
   Unit1 in 'Unit1.pas' {Form1},
   VCL3D in 'VCL3D.pas',
   MPVManager in 'MPVManager.pas',
-  MPVEmbedded in 'MPVEmbedded.pas';
+  MPVEmbedded in 'MPVEmbedded.pas',
+  uMRX_GamepadCore in 'uMRX_GamepadCore.pas';
 
 {$R *.res}
 

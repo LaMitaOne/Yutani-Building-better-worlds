@@ -140,6 +140,7 @@
         <DCCReference Include="VCL3D.pas"/>
         <DCCReference Include="MPVManager.pas"/>
         <DCCReference Include="MPVEmbedded.pas"/>
+        <DCCReference Include="uMRX_GamepadCore.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
