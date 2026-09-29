@@ -97,6 +97,7 @@ Raylib 3d https://github.com/LaMitaOne/r3d-delphi
 MiniAudio4Delphi https://github.com/LaMitaOne/MiniAudio4Delphi    
 JoltPhysics4Delphi https://github.com/LaMitaOne/JoltPhysics4Delphi    
 MRX Gamepad Core https://github.com/LaMitaOne/MRX-Gamepad-Core     
+TinySoundFont4Delphi https://github.com/LaMitaOne/Tinysoundfont4delphi     
 
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
