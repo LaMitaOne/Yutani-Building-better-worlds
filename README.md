@@ -1,10 +1,7 @@
 # Yutani-Building-better-worlds
 A high-performance, multi-threaded 3D Sandbox &amp; Multimedia Framework for Delphi.    
-Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, libmpv, and Skia4delphi.    
-       
-Building better worlds, the delphi way...   
-Virtual Terraforming :D      
-    
+Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, and Skia4delphi.    
+          
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LaMitaOne/Yutani-Building-better-worlds)    
         
 <img width="550" alt="yutani_intro" src="https://github.com/user-attachments/assets/8a2bb15a-5463-4501-80e8-ca77b986561a" />    
@@ -22,7 +19,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **Procedural Textures & HUD (to do):** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
 * **Cinematic Multimedia:** Integrated **libmpv** engine streaming hardware-accelerated video feeds straight into real-time 3D OpenGL textures.    
 * **Input Layer:** Multi-threaded **SDL3 Gamepad Core** featuring button mapping and zero-latency feedback.    
-* **Spatial Audio:** Implemented via **MiniAudio** for real-time 3D sound attenuation and positional acoustics.     
+* **Advanced Audio Engine:** A dual-engine setup providing full acoustic feedback. MiniAudio drives real-time 3D spatial sound and HRTF attenuation, while TinySoundFont handles on-the-fly SF2 synthesis for dynamic music sequences and retro soundtracks.     
     
 Status: Work in Progress (Alpha v0.62)    
          
@@ -48,9 +45,10 @@ Status: Work in Progress (Alpha v0.62)
 * **Vehicles:** Deep controller mechanics supporting engines, transmissions, anti-roll bars, differential gears, and custom track/wheel physics for cars and motorcycles.     
 * **Soft Bodies:** Foundation for deformable objects built directly from custom vertex and edge maps.    
      
-### 🎮 Input & Spatial Audio (SDL3 & MiniAudio)     
-* **Threaded Input Core:** Multi-threaded SDL3 Gamepad integration supporting hot-plugging, custom axis mapping, and deadzone stabilization.
-* **3D Positional Acoustics:** Audio rendering via `MiniAudio4Delphi` for real-time sound attenuation and space-aware acoustic feedback on physics impacts.
+### 🎮 Input & Spatial Audio (SDL3, MiniAudio & TinySoundFont)    
+* **Threaded Input Core: Multi-threaded SDL3 Gamepad integration supporting hot-plugging, custom axis mapping, and deadzone stabilization.    
+* **3D Positional Acoustics: Audio rendering via MiniAudio4Delphi for real-time sound attenuation and space-aware acoustic feedback on physics impacts.        
+* **Dynamic Soundtrack Synthesis: Integration of TinySoundFont4Delphi allowing on-the-fly MIDI sequencing and .sf2 SoundFont playback directly within the 3D environment.   
      
 ### 🪐 Multimedia & Video Pipeline (libmpv)     
 * **Direct GPU Texture Mapping:** Utilizes `libmpv`'s native OpenGL context rendering (`libMPV.Render_gl.pas`) to stream video feeds directly into Raylib 3D textures without crushing CPU or VRAM bandwidth.     
