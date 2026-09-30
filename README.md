@@ -24,7 +24,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.62)    
+Status: Work in Progress (Alpha v0.63)    
          
 <img width="550" alt="Unbenannt" src="https://github.com/user-attachments/assets/cd3f12d5-3752-4585-9d49-bfa5002fc5ac" />    
      
@@ -85,6 +85,15 @@ Status: Work in Progress (Alpha v0.62)
   Exe and sample project included    
       
 Latest Changes:     
+     
+v0.63:    
+     
+    Added Fullscreen btn, 
+    Added Audio tab, Master Volume Control Trackbar &  Audio test btn
+    Added TinySoundFont wrapper & dll
+    Added RecastNavigationDelphi Units
+    Added VerySimple.Lua Units & dll
+    Added GameNetworkingSockets4delphi wrapper & dlls
      
 v0.62:    
      
