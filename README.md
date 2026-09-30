@@ -19,8 +19,10 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **Procedural Textures & HUD (to do):** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
 * **Cinematic Multimedia:** Integrated **libmpv** engine streaming hardware-accelerated video feeds straight into real-time 3D OpenGL textures.    
 * **Input Layer:** Multi-threaded **SDL3 Gamepad Core** featuring button mapping and zero-latency feedback.    
-* **Advanced Audio Engine:** A dual-engine setup providing full acoustic feedback. MiniAudio drives real-time 3D spatial sound and HRTF attenuation, while TinySoundFont handles on-the-fly SF2 synthesis for dynamic music sequences and retro soundtracks.     
-    
+* **Advanced Audio Engine:** A dual-engine setup providing full acoustic feedback. MiniAudio drives real-time 3D spatial sound and HRTF attenuation, while TinySoundFont handles on-the-fly SF2 synthesis for dynamic music sequences and retro soundtracks.
+* **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
+* **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
+           
 Status: Work in Progress (Alpha v0.62)    
          
 <img width="550" alt="Unbenannt" src="https://github.com/user-attachments/assets/cd3f12d5-3752-4585-9d49-bfa5002fc5ac" />    
@@ -43,7 +45,9 @@ Status: Work in Progress (Alpha v0.62)
 * **Virtual Characters & Avatars:** Fully integrated `CharacterVirtual` bindings with customized step-up/stair-walking algorithms and isolated rotation axis constraints (locking X/Z to keep characters perfectly upright).     
 * **Ragdolls & Skeletons:** Full skeleton joint hierarchy mapping (Hinge, SwingTwist, Cone) with runtime ragdoll activation/deactivation.     
 * **Vehicles:** Deep controller mechanics supporting engines, transmissions, anti-roll bars, differential gears, and custom track/wheel physics for cars and motorcycles.     
-* **Soft Bodies:** Foundation for deformable objects built directly from custom vertex and edge maps.    
+* **Soft Bodies:** Foundation for deformable objects built directly from custom vertex and edge maps.
+* **AI Navigation & Pathfinding (Recast/Detour):** Automatic voxelization of 3D world meshes into walkable NavMeshes. Intelligent spatial steering, agent avoidance, and dynamic corridor paths for virtual entities.     
+* **Runtime Scripting Interface (Lua):** Full binding layer exposing engine functions, entity transforms, and sound triggers to lightweight Lua scripts for instant gameplay prototyping.    
      
 ### 🎮 Input & Spatial Audio (SDL3, MiniAudio & TinySoundFont)    
 * **Threaded Input Core: Multi-threaded SDL3 Gamepad integration supporting hot-plugging, custom axis mapping, and deadzone stabilization.    
