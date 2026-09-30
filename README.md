@@ -96,7 +96,8 @@ MiniAudio4Delphi https://github.com/LaMitaOne/MiniAudio4Delphi
 JoltPhysics4Delphi https://github.com/LaMitaOne/JoltPhysics4Delphi    
 MRX Gamepad Core https://github.com/LaMitaOne/MRX-Gamepad-Core     
 TinySoundFont4Delphi https://github.com/LaMitaOne/Tinysoundfont4delphi     
-RecastNavigationDelphi https://github.com/Kromster80/RecastNavigationDelphi      
+RecastNavigationDelphi https://github.com/Kromster80/RecastNavigationDelphi   
+VerySimpleLua https://github.com/Dennis1000/verysimplelua     
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
