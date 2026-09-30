@@ -1,6 +1,6 @@
 # Yutani-Building-better-worlds
 A high-performance, multi-threaded 3D Sandbox &amp; Multimedia Framework for Delphi.    
-Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, and Skia4delphi.    
+Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, RecastNavigation, and Skia4delphi.    
           
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LaMitaOne/Yutani-Building-better-worlds)    
         
@@ -96,7 +96,8 @@ MiniAudio4Delphi https://github.com/LaMitaOne/MiniAudio4Delphi
 JoltPhysics4Delphi https://github.com/LaMitaOne/JoltPhysics4Delphi    
 MRX Gamepad Core https://github.com/LaMitaOne/MRX-Gamepad-Core     
 TinySoundFont4Delphi https://github.com/LaMitaOne/Tinysoundfont4delphi     
-
+RecastNavigationDelphi https://github.com/Kromster80/RecastNavigationDelphi      
+       
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
 3D Test Models by https://kenney.nl/     
