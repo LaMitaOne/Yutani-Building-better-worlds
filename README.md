@@ -4,7 +4,7 @@ Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, Re
           
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LaMitaOne/Yutani-Building-better-worlds)    
         
-<img width="550" alt="yutani_intro" src="https://github.com/user-attachments/assets/8a2bb15a-5463-4501-80e8-ca77b986561a" />    
+<img width="1672" height="941" alt="yutani_wallpaper2" src="https://github.com/user-attachments/assets/43b3557c-8b4d-4203-bd03-d798fcc60807" />
           
 Sample video: https://youtu.be/EaJqNMYcxJo        
     
