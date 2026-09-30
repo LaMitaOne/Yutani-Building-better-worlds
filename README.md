@@ -11,7 +11,8 @@ Sample video: https://youtu.be/EaJqNMYcxJo
 Welcome to **Yutani**, a cutting-edge, fully asynchronous 3D Multimedia & Physics Engine written from scratch in Object Pascal.    
     
 This framework breaks the boundaries of traditional Delphi development by fusing industry-standard C-libraries into a highly optimized, thread-safe VCL sandbox ecosystem. No bloated form-designers, no legacy overhead—just pure, high-performance spatial engineering.   
-Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to get its own name.   
+Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to get its own name.      
+> 💡 **A personal note:** To be completely honest, I don't know how far I can get this thing since I am still learning 3D development—I've only been doing real 3D dev for about a month now! But I love the challenge, it's mutating into a giant powerhouse, and I try to push it as far as I possibly can.        
     
 ### 🛠️ The Tech-Stack Powering the Core:    
 * **3D Physics Core:** Powered by **Jolt Physics** via a robust, custom multi-threaded wrapper with precise continuous collision detection (CCD).    
