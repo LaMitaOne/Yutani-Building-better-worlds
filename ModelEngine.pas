@@ -1,7 +1,7 @@
 ﻿unit ModelEngine;
 
 {==============================================================================*
- *  ModelEngine v0.63 - Actor Layer combining Raylib rendering with Jolt Physics
+ *  ModelEngine v0.64 - Actor Layer combining Raylib rendering with Jolt Physics
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *

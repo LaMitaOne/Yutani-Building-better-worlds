@@ -11658,10 +11658,7 @@ object Form1: TForm1
       Color = clBlack
       ParentBackground = False
       TabOrder = 1
-      ExplicitLeft = 1
-      ExplicitTop = 297
-      ExplicitWidth = 198
-      ExplicitHeight = 348
+      ExplicitHeight = 350
       object StringGrid1: TStringGrid
         Left = 0
         Top = 0
@@ -11684,10 +11681,7 @@ object Form1: TForm1
         OnDrawCell = StringGrid1DrawCell
         OnSelectCell = StringGrid1SelectCell
         OnSetEditText = StringGrid1SetEditText
-        ExplicitLeft = 1
-        ExplicitTop = 1
-        ExplicitWidth = 196
-        ExplicitHeight = 347
+        ExplicitHeight = 350
       end
     end
   end
@@ -11785,6 +11779,7 @@ object Form1: TForm1
       ParentFont = False
       TabOrder = 0
       StyleElements = [seFont, seClient]
+      ExplicitHeight = 646
       object tsScene: TTabSheet
         Caption = 'Scene'
         Font.Charset = DEFAULT_CHARSET
@@ -11831,6 +11826,7 @@ object Form1: TForm1
           Caption = 'Clear'
           TabOrder = 0
           OnClick = btnClearSceneClick
+          ExplicitTop = 582
         end
         object btnSpawnCubes: TButton
           Left = 13
@@ -11877,6 +11873,7 @@ object Form1: TForm1
           Caption = 'Save'
           TabOrder = 5
           OnClick = btnSceneSaveClick
+          ExplicitTop = 582
         end
         object btnSceneLoad: TButton
           Left = 105
@@ -11887,6 +11884,7 @@ object Form1: TForm1
           Caption = 'Load'
           TabOrder = 6
           OnClick = btnSceneLoadClick
+          ExplicitTop = 582
         end
         object btnSpawn3DModel: TButton
           Left = 13
@@ -11924,6 +11922,7 @@ object Form1: TForm1
           ParentFont = False
           ReadOnly = True
           TabOrder = 9
+          ExplicitTop = 353
         end
         object btnSelectPrev: TButton
           Left = 13
@@ -11934,6 +11933,7 @@ object Form1: TForm1
           Caption = '<'
           TabOrder = 10
           OnClick = btnSelectPrevClick
+          ExplicitTop = 582
         end
         object btnSelectNext: TButton
           Left = 39
@@ -11944,6 +11944,7 @@ object Form1: TForm1
           Caption = '>'
           TabOrder = 11
           OnClick = btnSelectNextClick
+          ExplicitTop = 582
         end
         object btnSpawnSandbox: TButton
           Left = 13
@@ -12039,6 +12040,19 @@ object Form1: TForm1
           Width = 35
           Height = 15
           Caption = 'Speed:'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblWorldBase: TLabel
+          Left = 16
+          Top = 296
+          Width = 59
+          Height = 15
+          Caption = 'WorldBase:'
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clBlack
           Font.Height = -12
@@ -12210,6 +12224,27 @@ object Form1: TForm1
           Caption = 'Fullscreen'
           TabOrder = 9
           OnClick = btnFullscreenClick
+        end
+        object cbWorldBase: TComboBox
+          Left = 16
+          Top = 317
+          Width = 145
+          Height = 23
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ItemIndex = 2
+          ParentFont = False
+          TabOrder = 10
+          Text = 'Holodeck'
+          OnChange = cbWorldBaseChange
+          Items.Strings = (
+            'Land'
+            'Space'
+            'Holodeck'
+            'Island')
         end
       end
       object tsControls: TTabSheet

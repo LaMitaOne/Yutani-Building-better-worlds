@@ -11,7 +11,8 @@ uses
   MPVEmbedded in 'MPVEmbedded.pas',
   uMRX_GamepadCore in 'uMRX_GamepadCore.pas',
   uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {Form2},
-  uYutaniSkiaIntro in 'uYutaniSkiaIntro.pas';
+  uYutaniSkiaIntro in 'uYutaniSkiaIntro.pas',
+  Yutani.VoronoiFracture in 'Yutani.VoronoiFracture.pas';
 
 {$R *.res}
 

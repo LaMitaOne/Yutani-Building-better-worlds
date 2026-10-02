@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.63 - multi-threaded Raylib + Jolt Editor
+ *  Yutani RaylibSandbox v0.64 - multi-threaded Raylib + Jolt Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -91,6 +91,8 @@ type
     OnClick: TNotifyEvent;
     GenerateTestTexture: Boolean;
   end;
+
+  TWorldBaseType = (wbLand, wbSpace, wbHolodeck, wbIsland);
 
   TRaylibSandbox = class;
 
@@ -264,6 +266,9 @@ type
     // Video System
     FMPVPlayer: TMPVPlayer;
 
+    //base world
+    FCurrentWorldBase: TWorldBaseType;
+
     procedure UpdateBomb(dt: Single);
     procedure ExplodeBomb;
 
@@ -272,6 +277,7 @@ type
     procedure SetDayNightTime(const Value: Single);
     procedure SetDayNightRhythmActive(const Value: Boolean);
     procedure SetDayNightSpeed(const Value: Single);
+    procedure SetWorldBase(const Value: TWorldBaseType);
 
     procedure LoadModelInThread(const FilePath: string);
     procedure ShootBall;
@@ -318,6 +324,7 @@ type
     procedure ExecuteSceneSave(const FileName: string);
     procedure ExecuteSceneLoad(const FileName: string);
 
+    procedure DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
   protected
     procedure Resize; override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
@@ -387,6 +394,7 @@ type
     property DayNightRhythmActive: Boolean read FDayNightRhythmActive write SetDayNightRhythmActive default True;
     property DayNightTime: Single read FDayTime write SetDayNightTime;
     property DayNightSpeed: Single read FDaySpeed write SetDayNightSpeed;
+    property CurrentWorldBase: TWorldBaseType read FCurrentWorldBase write SetWorldBase;
   end;
 
 implementation
@@ -509,6 +517,9 @@ begin
   FLoadSceneQueued := False;
   FQueuedSavePath := '';
   FQueuedLoadPath := '';
+
+  // BASE WORLD INITIALIZATION: Default to wbHolodeck
+  FCurrentWorldBase := wbHolodeck;
 end;
 
 destructor TRaylibSandbox.Destroy;
@@ -593,6 +604,49 @@ begin
   // Clamp the value to a reasonable range (e.g., 0.0 to pause, up to 1.0 for very fast)
   // Ensure the speed cannot be negative to prevent time going backwards unintentionally
   FDaySpeed := EnsureRange(Value, 0.0, 1.0);
+end;
+
+procedure TRaylibSandbox.SetWorldBase(const Value: TWorldBaseType);
+begin
+  // Prevent cross-thread exceptions by queueing the state change
+  // safely into the Raylib render thread.
+  if FCurrentWorldBase <> Value then
+  begin
+    TThread.Queue(nil,
+      procedure
+      begin
+        FCurrentWorldBase := Value;
+
+        // BASE WORLD LOGIC: Apply specific settings per world
+        case FCurrentWorldBase of
+          wbLand:
+            begin
+              // Standard environment: Day/night active, clouds visible
+              FDayNightRhythmActive := True;
+            end;
+          wbSpace:
+            begin
+              // Space environment: Freeze time to night, disable clouds
+              FDayNightRhythmActive := False;
+              FDayTime := 0.0; // 0.0 represents midnight/deep space
+            end;
+          wbHolodeck:
+            begin
+              // Holodeck environment: Freeze time to midday for bright light
+              FDayNightRhythmActive := False;
+              FDayTime := 0.5; // 0.5 represents midday
+            end;
+          wbIsland:
+            begin
+              // Placeholder for later island environment setup
+              FDayNightRhythmActive := True;
+            end;
+        end;
+
+        // Force shadow map to update immediately after a world change
+        FShadowMapDirty := True;
+      end);
+  end;
 end;
 
 procedure TRaylibSandbox.SetBrush(AShape: TShapeType);
@@ -1104,8 +1158,9 @@ begin
       FCamYaw := FCamYaw - (p.x - FLastMouse.x) * 0.006;
       FCamPitch := EnsureRange(FCamPitch + (p.y - FLastMouse.y) * 0.006, 0.05, 1.53);
       FCameraMoved := True;
-    end;
-    FDraggingRMB := True;
+    end
+    else
+      FDraggingRMB := True;
   end
   else
     FDraggingRMB := False;
@@ -1295,7 +1350,7 @@ var
   downRay: TRay;
   downHit: TRayCollision;
   topY: Single;
-  HalfH, HalfX, HalfZ, HalfY: Single;
+  HalfH, HalfX, HalfY, HalfZ: Single;
   GScaleX, GScaleY, GScaleZ: Single;
   TargetY, t: Single;
   bIsModelBrush: Boolean;
@@ -2942,6 +2997,32 @@ begin
   EndTextureMode();
 end;
 
+// Custom procedure to draw a Holodeck-style grid with a specific color
+procedure TRaylibSandbox.DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
+var
+  I: Integer;
+  HalfSize: Single;
+begin
+  // Only draw grid if we are inside a 3D mode (camera is set)
+  if FCamera.position.y = 0 then
+    Exit;
+
+  // Calculate the total size of the grid
+  HalfSize := (Slices * Spacing) / 2.0;
+
+  // Draw vertical and horizontal lines, slightly lifted (0.01) to prevent Z-Fighting
+  for I := 0 to Slices do
+  begin
+    var Pos: Single := -HalfSize + (I * Spacing);
+
+    // Draw X-axis lines (going into Z depth)
+    DrawLine3D(Vector3Create(Pos, 0.01, -HalfSize), Vector3Create(Pos, 0.01, HalfSize), GridColor);
+
+    // Draw Z-axis lines (going across X)
+    DrawLine3D(Vector3Create(-HalfSize, 0.01, Pos), Vector3Create(HalfSize, 0.01, Pos), GridColor);
+  end;
+end;
+
 procedure TRaylibSandbox.DrawSceneShadows;
 var
   i: Integer;
@@ -3091,19 +3172,58 @@ begin
     SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
     SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
 
-    rlDisableBackfaceCulling();
-    DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
-    rlEnableBackfaceCulling();
+    // BASE WORLD SKYBOX OVERRIDE: Force deep black for Space and Holodeck
+    if (FCurrentWorldBase = wbSpace) or (FCurrentWorldBase = wbHolodeck) then
+    begin
+      var BlackSkyColor: TColorB := BLACK;
+      DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
+    end
+    else
+    begin
+      rlDisableBackfaceCulling();
+      DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
+      rlEnableBackfaceCulling();
+    end;
+
     rlEnableDepthMask();
   end;
 
   // 2. Draw Floor with Lighting Shader
   BeginShaderMode(FLightShader);
-  DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN);
+
+  // BASE WORLD FLOOR RENDERING
+  if FCurrentWorldBase = wbLand then
+  begin
+    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN);
+  end
+  else if FCurrentWorldBase = wbSpace then
+  begin
+    // Space: Pure black floor to blend with the void
+    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK);
+  end
+  else if FCurrentWorldBase = wbHolodeck then
+  begin
+    // Holodeck: Black floor with glowing Teal grid lines
+    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK);
+  end;
+
   EndShaderMode();
 
+  // BASE WORLD GRID RENDERING (Must be drawn outside the lighting shader to glow)
+  if FCurrentWorldBase = wbHolodeck then
+  begin
+    var WarmOrange: TColorB;
+    WarmOrange.r := 255;
+    WarmOrange.g := 130;
+    WarmOrange.b := 0;
+    WarmOrange.a := 255;
+
+    DrawHolodeckGrid(200, 5.0, Fade(WarmOrange, 0.85));
+  end;
+
   // 3. Draw Clouds (Transparency)
-  if FCloudModel.meshes <> nil then
+  // Only draw clouds if we are in Land mode!
+  if (FCloudModel.meshes <> nil) and ((FCurrentWorldBase = wbLand) or (FCurrentWorldBase = wbIsland)) then
   begin
     BeginShaderMode(FCloudShader);
     DrawModel(FCloudModel, Vector3Create(FCamera.position.x, 150, FCamera.position.z), 1.0, WHITE);

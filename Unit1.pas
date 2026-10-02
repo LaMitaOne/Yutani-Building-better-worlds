@@ -1,7 +1,7 @@
 unit Unit1;
 
 {==============================================================================*
- *  Mainform of raylib sandbox & jolt phsics v0.63
+ *  Mainform of raylib sandbox & jolt phsics v0.64
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -80,6 +80,8 @@ type
     tbMasterVolume: TTrackBar;
     lblMasterVolume: TLabel;
     btnTestSFX: TButton;
+    cbWorldBase: TComboBox;
+    lblWorldBase: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -122,6 +124,7 @@ type
     procedure btnFullscreenClick(Sender: TObject);
     procedure tbMasterVolumeChange(Sender: TObject);
     procedure btnTestSFXClick(Sender: TObject);
+    procedure cbWorldBaseChange(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -338,6 +341,18 @@ end;
 procedure TForm1.chkSlowMotionClick(Sender: TObject);
 begin
   FSandbox.SetSlowMotion(chkSlowMotion.Checked);
+end;
+
+procedure TForm1.cbWorldBaseChange(Sender: TObject);
+var
+  SelectedWorld: TWorldBaseType;
+  Idx: Integer;
+begin
+  Idx := cbWorldBase.ItemIndex;
+  if Idx < 0 then Exit;
+  SelectedWorld := TWorldBaseType(Idx);
+  if Assigned(FSandbox) then
+    FSandbox.CurrentWorldBase := SelectedWorld;
 end;
 
 procedure TForm1.btnSceneSaveClick(Sender: TObject);
