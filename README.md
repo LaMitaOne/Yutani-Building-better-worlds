@@ -27,7 +27,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 Status: Work in Progress (Alpha v0.63)    
          
 <img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/fde3b666-3239-4fbc-8ffa-8dc7cca96a87" />
-     
+       
 ## ✨ Features     
 
 ### 🦾 Core Physics System (Jolt Physics)     
@@ -71,8 +71,8 @@ Status: Work in Progress (Alpha v0.63)
 * **Advanced Shading & Weather:** Custom GLSL shaders for real-time ambient/diffuse shading, moving procedural cloud layers, a horizon-to-zenith gradient skybox, and a full Day/Night progression cycle.    
 * **Dynamic Fake Shadows:** Shadow maps that scale in size and fade out realistically based on an object's Y-height.    
      
----    
-     
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/389ab4f3-4822-4042-b2c3-96f65ec53335" />
+         
 ## ⌨️ Controls    
 * **CTRL:** Toggle between Move / Rotate / Scale Gizmos    
 * **Middle Mouse Click + Drag:** Rotate Editor Camera    
