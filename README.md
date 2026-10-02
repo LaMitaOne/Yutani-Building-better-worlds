@@ -26,7 +26,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
            
 Status: Work in Progress (Alpha v0.63)    
          
-<img width="550" alt="Unbenannt" src="https://github.com/user-attachments/assets/cd3f12d5-3752-4585-9d49-bfa5002fc5ac" />    
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/fde3b666-3239-4fbc-8ffa-8dc7cca96a87" />
      
 ## ✨ Features     
 
