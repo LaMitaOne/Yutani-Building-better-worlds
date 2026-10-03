@@ -72,8 +72,8 @@ Status: Work in Progress (Alpha v0.641)
 * **Advanced Shading & Weather:** Custom GLSL shaders for real-time ambient/diffuse shading, moving procedural cloud layers, a horizon-to-zenith gradient skybox, and a full Day/Night progression cycle.    
 * **Dynamic Fake Shadows:** Shadow maps that scale in size and fade out realistically based on an object's Y-height.    
      
-<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/389ab4f3-4822-4042-b2c3-96f65ec53335" />
-         
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/f195e0bf-d0ee-48e2-a4aa-f3b9c437b8dd" />
+             
 ## ⌨️ Controls    
 * **CTRL:** Toggle between Move / Rotate / Scale Gizmos    
 * **Middle Mouse Click + Drag:** Rotate Editor Camera    
@@ -153,3 +153,6 @@ This project is licensed under the **Apache License 2.0** - see the LICENSE file
 ### 🛸 Trivia / Easter Egg      
 **Fun Fact:** The very first custom 3D `.glb` model successfully loaded and simulated into this engine's pipeline was the iconic **M577 Alien APC**. So choosing the name **Yutani** wasn't just a random sci-fi choice—it was practically hardcoded by fate! 🪐     
 Cultural Note: In Japanese, Yutani (由谷) translates to "Valley of Origin"...     
+
+<img height="500" alt="Unbenannt" src="https://github.com/user-attachments/assets/389ab4f3-4822-4042-b2c3-96f65ec53335" />   
+    
