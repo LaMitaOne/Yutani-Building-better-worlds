@@ -88,7 +88,9 @@ Latest Changes:
      
 v0.641:    
 
-    Added 3d working piano connected to tinysoundfont     
+    Added 3d working piano connected to tinysoundfont    
+
+<img height="150" alt="Unbenannt" src="https://github.com/user-attachments/assets/32c2bfca-4dd5-4b52-a5bb-6feca4320f42" />
      
 v0.64:    
      
