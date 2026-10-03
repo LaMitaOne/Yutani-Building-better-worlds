@@ -89,6 +89,8 @@ type
     seGravity: TSpinEdit;
     lblDestructable: TLabel;
     chkDestructable: TCheckBox;
+    btnPiano: TButton;
+    btnLoadSF2: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -136,6 +138,8 @@ type
     procedure chkAntialiasClick(Sender: TObject);
     procedure seGravityChange(Sender: TObject);
     procedure chkDestructableClick(Sender: TObject);
+    procedure btnPianoClick(Sender: TObject);
+    procedure btnLoadSF2Click(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -316,7 +320,7 @@ end;
 
 procedure TForm1.My3DButtonClick(Sender: TObject);
 begin
-  ShowMessage('Hello World vom 3D Button!');
+  ShowMessage('Hello World from 3D Button!');
 end;
 
 procedure TForm1.cbFPSChange(Sender: TObject);
@@ -519,6 +523,37 @@ procedure TForm1.btnGamepadCoreClick(Sender: TObject);
 begin
   //--
   Form2.Show;
+end;
+
+procedure TForm1.btnLoadSF2Click(Sender: TObject);
+begin
+  // Set filter to Soundfont files
+  OpenDialog1.Filter := 'SoundFont 2 (*.sf2)|*.sf2';
+
+  // Set initial directory to the audio resources folder
+  OpenDialog1.InitialDir := ExtractFilePath(ParamStr(0)) + 'ressources\audio';
+
+  if OpenDialog1.Execute then
+  begin
+    try
+      // Check if the sandbox and audio engine exist
+      if Assigned(FSandbox) then
+      begin
+        // Load the Soundfont!
+        FSandbox.FYutaniAudio.LoadSoundfont(OpenDialog1.FileName);
+        ShowMessage('Soundfont loaded successfully!');
+      end
+      else
+        ShowMessage('Audio Engine is not initialized.');
+    except
+      on E: Exception do
+        ShowMessage('Error loading Soundfont: ' + E.Message);
+    end;
+  end;
+end;
+procedure TForm1.btnPianoClick(Sender: TObject);
+begin
+ FSandbox.SpawnPiano;
 end;
 
 procedure TForm1.btnPlayPauseClick(Sender: TObject);

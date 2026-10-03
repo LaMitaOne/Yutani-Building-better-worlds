@@ -133,6 +133,8 @@ type
     FButtonTexture: TTexture2D;
     FModelPath: string;
     FVideoTexture: TTexture2D;
+    MidiNote: Integer;
+    IsPianoKey: Boolean;
     constructor Create(AOwner: TComponent); overload; override;
     constructor Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean = False; IsDestructable: Boolean = False; APos: PJPH_RVec3 = nil; ARot: PJPH_Quat = nil); reintroduce; overload;
     destructor Destroy; override;
@@ -430,7 +432,6 @@ begin
   FModelTransform := MatrixIdentity();
   FShapeType := AShapeType;
 
-  // NEW: Cache the static flag
   FIsStatic := IsStatic;
   FIsDestructable := IsDestructable;
 

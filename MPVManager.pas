@@ -45,55 +45,41 @@ begin
   if Result = nil then
     Result := Winapi.Windows.GetProcAddress(GetModuleHandle('opengl32.dll'), name);
 end;
-
 { TMPVPlayer }
 
 constructor TMPVPlayer.Create(W, H: Integer);
 begin
   if not LoadMPV then
     raise Exception.Create('mpv-2.dll not found or failed to load');
-
   FTarget := LoadRenderTexture(W, H);
   SetTextureFilter(FTarget.texture, TEXTURE_FILTER_TRILINEAR);
-
   FMPV := mpv_create();
   if FMPV = nil then
     raise Exception.Create('Failed to create mpv handle');
-
   mpv_set_option_string(FMPV, 'vo', 'libmpv');
   mpv_set_option_string(FMPV, 'hwdec', 'auto');
-
   mpv_set_option_string(FMPV, 'opengl', 'yes');
   mpv_set_option_string(FMPV, 'opengl-debug', 'yes');
-
   mpv_set_option_string(FMPV, 'ao', 'auto');
   mpv_set_option_string(FMPV, 'audio-display', 'no');
   mpv_set_option_string(FMPV, 'vid', '1');
-
   mpv_set_option_string(FMPV, 'video-sync', 'audio');
   mpv_set_option_string(FMPV, 'audio-buffer', '0.2');
-
   if mpv_initialize(FMPV) < 0 then
     raise Exception.Create('Failed to initialize mpv');
-
   FInitParams.get_proc_address := @get_proc_address;
   FInitParams.get_proc_address_ctx := nil;
-
   FParams[0]._type := MPV_RENDER_PARAM_OPENGL_INIT_PARAMS;
   FParams[0].data := @FInitParams;
   FParams[1]._type := MPV_RENDER_PARAM_API_TYPE;
   FParams[1].data := MPV_RENDER_API_TYPE_OPENGL;
   FParams[2]._type := MPV_RENDER_PARAM_INVALID;
   FParams[2].data := nil;
-
   FRenderCtx := nil;
   if mpv_render_context_create(@FRenderCtx, FMPV, @FParams[0]) < 0 then
     raise Exception.Create('Failed to create mpv render context');
-
   mpv_render_context_set_update_callback(FRenderCtx, mpv_update_callback, nil);
-
   FHasRenderContext := True;
-
   if FPendingFile <> '' then
     LoadFile(FPendingFile);
 end;
@@ -122,12 +108,9 @@ begin
       Event := mpv_wait_event(FMPV, 0);
       if Event = nil then
         Break;
-
       EventID := PInteger(Event)^;
-
       if EventID = 0 then
         Break;
-
     end;
   end;
 end;
@@ -152,26 +135,20 @@ var
 begin
   if FRenderCtx = nil then
     Exit;
-
   UpdateFlags := mpv_render_context_update(FRenderCtx);
-
   if (UpdateFlags and MPV_RENDER_UPDATE_FRAME) = 0 then
     Exit;
-
   FFBO.fbo := FTarget.id;
   FFBO.w := FTarget.texture.width;
   FFBO.h := FTarget.texture.height;
   FFBO.internal_format := 0;
-
   FFlipY := 0;
-
   FFBOParams[0]._type := MPV_RENDER_PARAM_OPENGL_FBO;
   FFBOParams[0].data := @FFBO;
   FFBOParams[1]._type := MPV_RENDER_PARAM_FLIP_Y;
   FFBOParams[1].data := @FFlipY;
   FFBOParams[2]._type := MPV_RENDER_PARAM_INVALID;
   FFBOParams[2].data := nil;
-
   mpv_render_context_render(FRenderCtx, @FFBOParams[0]);
 end;
 
