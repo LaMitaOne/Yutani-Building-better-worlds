@@ -24,9 +24,9 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.63)    
+Status: Work in Progress (Alpha v0.64)    
          
-<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/fde3b666-3239-4fbc-8ffa-8dc7cca96a87" />
+<img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
        
 ## ✨ Features     
 
@@ -85,6 +85,17 @@ Status: Work in Progress (Alpha v0.63)
   Exe and sample project included    
       
 Latest Changes:     
+     
+v0.64:    
+     
+    Added TWorldBaseType = wbLand, wbSpace, wbHolodeck, wbIsland
+    Added WorldBase selection combobox in engine tab
+    Added TSpawnEffectType = spefNone, spefBeam, spefFade
+    Added Checkbox chkAntialias
+    Added Spinedit to set Gravity
+    Added isDestructable Checkbox and property in TA3DComponent/SpawnREquest
+    Improved Lighting System Reworked the GLSL light shader to prevent color washing on lit surfaces. Lighting is now calculated multiplicatively, preserving deep blacks and vibrant base colors while ensuring shadows darken surfaces correctly.
+    Added Yutani.VoronoiFracture unit
      
 v0.63:    
      
