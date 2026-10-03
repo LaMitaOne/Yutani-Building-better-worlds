@@ -3,16 +3,13 @@
 ********************************************************************************
   A pure Delphi implementation of 3D Voronoi mesh fracturing algorithms.
   Calculates structural fragmentation using Sutherland-Hodgman clipping.
-
   Key Features:
   - 3D Vector Math: Custom TVec3 record with inline operators for physics/math.
   - Sutherland-Hodgman Clipping: Slices convex meshes by arbitrary planes.
   - Newell's Method: Calculates robust surface normals for non-planar caps.
   - Voronoi Cell Generation: Bisects a base mesh with planes equidistant to
     neighboring seeds to produce solid convex fragments.
-
    Author: Lara Miriam Tamy Reschke / LamitaOne
-
 *******************************************************************************}
 
 unit Yutani.VoronoiFracture;
@@ -115,7 +112,6 @@ begin
   Result.Y := (Z * B.X) - (X * B.Z);
   Result.Z := (X * B.Y) - (Y * B.X);
 end;
-
 { --- 3D Sutherland-Hodgman Clipping Engine --- }
 
 // Clips a convex polygon by a single plane, tracking intersection points for cap generation
@@ -180,7 +176,6 @@ begin
   if Length(Poly) > 0 then
     Result := Result * (1.0 / Length(Poly));
 end;
-
 // Newell's method provides robust normals even for non-perfectly-planar polygons
 function CalculateNewellsNormal(const Poly: TPolygon): TVec3;
 var
@@ -204,7 +199,6 @@ begin
 
   Result := Result.Normalize;
 end;
-
 // Sorts cap vertices Counter-Clockwise relative to the normal to prevent invalid triangulation
 procedure SortCapPolygonCCW(var Poly: TPolygon; const Normal: TVec3);
 var
@@ -263,7 +257,6 @@ begin
     end;
   end;
 end;
-
 // Clips an entire mesh by a plane, adding a cap polygon where intersections occurred
 function ClipMeshByPlane(const Mesh: TPolyMesh; const Plane: TPlane): TPolyMesh;
 var
@@ -301,7 +294,6 @@ begin
     Result[High(Result)] := Intersections;
   end;
 end;
-
 { --- The Voronoi Core --- }
 
 // Generates Voronoi fragments by iteratively slicing the base mesh with bisection planes
