@@ -11716,7 +11716,7 @@ object Form1: TForm1
       WordWrap = True
     end
     object btnToolDragThrow: TButton
-      Left = 905
+      Left = 901
       Top = 6
       Width = 90
       Height = 25
@@ -11724,10 +11724,10 @@ object Form1: TForm1
       Caption = 'Drag n Throw'
       TabOrder = 0
       OnClick = btnToolDragThrowClick
-      ExplicitLeft = 901
+      ExplicitLeft = 897
     end
     object btnPlayPause: TButton
-      Left = 1001
+      Left = 997
       Top = 6
       Width = 90
       Height = 25
@@ -11735,10 +11735,10 @@ object Form1: TForm1
       Caption = 'play/pause'
       TabOrder = 1
       OnClick = btnPlayPauseClick
-      ExplicitLeft = 997
+      ExplicitLeft = 993
     end
     object btnShoot: TButton
-      Left = 809
+      Left = 805
       Top = 6
       Width = 90
       Height = 25
@@ -11746,7 +11746,7 @@ object Form1: TForm1
       Caption = 'Shoot'
       TabOrder = 2
       OnClick = btnShootClick
-      ExplicitLeft = 805
+      ExplicitLeft = 801
     end
   end
   object Panel2: TPanel
@@ -11798,14 +11798,12 @@ object Form1: TForm1
           Height = 617
           Align = alClient
           Brush.Color = clBlack
-          ExplicitLeft = 88
-          ExplicitTop = 232
-          ExplicitWidth = 65
-          ExplicitHeight = 65
+          ExplicitLeft = 2
+          ExplicitTop = -2
         end
         object lblstatic: TLabel
-          Left = 143
-          Top = 21
+          Left = 114
+          Top = 18
           Width = 28
           Height = 15
           Caption = 'static'
@@ -11818,11 +11816,11 @@ object Form1: TForm1
           Transparent = True
         end
         object lblDestructable: TLabel
-          Left = 143
-          Top = 44
-          Width = 46
+          Left = 114
+          Top = 41
+          Width = 65
           Height = 15
-          Caption = 'destruct.'
+          Caption = 'destructable'
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clSilver
           Font.Height = -12
@@ -11845,36 +11843,36 @@ object Form1: TForm1
         object btnSpawnCubes: TButton
           Left = 13
           Top = 17
-          Width = 98
+          Width = 74
           Height = 25
-          Caption = 'Spawn Cubes'
+          Caption = 'Cube'
           TabOrder = 1
           OnClick = btnSpawnCubesClick
         end
         object btnSpawnSpheres: TButton
           Left = 13
           Top = 46
-          Width = 98
+          Width = 74
           Height = 25
-          Caption = 'Spawn Spheres'
+          Caption = 'Spheres'
           TabOrder = 2
           OnClick = btnSpawnSpheresClick
         end
         object btnSpawnPyramids: TButton
           Left = 13
           Top = 75
-          Width = 98
+          Width = 74
           Height = 25
-          Caption = 'Spawn Pyramids'
+          Caption = 'Pyramids'
           TabOrder = 3
           OnClick = btnSpawnPyramidsClick
         end
         object btnSpawnCapsules: TButton
           Left = 13
           Top = 104
-          Width = 98
+          Width = 74
           Height = 25
-          Caption = 'Spawn Capsule'
+          Caption = 'Capsule'
           TabOrder = 4
           OnClick = btnSpawnCapsulesClick
         end
@@ -11903,18 +11901,18 @@ object Form1: TForm1
         object btnSpawn3DModel: TButton
           Left = 13
           Top = 166
-          Width = 98
+          Width = 74
           Height = 25
-          Caption = 'Spawn 3d model'
+          Caption = '3d model'
           TabOrder = 7
           OnClick = btnSpawn3DModelClick
         end
         object btnSpawnPrisms: TButton
           Left = 13
           Top = 135
-          Width = 98
+          Width = 74
           Height = 25
-          Caption = 'Spawn Prism'
+          Caption = 'Prism'
           TabOrder = 8
           OnClick = btnSpawnPrismsClick
         end
@@ -11962,43 +11960,43 @@ object Form1: TForm1
         end
         object btnSpawnSandbox: TButton
           Left = 13
-          Top = 259
-          Width = 98
+          Top = 313
+          Width = 74
           Height = 25
-          Caption = 'Spawn Sandbox'
+          Caption = 'Sandbox'
           TabOrder = 12
           OnClick = btnSpawnSandboxClick
         end
         object btnSpawnWall: TButton
-          Left = 13
-          Top = 290
-          Width = 98
+          Left = 101
+          Top = 282
+          Width = 74
           Height = 25
-          Caption = 'Spawn Wall'
+          Caption = 'Wall'
           TabOrder = 13
           OnClick = btnSpawnWallClick
         end
         object btnSpawnBomb: TButton
           Left = 13
-          Top = 197
-          Width = 98
+          Top = 251
+          Width = 74
           Height = 25
-          Caption = 'Spawn Bomb'
+          Caption = 'Bomb'
           TabOrder = 14
           OnClick = btnSpawnBombClick
         end
         object btnSpawnButton: TButton
           Left = 13
-          Top = 228
-          Width = 98
+          Top = 282
+          Width = 74
           Height = 25
-          Caption = 'Spawn Button'
+          Caption = 'Button'
           TabOrder = 15
           OnClick = btnSpawnButtonClick
         end
         object chkStatic: TCheckBox
-          Left = 125
-          Top = 21
+          Left = 96
+          Top = 18
           Width = 16
           Height = 17
           Hint = 'spawn static'
@@ -12017,17 +12015,17 @@ object Form1: TForm1
           OnClick = chkStaticClick
         end
         object btnSpawnScreens: TButton
-          Left = 13
-          Top = 321
-          Width = 98
+          Left = 101
+          Top = 313
+          Width = 74
           Height = 25
-          Caption = 'Spawn Screens'
+          Caption = 'Screens'
           TabOrder = 17
           OnClick = btnSpawnScreensClick
         end
         object chkDestructable: TCheckBox
-          Left = 125
-          Top = 44
+          Left = 96
+          Top = 41
           Width = 16
           Height = 17
           Hint = 'spawn static'
@@ -12044,6 +12042,15 @@ object Form1: TForm1
           TabOrder = 18
           StyleElements = [seClient, seBorder]
           OnClick = chkDestructableClick
+        end
+        object btnPiano: TButton
+          Left = 101
+          Top = 251
+          Width = 74
+          Height = 25
+          Caption = 'Piano'
+          TabOrder = 19
+          OnClick = btnPianoClick
         end
       end
       object tsEngine: TTabSheet
@@ -12400,13 +12407,22 @@ object Form1: TForm1
           OnChange = tbMasterVolumeChange
         end
         object btnTestSFX: TButton
-          Left = 29
-          Top = 134
+          Left = 13
+          Top = 94
           Width = 98
           Height = 25
           Caption = 'Test audio'
           TabOrder = 1
           OnClick = btnTestSFXClick
+        end
+        object btnLoadSF2: TButton
+          Left = 13
+          Top = 286
+          Width = 98
+          Height = 25
+          Caption = 'Load sf2'
+          TabOrder = 2
+          OnClick = btnLoadSF2Click
         end
       end
     end
