@@ -6,7 +6,7 @@ Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, Re
         
 <img width="1671" height="941" alt="yutani_wallpaper3" src="https://github.com/user-attachments/assets/bcce1fa4-51e7-4e91-a5a3-9275fb71967e" />
          
-Sample video: https://youtu.be/EaJqNMYcxJo        
+Sample video: https://youtu.be/uUjvsre8F4g         
     
 Welcome to **Yutani**, a cutting-edge, fully asynchronous 3D Multimedia & Physics Engine written from scratch in Object Pascal.    
     
