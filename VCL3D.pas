@@ -1,7 +1,7 @@
 unit VCL3D;
 
 {==============================================================================*
- *  VCL3D v0.60 - High-Level Spawning Utilities for TRaylibSandbox
+ *  VCL3D v0.64 - High-Level Spawning Utilities for TRaylibSandbox
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -53,7 +53,7 @@ begin
   // Configure the request for solid, static walls
   Req.Shape := stBox;
   Req.IsStatic := True; // Static bodies won't fall over or be affected by physics
-  Req.Color := Fade(DARKGRAY, 0.9);
+  Req.Color := ColorCreate(20, 20, 20, 255);
 
   // Back Wall
   Req.Size := Vector3Create(100, 20, 1);
@@ -104,6 +104,7 @@ begin
   Req.Shape := stBox;
   Req.Size := Vector3Create(BrickSize, BrickSize, BrickSize);
   Req.IsStatic := False; // Always dynamic so the bomb can destroy them!
+  Req.IsDestructable := True;
   Req.Color := MAROON;
   Req.GenerateTestTexture := False;
 
@@ -151,6 +152,7 @@ begin
   Req.Pos := APos;
   Req.Size := ASize;
   Req.IsStatic := True; // Buttons shouldn't fall via gravity
+  Req.IsDestructable := False;
   Req.Name := 'UI_Button_' + ACaption;
   Req.GenerateTestTexture := False;
 
@@ -177,27 +179,22 @@ var
 begin
   if not Assigned(Sandbox) then
     Exit;
-
   // Define 10 different colors for testing
   Colors[0] := RED; Colors[1] := GREEN; Colors[2] := BLUE; Colors[3] := YELLOW;
   Colors[4] := MAGENTA; Colors[5] := ORANGE; Colors[6] := PURPLE; Colors[7] := PINK;
   Colors[8] := LIME; Colors[9] := SKYBLUE;
-
   ScreenWidth := 8.0;
   ScreenHeight := 4.5;
   ScreenDepth := 0.5;
-
   SpacingX := ScreenWidth + 2.0;
   SpacingY := ScreenHeight + 2.0;
-
   StartX := -((5 - 1) * SpacingX) / 2.0;
   StartY := 10.0 + ((2 - 1) * SpacingY) / 2.0;
   StartZ := -20.0;
-
   Req.Shape := stBox;
   Req.IsStatic := True;
+  Req.IsDestructable := False;
   Req.GenerateTestTexture := True; // Tell Raylib thread to make a texture
-
   i := 0;
   for Row := 0 to 1 do
   begin
@@ -206,12 +203,10 @@ begin
       PosX := StartX + (Col * SpacingX);
       PosY := StartY - (Row * SpacingY);
       PosZ := StartZ;
-
       Req.Pos := Vector3Create(PosX, PosY, PosZ);
       Req.Size := Vector3Create(ScreenWidth, ScreenHeight, ScreenDepth);
       Req.Color := Colors[i]; // Use this color for the generated texture
       Req.Name := 'Screen_' + IntToStr(i+1);
-
       Sandbox.QueueCustomSpawn(Req);
       Inc(i);
     end;

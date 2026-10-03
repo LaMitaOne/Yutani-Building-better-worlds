@@ -11817,6 +11817,20 @@ object Form1: TForm1
           ParentFont = False
           Transparent = True
         end
+        object lblDestructable: TLabel
+          Left = 143
+          Top = 44
+          Width = 46
+          Height = 15
+          Caption = 'destruct.'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clSilver
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+          Transparent = True
+        end
         object btnClearScene: TButton
           Left = 65
           Top = 583
@@ -11982,7 +11996,7 @@ object Form1: TForm1
           TabOrder = 15
           OnClick = btnSpawnButtonClick
         end
-        object cbStatic: TCheckBox
+        object chkStatic: TCheckBox
           Left = 125
           Top = 21
           Width = 16
@@ -12000,7 +12014,7 @@ object Form1: TForm1
           ParentFont = False
           TabOrder = 16
           StyleElements = [seClient, seBorder]
-          OnClick = cbStaticClick
+          OnClick = chkStaticClick
         end
         object btnSpawnScreens: TButton
           Left = 13
@@ -12010,6 +12024,26 @@ object Form1: TForm1
           Caption = 'Spawn Screens'
           TabOrder = 17
           OnClick = btnSpawnScreensClick
+        end
+        object chkDestructable: TCheckBox
+          Left = 125
+          Top = 44
+          Width = 16
+          Height = 17
+          Hint = 'spawn static'
+          Color = clBlack
+          Ctl3D = True
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clSilver
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentColor = False
+          ParentCtl3D = False
+          ParentFont = False
+          TabOrder = 18
+          StyleElements = [seClient, seBorder]
+          OnClick = chkDestructableClick
         end
       end
       object tsEngine: TTabSheet
@@ -12036,7 +12070,7 @@ object Form1: TForm1
         end
         object lblDaynightspeed: TLabel
           Left = 32
-          Top = 142
+          Top = 166
           Width = 35
           Height = 15
           Caption = 'Speed:'
@@ -12049,10 +12083,36 @@ object Form1: TForm1
         end
         object lblWorldBase: TLabel
           Left = 16
-          Top = 296
+          Top = 328
           Width = 59
           Height = 15
           Caption = 'WorldBase:'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblSpanEffect: TLabel
+          Left = 16
+          Top = 384
+          Width = 71
+          Height = 15
+          Caption = 'Spawn effect:'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object cbGravity: TLabel
+          Left = 32
+          Top = 196
+          Width = 40
+          Height = 15
+          Caption = 'Gravity:'
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clBlack
           Font.Height = -12
@@ -12093,7 +12153,7 @@ object Form1: TForm1
         end
         object chkDistanceCulling: TCheckBox
           Left = 16
-          Top = 81
+          Top = 105
           Width = 105
           Height = 17
           Caption = 'Distance culling'
@@ -12113,7 +12173,7 @@ object Form1: TForm1
         end
         object cbFrustumCulling: TCheckBox
           Left = 16
-          Top = 58
+          Top = 82
           Width = 129
           Height = 17
           Caption = 'Frustum culling'
@@ -12133,7 +12193,7 @@ object Form1: TForm1
         end
         object chkHighlightCollision: TCheckBox
           Left = 16
-          Top = 186
+          Top = 236
           Width = 145
           Height = 17
           Caption = 'Highlight Collision'
@@ -12142,7 +12202,7 @@ object Form1: TForm1
         end
         object chkDayNightRythm: TCheckBox
           Left = 16
-          Top = 112
+          Top = 136
           Width = 105
           Height = 17
           Caption = 'DayNight rythm'
@@ -12162,7 +12222,7 @@ object Form1: TForm1
         end
         object TimePicker1: TTimePicker
           Left = 127
-          Top = 108
+          Top = 132
           Width = 57
           Height = 25
           Font.Charset = DEFAULT_CHARSET
@@ -12177,7 +12237,7 @@ object Form1: TForm1
         end
         object SpDistance: TSpinEdit
           Left = 127
-          Top = 78
+          Top = 102
           Width = 57
           Height = 24
           EditorEnabled = False
@@ -12189,7 +12249,7 @@ object Form1: TForm1
         end
         object seDayNightspeed: TSpinEdit
           Left = 127
-          Top = 139
+          Top = 163
           Width = 57
           Height = 24
           MaxValue = 1000
@@ -12200,7 +12260,7 @@ object Form1: TForm1
         end
         object chkSlowMotion: TCheckBox
           Left = 16
-          Top = 219
+          Top = 259
           Width = 105
           Height = 17
           Caption = 'Slow Motion'
@@ -12217,8 +12277,8 @@ object Form1: TForm1
           OnClick = chkSlowMotionClick
         end
         object btnFullscreen: TButton
-          Left = 21
-          Top = 262
+          Left = 13
+          Top = 470
           Width = 98
           Height = 25
           Caption = 'Fullscreen'
@@ -12227,7 +12287,7 @@ object Form1: TForm1
         end
         object cbWorldBase: TComboBox
           Left = 16
-          Top = 317
+          Top = 349
           Width = 145
           Height = 23
           Font.Charset = DEFAULT_CHARSET
@@ -12245,6 +12305,57 @@ object Form1: TForm1
             'Space'
             'Holodeck'
             'Island')
+        end
+        object cbSpawnEffects: TComboBox
+          Left = 16
+          Top = 405
+          Width = 145
+          Height = 23
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ItemIndex = 2
+          ParentFont = False
+          TabOrder = 11
+          Text = 'Fade'
+          OnChange = cbSpawnEffectsChange
+          Items.Strings = (
+            'None'
+            'Beam'
+            'Fade')
+        end
+        object chkAntialias: TCheckBox
+          Left = 16
+          Top = 59
+          Width = 129
+          Height = 17
+          Caption = 'Antialias'
+          Checked = True
+          Color = clBlack
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentColor = False
+          ParentFont = False
+          State = cbChecked
+          TabOrder = 12
+          StyleElements = [seClient, seBorder]
+          OnClick = chkAntialiasClick
+        end
+        object seGravity: TSpinEdit
+          Left = 127
+          Top = 193
+          Width = 57
+          Height = 24
+          MaxValue = 50
+          MinValue = -50
+          TabOrder = 13
+          Value = 1
+          OnChange = seGravityChange
         end
       end
       object tsControls: TTabSheet

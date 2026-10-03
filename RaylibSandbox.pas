@@ -83,6 +83,7 @@ type
     Pos: TVector3;
     Size: TVector3;
     IsStatic: Boolean;
+    IsDestructable: Boolean;
     Name: string;
     Color: TColorB;
     Caption: string;
@@ -93,6 +94,18 @@ type
   end;
 
   TWorldBaseType = (wbLand, wbSpace, wbHolodeck, wbIsland);
+
+  // Spawn effect types for manual and scripted spawns
+  TSpawnEffectType = (spefNone, spefBeam, spefFade);
+
+  // Record to track an active spawn effect
+  TSpawnEffect = record
+    Position: TVector3;
+    StartTime: Double;
+    Duration: Single;
+    EffectType: TSpawnEffectType;
+    TargetActor: TA3DComponent;
+  end;
 
   TRaylibSandbox = class;
 
@@ -269,6 +282,12 @@ type
     //base world
     FCurrentWorldBase: TWorldBaseType;
 
+    // Spawn Effect System
+    FSpawnEffectType: TSpawnEffectType;
+    FActiveSpawnEffects: TArray<TSpawnEffect>;
+    FAntiAliasing: Boolean;
+    FGravity: Single;
+
     procedure UpdateBomb(dt: Single);
     procedure ExplodeBomb;
 
@@ -325,6 +344,12 @@ type
     procedure ExecuteSceneLoad(const FileName: string);
 
     procedure DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
+   // Spawn Effect Methods
+    procedure TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
+    procedure DrawSpawnEffects;
+
+    procedure SetAntiAliasing(const Value: Boolean);
+    procedure SetGravity(const Value: Single);
   protected
     procedure Resize; override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
@@ -335,6 +360,7 @@ type
     FMouseLeftHandled: Boolean;
     FSandboxSpawned: Boolean;
     FSpawnStatic: Boolean;
+    FSpawnDestructable: Boolean;
     FGhostVisible: Boolean;
     FIsBrushActive: Boolean;
     FAudioEngine: ma_engine;
@@ -395,6 +421,9 @@ type
     property DayNightTime: Single read FDayTime write SetDayNightTime;
     property DayNightSpeed: Single read FDaySpeed write SetDayNightSpeed;
     property CurrentWorldBase: TWorldBaseType read FCurrentWorldBase write SetWorldBase;
+    property SpawnEffectType: TSpawnEffectType read FSpawnEffectType write FSpawnEffectType default spefNone;
+    property AntiAliasing: Boolean read FAntiAliasing write SetAntiAliasing default True;
+    property Gravity: Single read FGravity write SetGravity;
   end;
 
 implementation
@@ -473,6 +502,7 @@ begin
   FSpawnTimer := 0.0;
   FSpawnShape := stBox;
   FSpawnStatic := False;
+  FSpawnDestructable := False;
   FClearItemsQueued := False;
   FShootCooldown := 0.0;
   FIsBrushActive := false;
@@ -520,6 +550,12 @@ begin
 
   // BASE WORLD INITIALIZATION: Default to wbHolodeck
   FCurrentWorldBase := wbHolodeck;
+
+  // Initialize Spawn Effect System
+  FSpawnEffectType := spefFade;
+  FActiveSpawnEffects := nil;
+  FAntiAliasing := True;
+  FGravity := -9.81;
 end;
 
 destructor TRaylibSandbox.Destroy;
@@ -649,6 +685,43 @@ begin
   end;
 end;
 
+procedure TRaylibSandbox.SetAntiAliasing(const Value: Boolean);
+begin
+  if FAntiAliasing <> Value then
+  begin
+    FAntiAliasing := Value;
+
+    // Anti-Aliasing requires re-creating the Raylib window,
+    // so we restart the thread if the engine is already running.
+    if FInitialized then
+    begin
+      StopThread;
+      // Give the OS a tiny moment to clean up the HWND
+      Sleep(50);
+      StartThread;
+    end;
+  end;
+end;
+
+procedure TRaylibSandbox.SetGravity(const Value: Single);
+var
+  GravVec: JPH_Vec3;
+begin
+  if FGravity <> Value then
+  begin
+    FGravity := Value;
+
+    // Apply gravity live to Jolt Physics if engine is running
+    if Assigned(FEngine) then
+    begin
+      GravVec.x := 0;
+      GravVec.y := FGravity;
+      GravVec.z := 0;
+      JPH_PhysicsSystem_SetGravity(FEngine.PhysicsSystem, @GravVec);
+    end;
+  end;
+end;
+
 procedure TRaylibSandbox.SetBrush(AShape: TShapeType);
 begin
   FBrushShape := AShape;
@@ -694,9 +767,20 @@ const
   VERT: AnsiString = '#version 330' + #10 + 'in vec3 vertexPosition;' + #10 + 'in vec3 vertexNormal;' + #10 + 'in vec2 vertexTexCoord;' + #10 + 'in vec4 vertexColor;' + #10 + 'uniform mat4 mvp;' + #10 + 'uniform mat4 matModel;' + #10 + 'uniform mat4 lightView;' + #10 + 'uniform mat4 lightProj;' + #10 + 'out vec3 vNormal;' + #10 + 'out vec2 vTexCoord;' + #10 + 'out vec4 vColor;' + #10 + 'out vec4 vWorldPos;' + #10 + 'out vec4 vLightSpacePos;' + #10 + 'void main()' + #10 + '{' + #10 +
     '  vWorldPos = matModel * vec4(vertexPosition, 1.0);' + #10 + '  vNormal = normalize(mat3(matModel) * vertexNormal);' + #10 + '  vTexCoord = vertexTexCoord;' + #10 + '  vColor = vertexColor;' + #10 + '  vLightSpacePos = lightProj * lightView * vWorldPos;' + #10 + '  gl_Position = mvp * vec4(vertexPosition, 1.0);' + #10 + '}';
   FRAG: AnsiString = '#version 330' + #10 + 'in vec3 vNormal;' + #10 + 'in vec2 vTexCoord;' + #10 + 'in vec4 vColor;' + #10 + 'in vec4 vWorldPos;' + #10 + 'in vec4 vLightSpacePos;' + #10 + 'uniform vec3 lightPos;' + #10 + 'uniform vec3 viewPos;' + #10 + 'uniform vec4 ambient;' + #10 + 'uniform vec4 diffuse;' + #10 + 'uniform sampler2D texture0;' + #10 + 'uniform sampler2D shadowMap;' + #10 + 'uniform float shadowBias;' + #10 + 'out vec4 finalColor;' + #10 + 'void main()' + #10 + '{' + #10 +
-    '  vec3 lightDir = normalize(lightPos - vWorldPos.xyz);' + #10 + '  vec3 normal = normalize(vNormal);' + #10 + '  float diff = max(dot(normal, lightDir), 0.0);' + #10 + '  vec4 texColor = texture(texture0, vTexCoord);' + #10 + 'vec4 baseColor = vec4(vColor.rgb, 1.0) * vec4(texColor.rgb, 1.0);' + #10 + '  vec4 ambientColor = ambient * baseColor;' + #10 + '  vec4 diffuseColor = diffuse * diff * baseColor;' + #10 + '  vec3 projCoords = vLightSpacePos.xyz / vLightSpacePos.w;' + #10 +
-    '  projCoords = projCoords * 0.5 + 0.5;' + #10 + '  float shadow = 0.0;' + #10 + '  if(projCoords.z <= 1.0 && projCoords.x >= 0.0 && projCoords.x <= 1.0 && projCoords.y >= 0.0 && projCoords.y <= 1.0) {' + #10 + '    float closestDepth = texture(shadowMap, projCoords.xy).r;' + #10 + '    float currentDepth = projCoords.z;' + #10 + '    shadow = currentDepth - shadowBias > closestDepth ? 1.0 : 0.0;' + #10 + '  }' + #10 + '  finalColor = ambientColor + diffuseColor * (1.0 - shadow);' + #10 + '}';  // Procedural Skybox Shader
-  SKYBOX_VERT: AnsiString = '#version 330' + #10 + 'in vec3 vertexPosition;' + #10 + 'out vec3 fragPosition;' + #10 + 'uniform mat4 projection;' + #10 + 'uniform mat4 view;' + #10 + 'void main()' + #10 + '{' + #10 + '  fragPosition = vertexPosition;' + #10 + '  mat4 rotView = mat4(mat3(view));' + #10 + // Remove translation
+    '  vec3 lightDir = normalize(lightPos - vWorldPos.xyz);' + #10 + '  vec3 normal = normalize(vNormal);' + #10 +
+    // Berechne wie viel Licht auf der Seite liegt (0 bis 1)
+    '  float diff = max(dot(normal, lightDir), 0.0);' + #10 +
+    '  vec4 texColor = texture(texture0, vTexCoord);' + #10 +
+    '  vec4 baseColor = vec4(vColor.rgb, vColor.a) * vec4(texColor.rgb, 1.0);' + #10 +
+    // Schatten berechnen
+    '  vec3 projCoords = vLightSpacePos.xyz / vLightSpacePos.w;' + #10 +
+    '  projCoords = projCoords * 0.5 + 0.5;' + #10 + '  float shadow = 0.0;' + #10 + '  if(projCoords.z <= 1.0 && projCoords.x >= 0.0 && projCoords.x <= 1.0 && projCoords.y >= 0.0 && projCoords.y <= 1.0) {' + #10 + '    float closestDepth = texture(shadowMap, projCoords.xy).r;' + #10 + '    float currentDepth = projCoords.z;' + #10 + '    shadow = currentDepth - shadowBias > closestDepth ? 1.0 : 0.0;' + #10 + '  }' + #10 +
+    // NEUE BELEUCHTUNGSFORMEL: Ambient + Diffuse * (1.0 - Shadow)
+    // Das Licht wird limitiert, sodass es nie heller als 1.0 wird!
+    '  float lightIntensity = ambient.r + (1.0 - ambient.r) * diff * (1.0 - shadow);' + #10 +
+    '  vec3 finalLight = diffuse.rgb * lightIntensity;' + #10 +
+    // Textur/Farbe mit Licht multiplizieren (Schwarz bleibt Schwarz, Farben verblassen nicht)
+    '  finalColor = vec4(baseColor.rgb * finalLight, baseColor.a * vColor.a);' + #10 + '}';    SKYBOX_VERT: AnsiString = '#version 330' + #10 + 'in vec3 vertexPosition;' + #10 + 'out vec3 fragPosition;' + #10 + 'uniform mat4 projection;' + #10 + 'uniform mat4 view;' + #10 + 'void main()' + #10 + '{' + #10 + '  fragPosition = vertexPosition;' + #10 + '  mat4 rotView = mat4(mat3(view));' + #10 +
     '  vec4 clipPos = projection * rotView * vec4(vertexPosition, 1.0);' + #10 + '  gl_Position = clipPos.xyww;' + #10 + // Force depth to 1.0 (background)
     '}';
   SKYBOX_FRAG: AnsiString = '#version 330' + #10 + 'in vec3 fragPosition;' + #10 + 'uniform float daytime;' + #10 + 'out vec4 finalColor;' + #10 + 'void main()' + #10 + '{' + #10 + '  vec3 dir = normalize(fragPosition);' + #10 + '  float t = dir.y * 0.5 + 0.5;' + #10 +
@@ -876,7 +960,10 @@ begin
     begin
       try
         try
-          SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE);
+          if FAntiAliasing then
+            SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE)
+          else
+            SetConfigFlags(FLAG_WINDOW_RESIZABLE);
           InitWindow(1280, 720, 'Raylib Sandbox');
           FRaylibWnd := FindWindow(nil, 'Raylib Sandbox');
           if FRaylibWnd <> 0 then
@@ -891,6 +978,12 @@ begin
             DoEngineException('Audio Engine Init failed: ' + IntToStr(AudioRes), 'AudioInit');
 
           FEngine := TModelEngine.Create;
+          // Apply initial Gravity
+          var InitGravVec: JPH_Vec3;
+          InitGravVec.x := 0;
+          InitGravVec.y := FGravity;
+          InitGravVec.z := 0;
+          JPH_PhysicsSystem_SetGravity(FEngine.PhysicsSystem, @InitGravVec);
           FCamYaw := -0.5;
           FCamPitch := 0.8;
           FCamDist := 60.0;
@@ -1048,6 +1141,7 @@ begin
     FBombActor := nil;
     FBombExploded := False;
     SetBrush(TShapeType(-1));
+    FActiveSpawnEffects := nil;
   finally
     FLock.Leave;
   end;
@@ -1130,7 +1224,7 @@ begin
   JRot.y := RandQuat.y;
   JRot.z := RandQuat.z;
   JRot.w := RandQuat.w;
-  Obj := TA3DComponent.Create('', FEngine, FSpawnShape, Size, FSpawnStatic, @JPos, @JRot);
+  Obj := TA3DComponent.Create('', FEngine, FSpawnShape, Size, FSpawnStatic, FSpawnDestructable, @JPos, @JRot);
   Obj.Name := Data^.Name;
   Obj.Friction := 0.2;
   Obj.Restitution := 0.2;
@@ -1251,7 +1345,7 @@ begin
   JRot.y := 0;
   JRot.z := 0;
   JRot.w := 1;
-  Obj := TA3DComponent.Create('', FEngine, stSphere, Size, False, @JPos, @JRot);
+  Obj := TA3DComponent.Create('', FEngine, stSphere, Size, False, false, @JPos, @JRot);
   Obj.Mass := 1.0;
   Obj.Friction := 0.2;
   Obj.Restitution := 0.2;
@@ -1434,7 +1528,6 @@ begin
   end
   else
     FSpawnButton5WasDown := False;
-
 
   // Handle Delete Key directly inside the sandbox thread
   if (GetAsyncKeyState(VK_DELETE) and $1) <> 0 then
@@ -1987,7 +2080,7 @@ begin
       NewRot.w := FItemSelected.Quaternion.w;
       NewSize := FItemSelected.Scale;
 
-      NewActor := TA3DComponent.Create('', FEngine, FItemSelected.ShapeType, NewSize, FSpawnStatic, @NewPos, @NewRot);
+      NewActor := TA3DComponent.Create('', FEngine, FItemSelected.ShapeType, NewSize, FSpawnStatic, FSpawnDestructable, @NewPos, @NewRot);
       NewActor.Friction := FItemSelected.Friction;
       NewActor.Restitution := FItemSelected.Restitution;
       NewActor.TargetColor := FItemSelected.TargetColor;
@@ -2515,7 +2608,7 @@ begin
   JRot.z := 0;
   JRot.w := 1;
 
-  Obj := TA3DComponent.Create('', FEngine, FBrushShape, Size, FSpawnStatic, @JPos, @JRot);
+  Obj := TA3DComponent.Create('', FEngine, FBrushShape, Size, FSpawnStatic, FSpawnDestructable, @JPos, @JRot);
   Obj.Name := Data^.Name;
 
   if FBrushShape = stModel then
@@ -2565,6 +2658,7 @@ begin
   Obj.SetRotation(QuaternionFromEuler(0, 0, 0));
   FItems[oldLen] := Obj;
   PlaySpawnSound;
+  TriggerSpawnEffect(Vector3Create(JPos.x, JPos.y, JPos.z), Obj);
   DoActorSpawned(Obj, oldLen);
 end;
 
@@ -2996,7 +3090,6 @@ begin
 
   EndTextureMode();
 end;
-
 // Custom procedure to draw a Holodeck-style grid with a specific color
 procedure TRaylibSandbox.DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
 var
@@ -3133,6 +3226,7 @@ var
     A: 255
   );
   begin
+    Result.a := Round(255 * A.ActAlpha);
     if A.CollisionHighlighting then
       Exit(COL_TEAL);
 
@@ -3236,6 +3330,7 @@ begin
   CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
 
   ModelMatLoc := GetShaderLocation(FLightShader, 'matModel');
+  rlSetBlendMode(BLEND_ALPHA);
 
   for i := 0 to FEngine.Count - 1 do
   begin
@@ -3272,7 +3367,9 @@ begin
       begin
         rlTranslatef(Actor.FModelOffset.x, Actor.FModelOffset.y, Actor.FModelOffset.z);
         rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-        DrawModel(Actor.FModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
+        var TintCol: TColorB := GetActorColor(Actor);
+        DrawModel(Actor.FModel, Vector3Create(0, 0, 0), 1.0, Fade(TintCol, Actor.ActAlpha));
+
       end
       else
       begin
@@ -3285,7 +3382,7 @@ begin
         ColorShaderVec[0] := C.r / 255.0; // Red (0.0 to 1.0)
         ColorShaderVec[1] := C.g / 255.0; // Green (0.0 to 1.0)
         ColorShaderVec[2] := C.b / 255.0; // Blue (0.0 to 1.0)
-        ColorShaderVec[3] := C.A / 255.0; // Alpha (0.0 to 1.0)
+        ColorShaderVec[3] := Actor.ActAlpha;
 
         // Send the color directly to the shader uniform
         SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
@@ -3314,7 +3411,17 @@ begin
           end
           else
           begin
+            // Assign a pure 1x1 WHITE texture to prevent Raylib's default 200,200,200 gray!
+            // We use FDefaultWhiteTex, but we need to make sure it is PURE white.
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
+
+            // We set the tint color via the shader uniform (vColor)
+            C:= GetActorColor(Actor);
+            ColorShaderVec[0] := C.r / 255.0;
+            ColorShaderVec[1] := C.g / 255.0;
+            ColorShaderVec[2] := C.b / 255.0;
+            ColorShaderVec[3] := C.A / 255.0;
+            SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
           end;
 
           rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
@@ -3467,6 +3574,8 @@ begin
       rlPopMatrix();
     end;
   end;
+
+  rlSetBlendMode(BLEND_ALPHA);
 
   // Selected Object
   if Assigned(FItemSelected) and FItemSelected.Visible then
@@ -3739,6 +3848,8 @@ begin
   dt := GetFrameTime();
   // Pass scaled time to projectiles so their lifespan checks sync with slow motion
   UpdateProjectiles(dt * FTimeScale);
+
+  DrawSpawnEffects;
 
   EndMode3D();
 end;
@@ -4246,7 +4357,7 @@ begin
   JRot.z := 0;
   JRot.w := 1;
 
-  Obj := TA3DComponent.Create('', FEngine, Req.Shape, Req.Size, Req.IsStatic, @JPos, @JRot);
+  Obj := TA3DComponent.Create('', FEngine, Req.Shape, Req.Size, Req.IsStatic, Req.IsDestructable, @JPos, @JRot);
   Obj.Name := Req.Name;
   Obj.Friction := 0.6;
   Obj.Restitution := 0.1;
@@ -4268,7 +4379,6 @@ begin
 
   Obj.TargetColor := Req.Color;
   Obj.ActColor := Req.Color;
-
 
   // If it's the bomb, set up the explosion timer
   if Req.Name = 'THE_BOMB' then
@@ -4420,7 +4530,6 @@ begin
   // Clear the reference
   FBombActor := nil;
 end;
-
 // External accessor to toggle slow motion from VCL/UI
 
 procedure TRaylibSandbox.SetSlowMotion(Active: Boolean);
@@ -4468,6 +4577,7 @@ begin
     SetLength(FItems, 0);
     FBombActor := nil;
     FBombExploded := False;
+    FActiveSpawnEffects := nil;
   finally
     FLock.Leave;
   end;
@@ -4647,7 +4757,7 @@ begin
           ModelPath := Reader.ReadStr;
 
           // Create the Actor natively
-          Actor := TA3DComponent.Create('', FEngine, ShapeType, Size, False, @JPos, @JRot);
+          Actor := TA3DComponent.Create('', FEngine, ShapeType, Size, False, false, @JPos, @JRot);
           Actor.Name := AName;
           Actor.Friction := Friction;
           Actor.Restitution := Restitution;
@@ -4696,6 +4806,106 @@ begin
   except
     on E: Exception do
       DoEngineException(E.Message, 'LoadSceneFromFile');
+  end;
+end;
+
+procedure TRaylibSandbox.TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
+var
+  Effect: TSpawnEffect;
+begin
+  // Abort if no effect is selected
+  if FSpawnEffectType = spefNone then
+    Exit;
+
+  Effect.Position := Pos;
+  Effect.StartTime := GetTime();
+  Effect.Duration := 1.5; // 1.5 seconds visual effect duration
+  Effect.EffectType := FSpawnEffectType;
+  Effect.TargetActor := Actor;
+
+  // Make the actor invisible at the start of the effect
+  if Assigned(Actor) then
+  begin
+    Actor.ActAlpha := 0.0;
+    Actor.TargetAlpha := 1.0; // Let ModelEngine Lerp it to fully visible
+  end;
+
+  // Add to active effects array
+  SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) + 1);
+  FActiveSpawnEffects[High(FActiveSpawnEffects)] := Effect;
+end;
+
+procedure TRaylibSandbox.DrawSpawnEffects;
+var
+  i: Integer;
+  Elapsed, Progress, Alpha, Flicker: Single;
+  BasePos, TopPos: TVector3;
+  OuterRadius, InnerRadius: Single;
+begin
+  for i := 0 to High(FActiveSpawnEffects) do
+  begin
+    Elapsed := GetTime() - FActiveSpawnEffects[i].StartTime;
+
+    // Skip expired effects
+    if Elapsed >= FActiveSpawnEffects[i].Duration then
+      Continue;
+
+    Progress := Elapsed / FActiveSpawnEffects[i].Duration;
+    Alpha := 1.0 - Progress;
+
+    // Flicker effect to simulate the classic Enterprise transporter shimmer
+    Flicker := 0.8 + (Random * 0.2);
+
+    BasePos := FActiveSpawnEffects[i].Position;
+    TopPos := Vector3Create(BasePos.x, BasePos.y + 150.0, BasePos.z);
+
+    // Draw Visuals
+    if FActiveSpawnEffects[i].EffectType = spefBeam then
+    begin
+      // ==============================================================
+      // ENTERPRISE BEAM EFFECT
+      // ==============================================================
+      OuterRadius := 1.5 + (Sin(GetTime() * 20.0) * 0.2);
+      InnerRadius := 0.5 + (Sin(GetTime() * 30.0) * 0.1);
+
+      // 1. Outer Glow Cone (narrow at top, wide at bottom)
+      DrawCylinderEx(TopPos, BasePos, OuterRadius * 0.3, OuterRadius, 16, Fade(GOLD, Alpha * 0.4 * Flicker));
+
+      // 2. Inner Core (solid bright light)
+      DrawCylinderEx(TopPos, BasePos, InnerRadius * 0.3, InnerRadius, 16, Fade(WHITE, Alpha * 0.9 * Flicker));
+
+      // 3. Base glow disc (illuminating the floor)
+      DrawCircle3D(BasePos, 2.5 + (Sin(GetTime() * 10.0) * 0.5), Vector3Create(1, 0, 0), 90.0, Fade(GOLD, Alpha * 0.7 * Flicker));
+    end
+    else if FActiveSpawnEffects[i].EffectType = spefFade then
+    begin
+      // ==============================================================
+      // SIMPLE FADE EFFECT
+      // ==============================================================
+      DrawSphere(BasePos, 0.5 + (Progress * 2.0), Fade(SKYBLUE, Alpha * 0.4));
+      DrawSphereWires(BasePos, 0.5 + (Progress * 2.0), 8, 8, Fade(WHITE, Alpha * 0.8));
+    end;
+  end;
+
+  // Cleanup expired effects to prevent memory leaks and array bloat
+  for i := High(FActiveSpawnEffects) downto 0 do
+  begin
+    if (GetTime() - FActiveSpawnEffects[i].StartTime) >= FActiveSpawnEffects[i].Duration then
+    begin
+      // Ensure the object is fully opaque when the effect ends!
+      if Assigned(FActiveSpawnEffects[i].TargetActor) then
+      begin
+        FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
+        FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
+      end;
+
+      // Shift elements down if not the last element
+      if i < High(FActiveSpawnEffects) then
+        FActiveSpawnEffects[i] := FActiveSpawnEffects[High(FActiveSpawnEffects)];
+
+      // Resize array
+      SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) - 1);
+    end;
   end;
 end;
 

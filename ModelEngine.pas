@@ -91,6 +91,7 @@ type
     FRestitution: Single;
     FMass: Single;
     FIsStatic: Boolean;
+    FIsDestructable: Boolean;
     FIsHovered: Boolean;
     FIsPressed: Boolean;
     FOnClick: TNotifyEvent;
@@ -133,7 +134,7 @@ type
     FModelPath: string;
     FVideoTexture: TTexture2D;
     constructor Create(AOwner: TComponent); overload; override;
-    constructor Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean = False; APos: PJPH_RVec3 = nil; ARot: PJPH_Quat = nil); reintroduce; overload;
+    constructor Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean = False; IsDestructable: Boolean = False; APos: PJPH_RVec3 = nil; ARot: PJPH_Quat = nil); reintroduce; overload;
     destructor Destroy; override;
     procedure Update(DeltaTime: single); virtual;
     procedure SetPosition(APosition: TVector3);
@@ -391,10 +392,10 @@ begin
   FRestitution := 0.3;
   FMass := 1.0;
   FIsStatic := False; // Default to dynamic
-  FLerpSpeed := 5.0;
+  FLerpSpeed := 1.5;
   FActColor := WHITE;
   FTargetColor := WHITE;
-  FActAlpha := 1.0;
+  FActAlpha := 0;
   FTargetAlpha := 1.0;
   FVisible := True;
   FCollisionHighlighting := False;
@@ -409,7 +410,7 @@ begin
   FMeshSize := Vector3Create(1, 1, 1);
 end;
 
-constructor TA3DComponent.Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean; APos: PJPH_RVec3; ARot: PJPH_Quat);
+constructor TA3DComponent.Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean; IsDestructable: Boolean; APos: PJPH_RVec3; ARot: PJPH_Quat);
 var
   ShapeSettings: JPH_ShapeSettings;
   HalfExtents: JPH_Vec3;
@@ -431,6 +432,7 @@ begin
 
   // NEW: Cache the static flag
   FIsStatic := IsStatic;
+  FIsDestructable := IsDestructable;
 
   if IsStatic then
     MotionType := JPH_MotionType_Static

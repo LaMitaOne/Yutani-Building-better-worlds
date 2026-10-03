@@ -70,7 +70,7 @@ type
     btnSpawnButton: TButton;
     chkSlowMotion: TCheckBox;
     SaveDialog1: TSaveDialog;
-    cbStatic: TCheckBox;
+    chkStatic: TCheckBox;
     btnSpawnScreens: TButton;
     lblstatic: TLabel;
     tsControls: TTabSheet;
@@ -82,6 +82,13 @@ type
     btnTestSFX: TButton;
     cbWorldBase: TComboBox;
     lblWorldBase: TLabel;
+    cbSpawnEffects: TComboBox;
+    lblSpanEffect: TLabel;
+    chkAntialias: TCheckBox;
+    cbGravity: TLabel;
+    seGravity: TSpinEdit;
+    lblDestructable: TLabel;
+    chkDestructable: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -115,7 +122,7 @@ type
     procedure btnSpawnBombClick(Sender: TObject);
     procedure btnSpawnButtonClick(Sender: TObject);
     procedure chkSlowMotionClick(Sender: TObject);
-    procedure cbStaticClick(Sender: TObject);
+    procedure chkStaticClick(Sender: TObject);
     procedure tvSceneHierarchyKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure btnSpawnScreensClick(Sender: TObject);
     procedure StringGrid1DrawCell(Sender: TObject; ACol, ARow: Integer; Rect: TRect; State: TGridDrawState);
@@ -125,6 +132,10 @@ type
     procedure tbMasterVolumeChange(Sender: TObject);
     procedure btnTestSFXClick(Sender: TObject);
     procedure cbWorldBaseChange(Sender: TObject);
+    procedure cbSpawnEffectsChange(Sender: TObject);
+    procedure chkAntialiasClick(Sender: TObject);
+    procedure seGravityChange(Sender: TObject);
+    procedure chkDestructableClick(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -230,6 +241,7 @@ begin
   FSandbox.OnSceneCleared := HandleSceneCleared;
   FSandbox.OnEngineException := HandleEngineException;
   FSandbox.OnObjectSelected := HandleObjectSelected;
+  seGravity.Value := Round(FSandbox.Gravity);
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
@@ -318,14 +330,37 @@ begin
   FSandbox.FrustumCulling := cbFrustumCulling.Checked;
 end;
 
-procedure TForm1.cbStaticClick(Sender: TObject);
+procedure TForm1.cbSpawnEffectsChange(Sender: TObject);
+var
+  SelectedText: string;
 begin
-  FSandbox.FSpawnStatic := cbStatic.Checked;
+  SelectedText := LowerCase(cbSpawnEffects.Text);
+  if SelectedText = 'beam' then
+    FSandbox.SpawnEffectType := spefBeam
+  else if SelectedText = 'fade' then
+    FSandbox.SpawnEffectType := spefFade
+  else
+    FSandbox.SpawnEffectType := spefNone;
+end;
+
+procedure TForm1.chkStaticClick(Sender: TObject);
+begin
+  FSandbox.FSpawnStatic := chkStatic.Checked;
+end;
+
+procedure TForm1.chkAntialiasClick(Sender: TObject);
+begin
+  FSandbox.AntiAliasing := chkAntialias.Checked;
 end;
 
 procedure TForm1.chkDayNightRythmClick(Sender: TObject);
 begin
   FSandbox.DayNightRhythmActive := chkDayNightRythm.Checked;
+end;
+
+procedure TForm1.chkDestructableClick(Sender: TObject);
+begin
+  FSandbox.FSpawnDestructable := chkDestructable.Checked;
 end;
 
 procedure TForm1.chkDistanceCullingClick(Sender: TObject);
@@ -744,6 +779,11 @@ end;
 procedure TForm1.SpDistanceChange(Sender: TObject);
 begin
   FSandbox.MaxRenderDistance := SpDistance.Value;
+end;
+
+procedure TForm1.seGravityChange(Sender: TObject);
+begin
+  FSandbox.Gravity := seGravity.Value;
 end;
 
 procedure TForm1.HandleViewportReady(Sender: TObject);
