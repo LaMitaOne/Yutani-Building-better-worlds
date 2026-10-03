@@ -133,18 +133,6 @@ type
     TargetActor: TA3DComponent;
   end;
 
-  // Spawn effect types for manual and scripted spawns
-  TSpawnEffectType = (spefNone, spefBeam, spefFade);
-
-  // Record to track an active spawn effect
-  TSpawnEffect = record
-    Position: TVector3;
-    StartTime: Double;
-    Duration: Single;
-    EffectType: TSpawnEffectType;
-    TargetActor: TA3DComponent;
-  end;
-
   TRaylibSandbox = class;
 
   TActorEventArgs = record
@@ -346,12 +334,6 @@ type
     // Independent Piano Component
     FPiano: TPiano;
 
-    // Spawn Effect System
-    FSpawnEffectType: TSpawnEffectType;
-    FActiveSpawnEffects: TArray<TSpawnEffect>;
-    FAntiAliasing: Boolean;
-    FGravity: Single;
-
     procedure UpdateBomb(dt: Single);
     procedure ExplodeBomb;
 
@@ -407,15 +389,9 @@ type
     procedure ExecuteSceneSave(const FileName: string);
     procedure ExecuteSceneLoad(const FileName: string);
 
-<<<<<<< HEAD
     procedure DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
    // Spawn Effect Methods
     procedure TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
-=======
-    procedure DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
-   // Spawn Effect Methods
-    procedure TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
     procedure DrawSpawnEffects;
 
     procedure SetAntiAliasing(const Value: Boolean);
@@ -622,7 +598,6 @@ begin
 
   // BASE WORLD INITIALIZATION: Default to wbHolodeck
   FCurrentWorldBase := wbHolodeck;
-<<<<<<< HEAD
 
   // Initialize Spawn Effect System
   FSpawnEffectType := spefFade;
@@ -637,14 +612,6 @@ begin
   FYutaniAudio := TYutaniAudioEngine.Create;
   FYutaniAudio.InitAudio;
   FYutaniAudio.LoadSoundfont(ExtractFilePath(ParamStr(0)) + 'ressources\audio\8bitsf.sf2');
-=======
-
-  // Initialize Spawn Effect System
-  FSpawnEffectType := spefFade;
-  FActiveSpawnEffects := nil;
-  FAntiAliasing := True;
-  FGravity := -9.81;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
 end;
 
 destructor TRaylibSandbox.Destroy;
@@ -777,7 +744,6 @@ begin
 end;
 
 procedure TRaylibSandbox.SetAntiAliasing(const Value: Boolean);
-<<<<<<< HEAD
 begin
   if FAntiAliasing <> Value then
   begin
@@ -812,42 +778,6 @@ begin
       JPH_PhysicsSystem_SetGravity(FEngine.PhysicsSystem, @GravVec);
     end;
   end;
-=======
-begin
-  if FAntiAliasing <> Value then
-  begin
-    FAntiAliasing := Value;
-
-    // Anti-Aliasing requires re-creating the Raylib window,
-    // so we restart the thread if the engine is already running.
-    if FInitialized then
-    begin
-      StopThread;
-      // Give the OS a tiny moment to clean up the HWND
-      Sleep(50);
-      StartThread;
-    end;
-  end;
-end;
-
-procedure TRaylibSandbox.SetGravity(const Value: Single);
-var
-  GravVec: JPH_Vec3;
-begin
-  if FGravity <> Value then
-  begin
-    FGravity := Value;
-
-    // Apply gravity live to Jolt Physics if engine is running
-    if Assigned(FEngine) then
-    begin
-      GravVec.x := 0;
-      GravVec.y := FGravity;
-      GravVec.z := 0;
-      JPH_PhysicsSystem_SetGravity(FEngine.PhysicsSystem, @GravVec);
-    end;
-  end;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
 end;
 
 procedure TRaylibSandbox.SetBrush(AShape: TShapeType);
@@ -894,7 +824,6 @@ procedure TRaylibSandbox.InitLightingAndEnvironment;
 const
   VERT: AnsiString = '#version 330' + #10 + 'in vec3 vertexPosition;' + #10 + 'in vec3 vertexNormal;' + #10 + 'in vec2 vertexTexCoord;' + #10 + 'in vec4 vertexColor;' + #10 + 'uniform mat4 mvp;' + #10 + 'uniform mat4 matModel;' + #10 + 'uniform mat4 lightView;' + #10 + 'uniform mat4 lightProj;' + #10 + 'out vec3 vNormal;' + #10 + 'out vec2 vTexCoord;' + #10 + 'out vec4 vColor;' + #10 + 'out vec4 vWorldPos;' + #10 + 'out vec4 vLightSpacePos;' + #10 + 'void main()' + #10 + '{' + #10 +
     '  vWorldPos = matModel * vec4(vertexPosition, 1.0);' + #10 + '  vNormal = normalize(mat3(matModel) * vertexNormal);' + #10 + '  vTexCoord = vertexTexCoord;' + #10 + '  vColor = vertexColor;' + #10 + '  vLightSpacePos = lightProj * lightView * vWorldPos;' + #10 + '  gl_Position = mvp * vec4(vertexPosition, 1.0);' + #10 + '}';
-<<<<<<< HEAD
   FRAG: AnsiString = '#version 330' + #10 + 'in vec3 vNormal;' + #10 + 'in vec2 vTexCoord;' + #10 + 'in vec4 vColor;' + #10 + 'in vec4 vWorldPos;' + #10 + 'in vec4 vLightSpacePos;' + #10 + 'uniform vec3 lightPos;' + #10 + 'uniform vec3 viewPos;' + #10 + 'uniform vec4 ambient;' + #10 + 'uniform vec4 diffuse;' + #10 + 'uniform sampler2D texture0;' + #10 + 'uniform sampler2D shadowMap;' + #10 + 'uniform float shadowBias;' + #10 + 'out vec4 finalColor;' + #10 + 'void main()' + #10 + '{' + #10 + '  vec3 lightDir = normalize(lightPos - vWorldPos.xyz);' + #10 + '  vec3 normal = normalize(vNormal);' + #10 +
     // Berechne wie viel Licht auf der Seite lag (0 bis 1)
     '  float diff = max(dot(normal, lightDir), 0.0);' + #10 + '  vec4 texColor = texture(texture0, vTexCoord);' + #10 + '  vec4 baseColor = vec4(vColor.rgb, vColor.a) * vec4(texColor.rgb, 1.0);' + #10 +
@@ -906,24 +835,6 @@ const
     // Textur/Farbe mit Licht multiplizieren (Schwarz bleibt Schwarz, Farben verblassen nicht)
     '  finalColor = vec4(baseColor.rgb * finalLight, baseColor.a * vColor.a);' + #10 + '}';
   SKYBOX_VERT: AnsiString = '#version 330' + #10 + 'in vec3 vertexPosition;' + #10 + 'out vec3 fragPosition;' + #10 + 'uniform mat4 projection;' + #10 + 'uniform mat4 view;' + #10 + 'void main()' + #10 + '{' + #10 + '  fragPosition = vertexPosition;' + #10 + '  mat4 rotView = mat4(mat3(view));' + #10 + '  vec4 clipPos = projection * rotView * vec4(vertexPosition, 1.0);' + #10 + '  gl_Position = clipPos.xyww;' + #10 + // Force depth to 1.0 (background)
-=======
-  FRAG: AnsiString = '#version 330' + #10 + 'in vec3 vNormal;' + #10 + 'in vec2 vTexCoord;' + #10 + 'in vec4 vColor;' + #10 + 'in vec4 vWorldPos;' + #10 + 'in vec4 vLightSpacePos;' + #10 + 'uniform vec3 lightPos;' + #10 + 'uniform vec3 viewPos;' + #10 + 'uniform vec4 ambient;' + #10 + 'uniform vec4 diffuse;' + #10 + 'uniform sampler2D texture0;' + #10 + 'uniform sampler2D shadowMap;' + #10 + 'uniform float shadowBias;' + #10 + 'out vec4 finalColor;' + #10 + 'void main()' + #10 + '{' + #10 +
-    '  vec3 lightDir = normalize(lightPos - vWorldPos.xyz);' + #10 + '  vec3 normal = normalize(vNormal);' + #10 +
-    // Berechne wie viel Licht auf der Seite liegt (0 bis 1)
-    '  float diff = max(dot(normal, lightDir), 0.0);' + #10 +
-    '  vec4 texColor = texture(texture0, vTexCoord);' + #10 +
-    '  vec4 baseColor = vec4(vColor.rgb, vColor.a) * vec4(texColor.rgb, 1.0);' + #10 +
-    // Schatten berechnen
-    '  vec3 projCoords = vLightSpacePos.xyz / vLightSpacePos.w;' + #10 +
-    '  projCoords = projCoords * 0.5 + 0.5;' + #10 + '  float shadow = 0.0;' + #10 + '  if(projCoords.z <= 1.0 && projCoords.x >= 0.0 && projCoords.x <= 1.0 && projCoords.y >= 0.0 && projCoords.y <= 1.0) {' + #10 + '    float closestDepth = texture(shadowMap, projCoords.xy).r;' + #10 + '    float currentDepth = projCoords.z;' + #10 + '    shadow = currentDepth - shadowBias > closestDepth ? 1.0 : 0.0;' + #10 + '  }' + #10 +
-    // NEUE BELEUCHTUNGSFORMEL: Ambient + Diffuse * (1.0 - Shadow)
-    // Das Licht wird limitiert, sodass es nie heller als 1.0 wird!
-    '  float lightIntensity = ambient.r + (1.0 - ambient.r) * diff * (1.0 - shadow);' + #10 +
-    '  vec3 finalLight = diffuse.rgb * lightIntensity;' + #10 +
-    // Textur/Farbe mit Licht multiplizieren (Schwarz bleibt Schwarz, Farben verblassen nicht)
-    '  finalColor = vec4(baseColor.rgb * finalLight, baseColor.a * vColor.a);' + #10 + '}';    SKYBOX_VERT: AnsiString = '#version 330' + #10 + 'in vec3 vertexPosition;' + #10 + 'out vec3 fragPosition;' + #10 + 'uniform mat4 projection;' + #10 + 'uniform mat4 view;' + #10 + 'void main()' + #10 + '{' + #10 + '  fragPosition = vertexPosition;' + #10 + '  mat4 rotView = mat4(mat3(view));' + #10 +
-    '  vec4 clipPos = projection * rotView * vec4(vertexPosition, 1.0);' + #10 + '  gl_Position = clipPos.xyww;' + #10 + // Force depth to 1.0 (background)
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
     '}';
   SKYBOX_FRAG: AnsiString = '#version 330' + #10 + 'in vec3 fragPosition;' + #10 + 'uniform float daytime;' + #10 + 'out vec4 finalColor;' + #10 + 'void main()' + #10 + '{' + #10 + '  vec3 dir = normalize(fragPosition);' + #10 + '  float t = dir.y * 0.5 + 0.5;' + #10 +
     // Mix horizon and zenith colors based on day/night
@@ -1103,13 +1014,8 @@ begin
       try
         try
           if FAntiAliasing then
-<<<<<<< HEAD
             SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE)
           else
-=======
-            SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE)
-          else
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
             SetConfigFlags(FLAG_WINDOW_RESIZABLE);
           InitWindow(1280, 720, 'Raylib Sandbox');
           FRaylibWnd := FindWindow(nil, 'Raylib Sandbox');
@@ -1124,21 +1030,12 @@ begin
           if AudioRes <> MA_SUCCESS then
             DoEngineException('Audio Engine Init failed: ' + IntToStr(AudioRes), 'AudioInit');
 
-<<<<<<< HEAD
           FEngine := TModelEngine.Create;
           // Apply initial Gravity
           var InitGravVec: JPH_Vec3;
           InitGravVec.x := 0;
           InitGravVec.y := FGravity;
           InitGravVec.z := 0;
-=======
-          FEngine := TModelEngine.Create;
-          // Apply initial Gravity
-          var InitGravVec: JPH_Vec3;
-          InitGravVec.x := 0;
-          InitGravVec.y := FGravity;
-          InitGravVec.z := 0;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
           JPH_PhysicsSystem_SetGravity(FEngine.PhysicsSystem, @InitGravVec);
           FCamYaw := -0.5;
           FCamPitch := 0.8;
@@ -1298,10 +1195,7 @@ begin
     FBombExploded := False;
     SetBrush(TShapeType(-1));
     FActiveSpawnEffects := nil;
-<<<<<<< HEAD
     FreeAndNil(FPiano); // Free independent Piano component
-=======
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
   finally
     FLock.Leave;
   end;
@@ -1688,11 +1582,7 @@ begin
   end
   else
     FSpawnButton5WasDown := False;
-<<<<<<< HEAD
 
-=======
-
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
   // Handle Delete Key directly inside the sandbox thread
   if (GetAsyncKeyState(VK_DELETE) and $1) <> 0 then
   begin
@@ -2377,6 +2267,8 @@ var
   // Variables for Piano movement
   OldBasePos, DeltaPos: TVector3;
   i: Integer;
+  // Variables for proper 3D Mouse Projection
+  CamRight, CamUp: TVector3;
 begin
   MouseDeltaX := FMousePos.x - FGizmoStartMouse.x;
   MouseDeltaY := FMousePos.y - FGizmoStartMouse.y;
@@ -2400,10 +2292,11 @@ begin
 
     WorldAxis := Vector3RotateByQuaternion(WorldAxis, FItemSelected.Quaternion);
 
-    var ScreenRight := Vector3Create(1, 0, 0);
-    var ScreenUp := Vector3Create(0, 1, 0);
+    // --- KORREKTE 3D-PROJEKTION FÜR ALLE ACHSEN ---
+    CamRight := Vector3Normalize(Vector3CrossProduct(CamForward, FCamera.up));
+    CamUp := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
 
-    MoveDir := Vector3Add(Vector3Scale(ScreenRight, MouseDeltaX * 0.1), Vector3Scale(ScreenUp, -MouseDeltaY * 0.1));
+    MoveDir := Vector3Add(Vector3Scale(CamRight, MouseDeltaX * 0.1), Vector3Scale(CamUp, -MouseDeltaY * 0.1));
 
     CamDot := Vector3DotProduct(WorldAxis, MoveDir);
     LocalMove := Vector3Scale(WorldAxis, CamDot);
@@ -2478,6 +2371,8 @@ begin
     FItemSelected.Scale := EndScale;
 
     // Y-LIFT STABILIZATION
+    // Now that models are perfectly centered, they behave like primitives.
+    // We lift the Y-Position by half the height change to keep the bottom on the ground.
     if FGizmoAxis = 2 then
     begin
       OldScaleY := FGizmoStartVal.y;
@@ -3287,11 +3182,7 @@ begin
   EndShaderMode();
 
   EndTextureMode();
-<<<<<<< HEAD
 end;
-=======
-end;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
 // Custom procedure to draw a Holodeck-style grid with a specific color
 
 procedure TRaylibSandbox.DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
@@ -3380,7 +3271,6 @@ begin
 end;
 
 procedure TRaylibSandbox.Render3DScene;
-<<<<<<< HEAD
 var
   i: Integer;
   Actor: TA3DComponent;
@@ -3577,266 +3467,17 @@ begin
           begin
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture;
             ColorShaderVec[0] := 1.0; ColorShaderVec[1] := 1.0; ColorShaderVec[2] := 1.0; ColorShaderVec[3] := 1.0;
-=======
-var
-  i: Integer;
-  Actor: TA3DComponent;
-  Dist, MaxDist: Single;
-  CamForward, ToActor, ToActorNorm: TVector3;
-  DotP: Single;
-  Pos: TVector3;
-  Axis: TVector3;
-  Angle: Single;
-  dt: Single;
-  ViewMat, ProjMat: TMatrix;
-  ModelMat: TMatrix;
-  ModelMatLoc: Integer;
-  ActorColorLoc: Integer;
-  ColorShaderVec: array[0..3] of Single;
-
-  function GetActorColor(A: TA3DComponent): TColorB;
-  const
-    COL_CUBE: TColorB = (
-    R: 230;
-    g: 41;
-    b: 55;
-    A: 255
-  );
-    COL_PYRAMID: TColorB = (
-    R: 255;
-    g: 161;
-    b: 0;
-    A: 255
-  );
-    COL_SPHERE: TColorB = (
-    R: 179;
-    g: 71;
-    b: 217;
-    A: 255
-  );
-    COL_CAPSULE: TColorB = (
-    R: 0;
-    g: 168;
-    b: 150;
-    A: 255
-  );
-    COL_TEAL: TColorB = (
-    R: 64;
-    g: 224;
-    b: 208;
-    A: 255
-  );
-  begin
-    Result.a := Round(255 * A.ActAlpha);
-    if A.CollisionHighlighting then
-      Exit(COL_TEAL);
-
-    // If the Actor has a custom color assigned (like spawned walls), use it!
-    if (A.ActColor.r <> WHITE.r) or (A.ActColor.g <> WHITE.g) or (A.ActColor.b <> WHITE.b) or (A.ActColor.a <> WHITE.a) then
-      Exit(A.ActColor);
-
-    case A.ShapeType of
-      stBox:
-        Exit(COL_CUBE);
-      stPyramid:
-        Exit(COL_PYRAMID);
-      stSphere:
-        Exit(COL_SPHERE);
-      stCapsule:
-        Exit(COL_CAPSULE);
-      stPrism:
-        Exit(COL_PRISM);
-      stBomb:
-        Exit(RED);
-    else
-      Exit(WHITE);
-    end;
-  end;
-
-begin
-  ActorColorLoc := GetShaderLocation(FLightShader, 'diffuse');
-
-  BeginMode3D(FCamera);
-
-  // 1. Draw Skybox (Infinite background)
-  if FSkyboxModel.meshes <> nil then
-  begin
-    rlDisableDepthMask();
-    ViewMat := GetCameraMatrix(FCamera);
-    ProjMat := MatrixPerspective(FCamera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
-    SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
-    SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
-
-    // BASE WORLD SKYBOX OVERRIDE: Force deep black for Space and Holodeck
-    if (FCurrentWorldBase = wbSpace) or (FCurrentWorldBase = wbHolodeck) then
-    begin
-      var BlackSkyColor: TColorB := BLACK;
-      DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
-    end
-    else
-    begin
-      rlDisableBackfaceCulling();
-      DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
-      rlEnableBackfaceCulling();
-    end;
-
-    rlEnableDepthMask();
-  end;
-
-  // 2. Draw Floor with Lighting Shader
-  BeginShaderMode(FLightShader);
-
-  // BASE WORLD FLOOR RENDERING
-  if FCurrentWorldBase = wbLand then
-  begin
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN);
-  end
-  else if FCurrentWorldBase = wbSpace then
-  begin
-    // Space: Pure black floor to blend with the void
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK);
-  end
-  else if FCurrentWorldBase = wbHolodeck then
-  begin
-    // Holodeck: Black floor with glowing Teal grid lines
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK);
-  end;
-
-  EndShaderMode();
-
-  // BASE WORLD GRID RENDERING (Must be drawn outside the lighting shader to glow)
-  if FCurrentWorldBase = wbHolodeck then
-  begin
-    var WarmOrange: TColorB;
-    WarmOrange.r := 255;
-    WarmOrange.g := 130;
-    WarmOrange.b := 0;
-    WarmOrange.a := 255;
-
-    DrawHolodeckGrid(200, 5.0, Fade(WarmOrange, 0.85));
-  end;
-
-  // 3. Draw Clouds (Transparency)
-  // Only draw clouds if we are in Land mode!
-  if (FCloudModel.meshes <> nil) and ((FCurrentWorldBase = wbLand) or (FCurrentWorldBase = wbIsland)) then
-  begin
-    BeginShaderMode(FCloudShader);
-    DrawModel(FCloudModel, Vector3Create(FCamera.position.x, 150, FCamera.position.z), 1.0, WHITE);
-    EndShaderMode();
-  end;
-
-  // 4. Draw Actors
-  // Optimization: Use the customizable MaxRenderDistance property instead of a hardcoded value
-  MaxDist := FMaxRenderDistance;
-  CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
-
-  ModelMatLoc := GetShaderLocation(FLightShader, 'matModel');
-  rlSetBlendMode(BLEND_ALPHA);
-
-  for i := 0 to FEngine.Count - 1 do
-  begin
-    Actor := FEngine.Items[i];
-    if Assigned(Actor) and Actor.Visible then
-    begin
-      if (Actor.UserData <> nil) and PItemData(Actor.UserData)^.IsProjectile then
-        Continue;
-      Dist := Vector3Distance(Actor.Position, FCamera.position);
-      if FDistanceCulling and (Dist > MaxDist) then
-        Continue;
-      ToActor := Vector3Subtract(Actor.Position, FCamera.position);
-      ToActorNorm := Vector3Normalize(ToActor);
-      DotP := Vector3DotProduct(ToActorNorm, CamForward);
-      if FFrustumCulling and (DotP < 0.5) then
-        Continue;
-
-      rlPushMatrix();
-      Pos := Actor.Position;
-      rlTranslatef(Pos.x, Pos.y, Pos.z);
-      Axis := Vector3Create(1, 1, 1);
-      Angle := 0;
-      if Actor.Quaternion.w < 1.0 then
-        QuaternionToAxisAngle(Actor.Quaternion, @Axis, @Angle);
-      rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
-      rlDrawRenderBatchActive();
-      BeginShaderMode(FLightShader);
-
-      ModelMat := rlGetMatrixTransform();
-      SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-      if Actor.ShapeType = stModel then
-      begin
-        rlTranslatef(Actor.FModelOffset.x, Actor.FModelOffset.y, Actor.FModelOffset.z);
-        rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-        var TintCol: TColorB := GetActorColor(Actor);
-        DrawModel(Actor.FModel, Vector3Create(0, 0, 0), 1.0, Fade(TintCol, Actor.ActAlpha));
-
-      end
-      else
-      begin
-        // Enable the lighting shader
-        BeginShaderMode(FLightShader);
-
-        // Create the color array from the actor's color
-        var C: TColorB := GetActorColor(Actor);
-
-        ColorShaderVec[0] := C.r / 255.0; // Red (0.0 to 1.0)
-        ColorShaderVec[1] := C.g / 255.0; // Green (0.0 to 1.0)
-        ColorShaderVec[2] := C.b / 255.0; // Blue (0.0 to 1.0)
-        ColorShaderVec[3] := Actor.ActAlpha;
-
-        // Send the color directly to the shader uniform
-        SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-
-        if Actor.ShapeType = stSphere then
-        begin
-          var SphereScale: Single := Max(Actor.Scale.x, Max(Actor.Scale.y, Actor.Scale.z)) * 0.5;
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          DrawModel(FSphereModel, Vector3Create(0, 0, 0), SphereScale, GetActorColor(Actor));
-        end
-        else if Actor.ShapeType = stBox then
-        begin
-          // If this box has a video texture, assign it.
-          if Actor.FVideoTexture.id > 0 then
-          begin
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture;
-
-            ColorShaderVec[0] := 1.0;
-            ColorShaderVec[1] := 1.0;
-            ColorShaderVec[2] := 1.0;
-            ColorShaderVec[3] := 1.0;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
             SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
           end
           else
           begin
-<<<<<<< HEAD
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
             C:= GetActorColor(Actor);
             ColorShaderVec[0] := C.r / 255.0; ColorShaderVec[1] := C.g / 255.0; ColorShaderVec[2] := C.b / 255.0; ColorShaderVec[3] := C.A / 255.0;
-=======
-            // Assign a pure 1x1 WHITE texture to prevent Raylib's default 200,200,200 gray!
-            // We use FDefaultWhiteTex, but we need to make sure it is PURE white.
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
-            // We set the tint color via the shader uniform (vColor)
-            C:= GetActorColor(Actor);
-            ColorShaderVec[0] := C.r / 255.0;
-            ColorShaderVec[1] := C.g / 255.0;
-            ColorShaderVec[2] := C.b / 255.0;
-            ColorShaderVec[3] := C.A / 255.0;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
             SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
           end;
 
           rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-<<<<<<< HEAD
-=======
-
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
           ModelMat := rlGetMatrixTransform();
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
 
@@ -3846,7 +3487,6 @@ begin
             DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
 
           DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
-<<<<<<< HEAD
         end
         else if Actor.ShapeType = stBomb then
         begin
@@ -3953,101 +3593,6 @@ begin
   end;
 
   rlSetBlendMode(BLEND_ALPHA);
-
-  // Selected Object
-  if Assigned(FItemSelected) and FItemSelected.Visible then
-  begin
-    rlPushMatrix();
-    Pos := FItemSelected.Position;
-    rlTranslatef(Pos.x, Pos.y, Pos.z);
-
-    Axis := Vector3Create(1, 1, 1);
-    Angle := 0;
-    if FItemSelected.Quaternion.w < 1.0 then
-      QuaternionToAxisAngle(FItemSelected.Quaternion, @Axis, @Angle);
-    rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
-    rlDrawRenderBatchActive();
-    BeginShaderMode(FLightShader);
-
-    ModelMat := rlGetMatrixTransform();
-    SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-    if FItemSelected.ShapeType = stModel then
-    begin
-      rlTranslatef(FItemSelected.FModelOffset.x, FItemSelected.FModelOffset.y, FItemSelected.FModelOffset.z);
-      rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-      ModelMat := rlGetMatrixTransform();
-      SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-      DrawModel(FItemSelected.FModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-      DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, YELLOW);
-    end
-    else
-    begin
-      if FItemSelected.ShapeType = stSphere then
-      begin
-        var SelSphereScale: Single := Max(FItemSelected.Scale.x, Max(FItemSelected.Scale.y, FItemSelected.Scale.z)) * 0.5;
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        DrawModel(FSphereModel, Vector3Create(0, 0, 0), SelSphereScale, GetActorColor(FItemSelected));
-        DrawSphereWires(Vector3Create(0, 0, 0), SelSphereScale, 16, 16, YELLOW);
-      end
-      else if FItemSelected.ShapeType = stBox then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-        DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, YELLOW);
-      end
-      else if FItemSelected.ShapeType = stCapsule then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-        rlPushMatrix;
-        rlTranslatef(0.0, -0.5, 0.0);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        DrawModel(FCapsuleModel, Vector3Create(0, -0.5, 0), 1.0, GetActorColor(FItemSelected));
-        DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, YELLOW);
-        rlPopMatrix;
-      end
-      else if FItemSelected.ShapeType = stPyramid then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-        rlPushMatrix;
-        rlTranslatef(0.0, -0.25, 0.0);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        rlPushMatrix;
-        rlRotatef(45.0, 0.0, 1.0, 0.0);
-        DrawCylinderWiresEx(Vector3Create(0, 1, 0), Vector3Create(0, 0, 0), 0.0, 0.5, 4, YELLOW);
-        rlPopMatrix;
-        DrawModel(FPyramidModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-        rlPopMatrix;
-      end
-      else if FItemSelected.ShapeType = stPrism then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-        rlPushMatrix;
-        rlTranslatef(0.0, -0.5, 0.0);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        DrawModel(FPrismModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-        rlPopMatrix;
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        rlPushMatrix;
-        rlRotatef(90.0, 0.0, 1.0, 0.0);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 3, YELLOW);
-        rlPopMatrix;
-      end;
-    end;
-
-    EndShaderMode();
-    rlPopMatrix();
-  end;
 
   // --- GHOST PREVIEW ---
   if FIsBrushActive and FGhostVisible then
@@ -4172,425 +3717,6 @@ begin
   DrawSpawnEffects;
 
   EndMode3D();
-=======
-        end
-        // ====================================================================
-        // BOMB
-        // ====================================================================
-        else if Actor.ShapeType = stBomb then
-        begin
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          DrawModel(FSphereModel, Vector3Create(0, 0, 0), 0.5, GetActorColor(Actor));
-        end
-        // ====================================================================
-        // CAPSULE / CYLINDER
-        // ====================================================================
-        else if Actor.ShapeType = stCapsule then
-        begin
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-
-          rlPushMatrix();
-
-          // Shift down to align mesh bottom with physics bottom
-          rlTranslatef(0.0, -0.5, 0.0);
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          // Offset Y position to lower mesh by half its height
-          DrawModel(FCapsuleModel, Vector3Create(0, -0.5, 0), 1.0, GetActorColor(Actor));
-
-          DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, BLACK);
-
-          rlPopMatrix();
-        end
-
-        // ====================================================================
-        // PYRAMID
-        // ====================================================================
-        else if Actor.ShapeType = stPyramid then
-        begin
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-
-          // Offset to align physics center of mass with visual mesh
-          rlTranslatef(0.0, -0.25, 0.0);
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          DrawModel(FPyramidModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
-
-          rlPushMatrix();
-          rlRotatef(45.0, 0.0, 1.0, 0.0);
-          DrawCylinderWiresEx(Vector3Create(0, 1, 0), Vector3Create(0, 0, 0), 0.0, 0.5, 4, BLACK);
-          rlPopMatrix();
-        end
-
-        // ====================================================================
-        // PRISM
-        // ====================================================================
-        else if Actor.ShapeType = stPrism then
-        begin
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-
-          rlPushMatrix();
-          rlTranslatef(0.0, -0.5, 0.0);
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          DrawModel(FPrismModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
-          rlPopMatrix();
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          // Rotate the wireframe on the Y axis to match the mesh
-          rlPushMatrix();
-          rlRotatef(90.0, 0.0, 1.0, 0.0);
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 3, BLACK);
-          rlPopMatrix();
-        end
-        // ====================================================================
-        // 3D BUTTON
-        // ====================================================================
-        else if Actor.ShapeType = stButton then
-        begin
-          // Button movement: Only move inward when pressed
-          var BtnOffset: Single := 0.0;
-          if Actor.IsPressed then
-            BtnOffset := -0.03; // Move slightly inward on click
-
-          // 1. Draw the outer frame (darker color)
-          rlPushMatrix();
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          var FrameCol: TColorB;
-          FrameCol.r := Max(0, Round(Actor.BaseColor.r * 0.5));
-          FrameCol.g := Max(0, Round(Actor.BaseColor.g * 0.5));
-          FrameCol.b := Max(0, Round(Actor.BaseColor.b * 0.5));
-          FrameCol.a := 255;
-
-          DrawCube(Vector3Create(0, 0, -0.1), 1.0, 1.0, 1.0, FrameCol);
-          rlPopMatrix();
-
-          rlPushMatrix();
-          rlTranslatef(0, 0, BtnOffset);
-          rlScalef(Actor.Scale.x * 0.85, Actor.Scale.y * 0.85, Actor.Scale.z);
-
-          if Actor.FVideoTexture.id > 0 then
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture
-          else if Actor.FButtonTexture.id > 0 then
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FButtonTexture
-          else
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
-          rlEnableBackfaceCulling();
-
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
-
-          rlDisableBackfaceCulling();
-
-          FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
-          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
-          rlPopMatrix();
-        end;
-
-        EndShaderMode();
-      end;
-
-      EndShaderMode();
-      rlPopMatrix();
-    end;
-  end;
-
-  rlSetBlendMode(BLEND_ALPHA);
-
-  // Selected Object
-  if Assigned(FItemSelected) and FItemSelected.Visible then
-  begin
-    rlPushMatrix();
-
-    // Translate to object position
-    Pos := FItemSelected.Position;
-    rlTranslatef(Pos.x, Pos.y, Pos.z);
-
-    // Apply object rotation
-    Axis := Vector3Create(1, 1, 1);
-    Angle := 0;
-    if FItemSelected.Quaternion.w < 1.0 then
-      QuaternionToAxisAngle(FItemSelected.Quaternion, @Axis, @Angle);
-    rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
-    rlDrawRenderBatchActive();
-    BeginShaderMode(FLightShader);
-
-    // Fetch the model matrix and send it to the shader
-    ModelMat := rlGetMatrixTransform();
-    SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-    if FItemSelected.ShapeType = stModel then
-    begin
-      rlTranslatef(FItemSelected.FModelOffset.x, FItemSelected.FModelOffset.y, FItemSelected.FModelOffset.z);
-      rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-
-      // Update model matrix for the model offset
-      ModelMat := rlGetMatrixTransform();
-      SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-      DrawModel(FItemSelected.FModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-      DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, YELLOW);
-    end
-    else
-    begin
-      // Apply scale and fetch matrix per shape to ensure correct normal calculations
-      if FItemSelected.ShapeType = stSphere then
-      begin
-        var SelSphereScale: Single := Max(FItemSelected.Scale.x, Max(FItemSelected.Scale.y, FItemSelected.Scale.z)) * 0.5;
-
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-        DrawModel(FSphereModel, Vector3Create(0, 0, 0), SelSphereScale, GetActorColor(FItemSelected));
-        DrawSphereWires(Vector3Create(0, 0, 0), SelSphereScale, 16, 16, YELLOW);
-      end
-      else if FItemSelected.ShapeType = stBox then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-        DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-        DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, YELLOW);
-      end
-      else if FItemSelected.ShapeType = stCapsule then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-
-        rlPushMatrix();
-
-        // Shift down to align mesh bottom with physics bottom
-        rlTranslatef(0.0, -0.5, 0.0);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-        // Offset Y position to lower mesh by half its height
-        DrawModel(FCapsuleModel, Vector3Create(0, -0.5, 0), 1.0, GetActorColor(FItemSelected));
-
-        DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, YELLOW);
-
-        rlPopMatrix();
-      end
-      else if FItemSelected.ShapeType = stPyramid then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-
-        rlPushMatrix();
-
-        // Offset to align physics center of mass with visual mesh
-        rlTranslatef(0.0, -0.25, 0.0);
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-        rlPushMatrix();
-        rlRotatef(45.0, 0.0, 1.0, 0.0);
-        DrawCylinderWiresEx(Vector3Create(0, 1, 0), Vector3Create(0, 0, 0), 0.0, 0.5, 4, YELLOW);
-        rlPopMatrix();
-
-        DrawModel(FPyramidModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-
-        rlPopMatrix();
-      end
-      else if FItemSelected.ShapeType = stPrism then
-      begin
-        rlScalef(FItemSelected.Scale.x, FItemSelected.Scale.y, FItemSelected.Scale.z);
-
-        rlPushMatrix();
-        rlTranslatef(0.0, -0.5, 0.0);
-
-      // Update ModelMat for the mesh offset
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-        DrawModel(FPrismModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(FItemSelected));
-        rlPopMatrix();
-
-      // Re-update ModelMat for the wireframe
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-      // Rotate the wireframe by 90 degrees on the Y axis to match the mesh
-        rlPushMatrix();
-        rlRotatef(90.0, 0.0, 1.0, 0.0);
-
-      // Update ModelMat for the wireframe rotation
-        ModelMat := rlGetMatrixTransform();
-        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-        DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 3, YELLOW);
-        rlPopMatrix();
-      end;
-    end;
-
-    EndShaderMode();
-    rlPopMatrix();
-  end;
-
-  // --- GHOST PREVIEW ---
-  if FIsBrushActive and FGhostVisible then
-  begin
-    rlPushMatrix();
-    var SurfaceY: Single := FGhostPos.y;
-    if (FBrushShape = stCapsule) or (FBrushShape = stPyramid) or (FBrushShape = stPrism) then
-    begin
-      if (FBrushShape = stPyramid) or (FBrushShape = stPrism) then
-        SurfaceY := FGhostPos.y + (1.5 * 0.5)
-      else
-        SurfaceY := FGhostPos.y + (1.0 * 0.5);
-    end
-    else if FBrushShape = stModel then
-    begin
-      // Calculate exact Y-Offset for models based on their true bounding box height
-      var GBBOX := GetModelBoundingBox(FCustomModel);
-      var GMeshH: Single := GBBOX.max.y - GBBOX.min.y;
-      var GMaxDim: Single := Max(GBBOX.max.x - GBBOX.min.x, Max(GMeshH, GBBOX.max.z - GBBOX.min.z));
-      if GMaxDim <= 0 then
-        GMaxDim := 1.0;
-      var GUniformScale: Single := 1.0 / GMaxDim;
-
-      // Half height of the model + half padding (0.05)
-      SurfaceY := FGhostPos.y + ((GMeshH * GUniformScale) * 0.5) + 0.05;
-    end;
-
-    if FBrushShape = stBox then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      DrawCube(Vector3Create(0, 0.5, 0), 1, 1, 1, Fade(WHITE, 0.4));
-      DrawCubeWires(Vector3Create(0, 0.5, 0), 1, 1, 1, YELLOW);
-    end
-    else if FBrushShape = stSphere then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      DrawSphere(Vector3Create(0, 0.5, 0), 0.5, Fade(WHITE, 0.4));
-      DrawSphereWires(Vector3Create(0, 0.5, 0), 0.5, 16, 16, YELLOW);
-    end
-    else if FBrushShape = stCapsule then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      DrawCylinderEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, Fade(WHITE, 0.4));
-      DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, YELLOW);
-    end
-    else if FBrushShape = stPyramid then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      // Rotate 45 degrees so a flat face points forward, matching the spawned mesh!
-      rlRotatef(45.0, 0.0, 1.0, 0.0);
-      DrawCylinderEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.0, 0.5, 4, Fade(WHITE, 0.4));
-      DrawCylinderWiresEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.0, 0.5, 4, YELLOW);
-    end
-    else if FBrushShape = stPrism then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      // Rotate 90 degrees for a 3-sided prism so it matches the spawned visual mesh
-      rlRotatef(90.0, 0.0, 1.0, 0.0);
-      DrawCylinderEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.5, 0.5, 3, Fade(WHITE, 0.4));
-      DrawCylinderWiresEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.5, 0.5, 3, YELLOW);
-    end
-    else if FBrushShape = stModel then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      if FCustomModel.meshes <> nil then
-      begin
-        var GBBOX := GetModelBoundingBox(FCustomModel);
-        var GMeshSize := Vector3Create(GBBOX.max.x - GBBOX.min.x, GBBOX.max.y - GBBOX.min.y, GBBOX.max.z - GBBOX.min.z);
-        var GMaxDim: Single := Max(GMeshSize.x, Max(GMeshSize.y, GMeshSize.z));
-        if GMaxDim <= 0 then
-          GMaxDim := 1.0;
-        var GUniformScale: Single := 1.0 / GMaxDim;
-
-        // Calculate the center of the scaled mesh
-        var GCenterX := ((GBBOX.max.x + GBBOX.min.x) / 2) * GUniformScale;
-        var GCenterZ := ((GBBOX.max.z + GBBOX.min.z) / 2) * GUniformScale;
-        var GMeshH: Single := GMeshSize.y * GUniformScale;
-
-        rlTranslatef(-GCenterX, -GMeshH * 0.5, -GCenterZ);
-
-        // CRITICAL: Temporarily reset the model's transform to identity (1.0 scale)
-        // because the vertices are ALREADY scaled, and DrawModel would scale them again!
-        var OldTransform: TMatrix := FCustomModel.transform;
-        FCustomModel.transform := MatrixIdentity();
-        DrawModel(FCustomModel, Vector3Create(0, 0, 0), 1.0, Fade(WHITE, 0.4));
-        // Restore the original transform so we don't break the model for the actual spawn
-        FCustomModel.transform := OldTransform;
-      end;
-      DrawCubeWires(Vector3Create(0, 0, 0), 1, 1, 1, YELLOW);
-    end
-    else if FBrushShape = stBomb then
-    begin
-      rlTranslatef(FGhostPos.x, FGhostPos.y + 0.5, FGhostPos.z);
-      DrawSphere(Vector3Create(0, 0, 0), 0.5, Fade(RED, 0.5));
-      DrawSphereWires(Vector3Create(0, 0, 0), 0.5, 16, 16, YELLOW);
-    end;
-
-    rlPopMatrix();
-  end;
-
-  if Assigned(FItemSelected) and not FIsBrushActive and (FGizmoMode <> gmNone) then
-    DrawGizmo;
-
-  // Draw projectiles
-  for i := 0 to High(FProjectiles) do
-  begin
-    if FProjectiles[i] = nil then
-      Continue;
-
-    BeginShaderMode(FLightShader);
-
-    rlPushMatrix();
-
-    // Translate to the projectile's position with a small Y offset
-    Pos := FProjectiles[i].Position;
-    rlTranslatef(Pos.x, Pos.y + 0.3, Pos.z);
-
-    // Apply the projectile's rotation for visual rolling
-    var Quat := FProjectiles[i].Quaternion;
-    Axis := Vector3Create(1, 1, 1);
-    Angle := 0;
-    if Quat.w < 1.0 then
-      QuaternionToAxisAngle(Quat, @Axis, @Angle);
-    rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
-    // Scale down to a small cannonball
-    rlScalef(0.3, 0.3, 0.3);
-
-    // Fetch the combined matrix and send it to the shader
-    ModelMat := rlGetMatrixTransform();
-    SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-    // Draw the projectile sphere at local origin
-    DrawModel(FSphereModel, Vector3Create(0, 0, 0), 1.0, SKYBLUE);
-
-    rlPopMatrix();
-    EndShaderMode();
-  end;
-
-  dt := GetFrameTime();
-  // Pass scaled time to projectiles so their lifespan checks sync with slow motion
-  UpdateProjectiles(dt * FTimeScale);
-
-  DrawSpawnEffects;
-
-  EndMode3D();
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
 end;
 
 procedure TRaylibSandbox.DrawGizmo;
@@ -5050,26 +4176,12 @@ begin
     FLock.Leave;
   end;
 
-<<<<<<< HEAD
   FCustomSpawnTimer := 0.05;
 
   if Req.Name = 'BOMB_TRIGGER' then
   begin
     Req.Name := 'WallBlock_Final';
 
-=======
-  // Faster spawn rate (0.05s) so the wall finishes before the bomb goes off!
-  FCustomSpawnTimer := 0.05;
-
-  // Check if this is the special Bomb Trigger
-  if Req.Name = 'BOMB_TRIGGER' then
-  begin
-    // Spawn the last wall block first
-    Req.Name := 'WallBlock_Final';
-    // (We just let it fall through to the normal spawn code below for the last brick)
-
-    // Now queue the actual bomb behind the wall
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
     BombReq.Shape := stSphere;
     BombReq.Size := Vector3Create(1, 1, 1);
     BombReq.IsStatic := False;
@@ -5077,10 +4189,6 @@ begin
     BombReq.Pos := Vector3Create(0, 2.0, -4.0);
     BombReq.Name := 'THE_BOMB';
 
-<<<<<<< HEAD
-=======
-    // Insert bomb at the front of the queue so it spawns immediately after the last brick
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
     FLock.Enter;
     try
       SetLength(FCustomSpawnQueue, Length(FCustomSpawnQueue) + 1);
@@ -5110,12 +4218,8 @@ begin
   JRot.y := 0;
   JRot.z := 0;
   JRot.w := 1;
-<<<<<<< HEAD
 
   // NOW WE PASS Req.IsStatic DIRECTLY! IF IT IS A KEY, IT IS STATIC FROM THE START!
-=======
-
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
   Obj := TA3DComponent.Create('', FEngine, Req.Shape, Req.Size, Req.IsStatic, Req.IsDestructable, @JPos, @JRot);
   Obj.Name := Req.Name;
   Obj.Friction := 0.6;
@@ -5151,46 +4255,25 @@ begin
 
   Obj.TargetColor := Req.Color;
   Obj.ActColor := Req.Color;
-<<<<<<< HEAD
 
   // Force position just in case, though it shouldn't be needed anymore
   Obj.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
 
-=======
-
-  // If it's the bomb, set up the explosion timer
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
   if Req.Name = 'THE_BOMB' then
   begin
     FBombActor := Obj;
     FBombTimer := 2.0;
     FBombExploded := False;
   end
-<<<<<<< HEAD
   else if Req.GenerateTestTexture then
   begin
     if (Req.Name = 'Screen_1') then
     begin
-=======
-  else
-  // If requested, generate a unique test texture safely within the Raylib thread
-    if Req.GenerateTestTexture then
-  begin
-    if (Req.Name = 'Screen_1') then
-    begin
-      // Initialize MPV Player on the fly when Screen 1 is spawned
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
       if not Assigned(FMPVPlayer) then
       begin
         try
           FMPVPlayer := TMPVPlayer.Create(640, 360);
-<<<<<<< HEAD
           FMPVPlayer.LoadFile(ExtractFilePath(ParamStr(0)) + 'ressources\video\test.mp4');
-=======
-
-          FMPVPlayer.LoadFile(ExtractFilePath(ParamStr(0)) + 'ressources\video\test.mp4');
-          //FMPVPlayer.LoadFile( 'D:\test2.mp4');
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
         except
           on E: Exception do
           begin
@@ -5203,10 +4286,6 @@ begin
       if Assigned(FMPVPlayer) then
         Obj.FVideoTexture := FMPVPlayer.Target.texture
       else
-<<<<<<< HEAD
-=======
-        // Fallback if MPV failed to load
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
         Obj.FVideoTexture := LoadTextureFromImage(GenImageColor(640, 360, RED));
     end;
   end;
@@ -5325,11 +4404,7 @@ begin
   end;
   // Clear the reference
   FBombActor := nil;
-<<<<<<< HEAD
 end;
-=======
-end;
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
 // External accessor to toggle slow motion from VCL/UI
 
 procedure TRaylibSandbox.SetSlowMotion(Active: Boolean);
@@ -5347,13 +4422,9 @@ begin
     FSpawnQueue := 0;
     // Stop and free MPV player when the scene is cleared!
     if Assigned(FMPVPlayer) then
-<<<<<<< HEAD
       FreeAndNil(FMPVPlayer);
     // Free independent Piano Component
     FreeAndNil(FPiano);
-=======
-      FreeAndNil(FMPVPlayer);
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
     // Only clear dynamic items, keep FFloorActor and Engine alive!
     var i: Integer;
     for i := High(FItems) downto 0 do
@@ -5616,7 +4687,6 @@ begin
 end;
 
 procedure TRaylibSandbox.TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
-<<<<<<< HEAD
 var
   Effect: TSpawnEffect;
 begin
@@ -5756,7 +4826,7 @@ begin
   JRot.w := 1;
 
   // Width is 14.0 to perfectly match 14 white keys
-  BaseCube := TA3DComponent.Create('', FSandbox.FEngine, stBox, Vector3Create(14.0, 0.6, WhiteKeyD + 1.0), True, False, @JPos, @JRot);
+  BaseCube := TA3DComponent.Create('', FSandbox.FEngine, stBox, Vector3Create(15.0, 0.6, WhiteKeyD + 1.0), True, False, @JPos, @JRot);
   BaseCube.Name := 'PianoBody';
 
   WoodColor.r := 101;
@@ -5800,7 +4870,8 @@ begin
 
     // --- Spawn White Key ---
     // Base top is Y=0.6. Key is 0.2 high. Center at Y=0.7 means it goes from 0.6 to 0.8 exactly.
-    Pos := Vector3Create((i * WhiteKeyW) - (WhiteKeyCount * WhiteKeyW * 0.5) + (WhiteKeyW * 0.5), 0.7, 0);
+    // Add 0.02 spacing between keys to prevent Wireframe Z-Fighting
+    Pos := Vector3Create((i * (WhiteKeyW + 0.02)) - (WhiteKeyCount * (WhiteKeyW + 0.02) * 0.5) + (WhiteKeyW * 0.5), 0.7, 0);
 
     Request.Shape := stBox; // HARD FIX: Use stBox to bypass stButton physics offsets!
     Request.Pos := Pos;
@@ -5880,106 +4951,5 @@ begin
   FPiano := TPiano.Create(Self);
 end;
 
-=======
-var
-  Effect: TSpawnEffect;
-begin
-  // Abort if no effect is selected
-  if FSpawnEffectType = spefNone then
-    Exit;
-
-  Effect.Position := Pos;
-  Effect.StartTime := GetTime();
-  Effect.Duration := 1.5; // 1.5 seconds visual effect duration
-  Effect.EffectType := FSpawnEffectType;
-  Effect.TargetActor := Actor;
-
-  // Make the actor invisible at the start of the effect
-  if Assigned(Actor) then
-  begin
-    Actor.ActAlpha := 0.0;
-    Actor.TargetAlpha := 1.0; // Let ModelEngine Lerp it to fully visible
-  end;
-
-  // Add to active effects array
-  SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) + 1);
-  FActiveSpawnEffects[High(FActiveSpawnEffects)] := Effect;
-end;
-
-procedure TRaylibSandbox.DrawSpawnEffects;
-var
-  i: Integer;
-  Elapsed, Progress, Alpha, Flicker: Single;
-  BasePos, TopPos: TVector3;
-  OuterRadius, InnerRadius: Single;
-begin
-  for i := 0 to High(FActiveSpawnEffects) do
-  begin
-    Elapsed := GetTime() - FActiveSpawnEffects[i].StartTime;
-
-    // Skip expired effects
-    if Elapsed >= FActiveSpawnEffects[i].Duration then
-      Continue;
-
-    Progress := Elapsed / FActiveSpawnEffects[i].Duration;
-    Alpha := 1.0 - Progress;
-
-    // Flicker effect to simulate the classic Enterprise transporter shimmer
-    Flicker := 0.8 + (Random * 0.2);
-
-    BasePos := FActiveSpawnEffects[i].Position;
-    TopPos := Vector3Create(BasePos.x, BasePos.y + 150.0, BasePos.z);
-
-    // Draw Visuals
-    if FActiveSpawnEffects[i].EffectType = spefBeam then
-    begin
-      // ==============================================================
-      // ENTERPRISE BEAM EFFECT
-      // ==============================================================
-      OuterRadius := 1.5 + (Sin(GetTime() * 20.0) * 0.2);
-      InnerRadius := 0.5 + (Sin(GetTime() * 30.0) * 0.1);
-
-      // 1. Outer Glow Cone (narrow at top, wide at bottom)
-      DrawCylinderEx(TopPos, BasePos, OuterRadius * 0.3, OuterRadius, 16, Fade(GOLD, Alpha * 0.4 * Flicker));
-
-      // 2. Inner Core (solid bright light)
-      DrawCylinderEx(TopPos, BasePos, InnerRadius * 0.3, InnerRadius, 16, Fade(WHITE, Alpha * 0.9 * Flicker));
-
-      // 3. Base glow disc (illuminating the floor)
-      DrawCircle3D(BasePos, 2.5 + (Sin(GetTime() * 10.0) * 0.5), Vector3Create(1, 0, 0), 90.0, Fade(GOLD, Alpha * 0.7 * Flicker));
-    end
-    else if FActiveSpawnEffects[i].EffectType = spefFade then
-    begin
-      // ==============================================================
-      // SIMPLE FADE EFFECT
-      // ==============================================================
-      DrawSphere(BasePos, 0.5 + (Progress * 2.0), Fade(SKYBLUE, Alpha * 0.4));
-      DrawSphereWires(BasePos, 0.5 + (Progress * 2.0), 8, 8, Fade(WHITE, Alpha * 0.8));
-    end;
-  end;
-
-  // Cleanup expired effects to prevent memory leaks and array bloat
-  for i := High(FActiveSpawnEffects) downto 0 do
-  begin
-    if (GetTime() - FActiveSpawnEffects[i].StartTime) >= FActiveSpawnEffects[i].Duration then
-    begin
-      // Ensure the object is fully opaque when the effect ends!
-      if Assigned(FActiveSpawnEffects[i].TargetActor) then
-      begin
-        FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
-        FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
-      end;
-
-      // Shift elements down if not the last element
-      if i < High(FActiveSpawnEffects) then
-        FActiveSpawnEffects[i] := FActiveSpawnEffects[High(FActiveSpawnEffects)];
-
-      // Resize array
-      SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) - 1);
-    end;
-  end;
-end;
-
->>>>>>> 86ece52ad5be919e2e47d9d985edd4e01414d81d
 end.
 
