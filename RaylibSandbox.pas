@@ -88,7 +88,7 @@ uses
   System.Classes, System.Math, System.SyncObjs, Vcl.Controls, Vcl.Forms,
   Vcl.Graphics, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
   MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
-  Yutani.VoronoiFracture;
+  Yutani.VoronoiFracture, Yutani.AliveHighlighter3D;
 
 type
   PItemData = ^TItemData;
@@ -338,6 +338,12 @@ type
     // Voronoi Fracture System
     FFractureQueue: TArray<TFragment>;
     FFractureTimer: Single;
+
+    //AliveHighlighter3D
+    FAliveHighlighter3D: TAliveHighlighter3D;
+    FMouseWorldPos: TVector3;
+
+    // Voronoi Fracture System
     procedure ProcessFractureQueue(dt: Single);
     procedure TriggerFracture(Actor: TA3DComponent; ImpactForce: Single);
 
@@ -466,6 +472,10 @@ type
     // Called from VCL to safely queue save/load in the render thread
     procedure SaveSceneToFile(const FileName: string);
     procedure LoadSceneFromFile(const FileName: string);
+
+   // Control the 3D Alive Highlighter
+    procedure SetHighlighterActive(Active: Boolean);
+    procedure SendHighlighterToActor(Actor: TA3DComponent);
   published
     property Align;
     property Anchors;
@@ -627,12 +637,14 @@ begin
   FYutaniAudio.LoadSoundfont(ExtractFilePath(ParamStr(0)) + 'ressources\audio\8bitsf.sf2');
 end;
 
+
 destructor TRaylibSandbox.Destroy;
 begin
   StopThread;
   FreeAndNil(FPiano);
   FreeAndNil(FLock);
   FreeAndNil(FYutaniAudio);
+  if Assigned(FAliveHighlighter3D) then FreeAndNil(FAliveHighlighter3D);
   inherited;
 end;
 
@@ -716,17 +728,14 @@ end;
 procedure TRaylibSandbox.SetTimeScale(const Value: Single);
 begin
   FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
-
   if FSlowMotionActive then
     FTimeScale := FSavedTimeScale;
 end;
-
 procedure TRaylibSandbox.SetSlowMotionActive(const Value: Boolean);
 begin
   if FSlowMotionActive <> Value then
   begin
     FSlowMotionActive := Value;
-
     if FSlowMotionActive then
       FTimeScale := FSavedTimeScale
     else
@@ -1637,6 +1646,30 @@ begin
     Exit;
   end;
 
+  // F10: Toggle the 3D Alive Highlighter
+  if (GetAsyncKeyState(VK_F10) and $1) <> 0 then
+  begin
+    if Assigned(FItemSelected) then
+    begin
+      if not Assigned(FAliveHighlighter3D) then
+      begin
+        FAliveHighlighter3D := TAliveHighlighter3D.Create;
+        FAliveHighlighter3D.SetStartPosition(Vector3Create(0, 10, 0));
+      end;
+      FAliveHighlighter3D.Active := True;
+      FAliveHighlighter3D.SendToTarget(FItemSelected.Position);
+    end
+    else
+    begin
+      if Assigned(FAliveHighlighter3D) then
+      begin
+        FAliveHighlighter3D.Active := False;
+        FreeAndNil(FAliveHighlighter3D);
+      end;
+    end;
+    FMouseLeftHandled := True;
+  end;
+
   // Select next/prev object
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
   begin
@@ -1693,6 +1726,15 @@ begin
     FCtrlWasPressed := False;
 
   ray := GetScreenToWorldRay(FMousePos, FCamera);
+
+  // AliveHighlighter3d
+  var GroundRayBox: TBoundingBox;
+  GroundRayBox.min := Vector3Create(-1000, -0.1, -1000);
+  GroundRayBox.max := Vector3Create(1000, 0.1, 1000);
+  var GroundHit := GetRayCollisionBox(ray, GroundRayBox);
+  if GroundHit.hit then
+    FMouseWorldPos := Vector3Create(GroundHit.point.x, 2.0, GroundHit.point.z);
+
 
   // ====================================================================
   // 3D BUTTON INTERACTION LOGIC (Hover & Click)
@@ -1918,13 +1960,10 @@ begin
 
       if FItemSelected.ShapeType = stModel then
       begin
-        var BBox := GetModelBoundingBox(FItemSelected.FModel);
-        var PhysRadius := Max(BBox.max.x - BBox.min.x, Max(BBox.max.y - BBox.min.y, BBox.max.z - BBox.min.z)) * Max(FItemSelected.Scale.x, Max(FItemSelected.Scale.y, FItemSelected.Scale.z)) * 0.5;
-
-        // Make arms reach outside the mesh
-        GScaleX := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
-        GScaleY := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
-        GScaleZ := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
+        // Use Actor.Scale directly so the gizmo arms match the visual mesh size perfectly
+        GScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 5.0, 1.0, 100.0);
+        GScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 5.0, 1.0, 100.0);
+        GScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 5.0, 1.0, 100.0);
 
         // Make the invisible click-box thicker so the mouse ray definitely hits the arrow before the mesh!
         ClickRadius := 1.0;
@@ -3043,6 +3082,8 @@ begin
   ProcessSpawnQueue(dt);
   ProcessCustomSpawnQueue(dt); // Process custom external spawns
   ProcessFractureQueue(dt);
+  if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active
+   then FAliveHighlighter3D.Update(dt, FMouseWorldPos);
   UpdateBomb(PhysDt); // Pass slowed down time to bomb timer
   if FSimulationRunning then
   begin
@@ -3113,15 +3154,11 @@ begin
     HoverScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 1.0, 1.0, 100.0);
     HoverScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 1.0, 1.0, 100.0);
 
-    // FOR MODELS: Scale the hover boxes to match the new giant gizmo arms!
     if FItemSelected.ShapeType = stModel then
     begin
-      var BBox := GetModelBoundingBox(FItemSelected.FModel);
-      var PhysRadius := Max(BBox.max.x - BBox.min.x, Max(BBox.max.y - BBox.min.y, BBox.max.z - BBox.min.z)) * Max(FItemSelected.Scale.x, Max(FItemSelected.Scale.y, FItemSelected.Scale.z)) * 0.5;
-
-      HoverScaleX := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
-      HoverScaleY := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
-      HoverScaleZ := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
+      HoverScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 5.0, 1.0, 150.0);
+      HoverScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 5.0, 1.0, 150.0);
+      HoverScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 5.0, 1.0, 150.0);
     end;
 
     if FGizmoMode = gmTranslate then
@@ -3597,9 +3634,9 @@ begin
       BeginShaderMode(FLightShader);
       ModelMat := rlGetMatrixTransform();
       SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-       if Actor.ShapeType = stModel then
+      if Actor.ShapeType = stModel then
       begin
-        // 1. Calculate the exact offset the Ghost uses
+        // 1. Determine the exact mesh size using the original model matrix
         var BBox := GetModelBoundingBox(Actor.FModel);
         var MeshW := BBox.max.x - BBox.min.x;
         var MeshH := BBox.max.y - BBox.min.y;
@@ -3608,20 +3645,23 @@ begin
         if MaxDim <= 0 then
           MaxDim := 1.0;
 
-        var DrawScale := 1.0 / MaxDim;
-        var CenterX := ((BBox.max.x + BBox.min.x) / 2) * DrawScale;
-        var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * DrawScale;
-        var NormMinY := BBox.min.y * DrawScale;
-        var OffsetY := -NormMinY - (MeshH * DrawScale * 0.5) + 0.5;
+        // 2. Calculate the base scale that the Ghost preview uses
+        var BaseDrawScale := 1.0 / MaxDim;
 
-        // 2. Apply translations
+        // 3. Calculate the offset so it sits perfectly centered in the Jolt collider
+        var CenterX := ((BBox.max.x + BBox.min.x) / 2) * BaseDrawScale;
+        var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * BaseDrawScale;
+        var NormMinY := BBox.min.y * BaseDrawScale;
+        var OffsetY := -NormMinY - (MeshH * BaseDrawScale * 0.5) + 0.5;
+
+        // 4. Apply translations
         rlTranslatef(-CenterX, OffsetY, -CenterZ);
 
-        // 3. Update shader matrix (for shadows)
+        // 5. Update shader matrix (required for correct shadow mapping)
         ModelMat := rlGetMatrixTransform();
         SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
 
-        // 4. Pass diffuse color to the shader
+        // 6. Pass the diffuse color to the shader
         var TintCol: TColorB := GetActorColor(Actor);
         ColorShaderVec[0] := TintCol.r / 255.0;
         ColorShaderVec[1] := TintCol.g / 255.0;
@@ -3629,19 +3669,73 @@ begin
         ColorShaderVec[3] := Actor.ActAlpha;
         SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
 
-        // 5. EXACT GHOST LOGIC: Save matrix, set to Identity
+        // 7. EXACT GHOST LOGIC: Save matrix, set to Identity, draw, restore!
         var OldTransform: TMatrix := Actor.FModel.transform;
         Actor.FModel.transform := MatrixIdentity();
 
-        // 6. APPLY GIZMO SCALE! We multiply by Actor.Scale here so the Gizmo resizes the model!
-        rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+        // 8. Draw the model with DrawModelEx.
+        // We multiply the perfect Ghost Base Size by Actor.Scale for each axis independently!
+        var FinalScaleX := (BaseDrawScale * Actor.Scale.x) + 1;
+        var FinalScaleY := (BaseDrawScale * Actor.Scale.y) + 1;
+        var FinalScaleZ := (BaseDrawScale * Actor.Scale.z) + 1;
 
-        // Scale is 1.0 because the Ghost uses 1.0.
-        DrawModel(Actor.FModel, Vector3Create(0, 0, 0), 1.0, Fade(TintCol, Actor.ActAlpha));
+        DrawModelEx(Actor.FModel, Vector3Create(0, 0, 0), Vector3Create(0,0,0), 0, Vector3Create(FinalScaleX, FinalScaleY, FinalScaleZ), Fade(TintCol, Actor.ActAlpha));
+
+        // 9. Restore original matrix so the model keeps its internal scale for the next frame
+        Actor.FModel.transform := OldTransform;
+      end
+ {     if Actor.ShapeType = stModel then
+      begin
+        // 1. Determine the exact mesh size using the original model matrix
+        var BBox := GetModelBoundingBox(Actor.FModel);
+        var MeshW := BBox.max.x - BBox.min.x;
+        var MeshH := BBox.max.y - BBox.min.y;
+        var MeshD := BBox.max.z - BBox.min.z;
+        var MaxDim := Max(MeshW, Max(MeshH, MeshD));
+        if MaxDim <= 0 then
+          MaxDim := 1.0;
+
+        // 2. Calculate the base scale that the Ghost preview uses
+        var BaseDrawScale := 1.0 / MaxDim;
+
+        // 3. Calculate the offset so it sits perfectly centered in the Jolt collider
+        var CenterX := ((BBox.max.x + BBox.min.x) / 2) * BaseDrawScale;
+        var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * BaseDrawScale;
+        var NormMinY := BBox.min.y * BaseDrawScale;
+        var OffsetY := -NormMinY - (MeshH * BaseDrawScale * 0.5) + 0.5;
+
+        // 4. Apply translations
+        rlTranslatef(-CenterX, OffsetY, -CenterZ);
+
+        // 5. Update shader matrix (required for correct shadow mapping)
+        ModelMat := rlGetMatrixTransform();
+        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+
+        // 6. Pass the diffuse color to the shader
+        var TintCol: TColorB := GetActorColor(Actor);
+        ColorShaderVec[0] := TintCol.r / 255.0;
+        ColorShaderVec[1] := TintCol.g / 255.0;
+        ColorShaderVec[2] := TintCol.b / 255.0;
+        ColorShaderVec[3] := Actor.ActAlpha;
+        SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+
+        // 7. EXACT GHOST LOGIC: Save matrix, set to Identity, draw, restore!
+        var OldTransform: TMatrix := Actor.FModel.transform;
+        Actor.FModel.transform := MatrixIdentity();
+
+        // 8. Draw the model exactly like the Ghost, but pass Actor.Scale instead of 1.0!
+        // We use Max(x, y, z) so the uniform scaling doesn't distort the model.
+        var UniformScale := Max(Actor.Scale.x, Max(Actor.Scale.y, Actor.Scale.z));
+        DrawModel(Actor.FModel, Vector3Create(0, 0, 0), UniformScale, Fade(TintCol, Actor.ActAlpha));
 
         // Restore original matrix so the model keeps its internal scale for the next frame
         Actor.FModel.transform := OldTransform;
-      end
+
+        // 9. RESIZE GIZMO LOGIC: Apply Actor.Scale to the rlgl matrix AFTER drawing.
+        rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+        ModelMat := rlGetMatrixTransform();
+        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+      end   }
       else
       begin
         var C: TColorB := GetActorColor(Actor);
@@ -3913,6 +4007,7 @@ begin
   dt := GetFrameTime();
   UpdateProjectiles(dt * FTimeScale);
   DrawSpawnEffects;
+   if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active then FAliveHighlighter3D.Draw;
   EndMode3D();
 end;
 
@@ -3937,18 +4032,12 @@ begin
   ScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 1.0, 1.0, 100.0);
   ScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 1.0, 1.0, 100.0);
 
-  // FOR MODELS: Calculate the actual physical radius so the gizmo arms reach outside the mesh!
+  // FOR MODELS: Calculate the actual visual size so the gizmo arms match the mesh!
   if FItemSelected.ShapeType = stModel then
   begin
-    BBox := GetModelBoundingBox(FItemSelected.FModel);
-
-    // Calculate how big the model is after applying the model's internal transform and the Actor's scale
-    PhysRadius := Max(BBox.max.x - BBox.min.x, Max(BBox.max.y - BBox.min.y, BBox.max.z - BBox.min.z)) * Max(FItemSelected.Scale.x, Max(FItemSelected.Scale.y, FItemSelected.Scale.z)) * 0.5;
-
-    // Make the gizmo arms slightly larger than the object's physical radius
-    ScaleX := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
-    ScaleY := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
-    ScaleZ := EnsureRange(PhysRadius + 1.5, 1.5, 150.0);
+    ScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 5.0, 1.5, 150.0);
+    ScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 5.0, 1.5, 150.0);
+    ScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 5.0, 1.5, 150.0);
   end;
 
   ArrowRadius := 0.08;
@@ -5126,15 +5215,12 @@ begin
           Restitution := Reader.ReadFloat;
 
           var LoadIsStatic: Boolean := (Reader.ReadInteger = 1);
-
           LoadColor.r := Reader.ReadInteger;
           LoadColor.g := Reader.ReadInteger;
           LoadColor.b := Reader.ReadInteger;
           LoadColor.a := Reader.ReadInteger;
-
           // Read ModelPath ('-' if not a model)
           ModelPath := Reader.ReadStr;
-
           // Create the Actor natively and pass the loaded IsStatic state!
           Actor := TA3DComponent.Create('', FEngine, ShapeType, Size, LoadIsStatic, False, @JPos, @JRot);
           Actor.Name := AName;
@@ -5450,6 +5536,23 @@ begin
 
   // Create the standalone Piano component
   FPiano := TPiano.Create(Self);
+end;
+
+procedure TRaylibSandbox.SetHighlighterActive(Active: Boolean);
+begin
+  if Assigned(FAliveHighlighter3D) then
+  begin
+    FAliveHighlighter3D.Active := Active;
+  end;
+end;
+
+procedure TRaylibSandbox.SendHighlighterToActor(Actor: TA3DComponent);
+begin
+  if Assigned(FAliveHighlighter3D) and Assigned(Actor) then
+  begin
+    FAliveHighlighter3D.SendToTarget(Actor.Position);
+    FAliveHighlighter3D.Active := True;
+  end;
 end;
 
 end.

@@ -11838,6 +11838,7 @@ object Form1: TForm1
           Caption = 'Clear'
           TabOrder = 0
           OnClick = btnClearSceneClick
+          ExplicitTop = 582
         end
         object btnSpawnCubes: TButton
           Left = 13
@@ -11884,6 +11885,7 @@ object Form1: TForm1
           Caption = 'Save'
           TabOrder = 5
           OnClick = btnSceneSaveClick
+          ExplicitTop = 582
         end
         object btnSceneLoad: TButton
           Left = 105
@@ -11894,6 +11896,7 @@ object Form1: TForm1
           Caption = 'Load'
           TabOrder = 6
           OnClick = btnSceneLoadClick
+          ExplicitTop = 582
         end
         object btnSpawn3DModel: TButton
           Left = 13
@@ -11931,6 +11934,7 @@ object Form1: TForm1
           ParentFont = False
           ReadOnly = True
           TabOrder = 9
+          ExplicitTop = 353
         end
         object btnSelectPrev: TButton
           Left = 13
@@ -11941,6 +11945,7 @@ object Form1: TForm1
           Caption = '<'
           TabOrder = 10
           OnClick = btnSelectPrevClick
+          ExplicitTop = 582
         end
         object btnSelectNext: TButton
           Left = 39
@@ -11951,6 +11956,7 @@ object Form1: TForm1
           Caption = '>'
           TabOrder = 11
           OnClick = btnSelectNextClick
+          ExplicitTop = 582
         end
         object btnSpawnSandbox: TButton
           Left = 13
