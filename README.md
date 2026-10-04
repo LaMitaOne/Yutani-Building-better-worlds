@@ -72,9 +72,12 @@ Status: Work in Progress (Alpha v0.642)
 * **Advanced Shading & Weather:** Custom GLSL shaders for real-time ambient/diffuse shading, moving procedural cloud layers, a horizon-to-zenith gradient skybox, and a full Day/Night progression cycle.    
 * **Dynamic Fake Shadows:** Shadow maps that scale in size and fade out realistically based on an object's Y-height.    
      
-<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/f195e0bf-d0ee-48e2-a4aa-f3b9c437b8dd" />     
-My first spaceship 🤤     
-Get a couple of spaceships now: https://quaternius.com/packs/ultimatespaceships.html        
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/f195e0bf-d0ee-48e2-a4aa-f3b9c437b8dd" />       
+My first spaceship 🤤        
+      
+Get your own spaceships here: https://quaternius.com/packs/ultimatespaceships.html         
+<img height="250" alt="Unbenannt" src="https://github.com/user-attachments/assets/54cd864d-3056-4b0b-a744-f561477d6ace" />    
+
              
 ## ⌨️ Controls    
 * **CTRL:** Toggle between Move / Rotate / Scale Gizmos    
