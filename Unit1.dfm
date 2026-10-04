@@ -12350,6 +12350,7 @@ object Form1: TForm1
           ParentFont = False
           State = cbChecked
           TabOrder = 12
+          Visible = False
           StyleElements = [seClient, seBorder]
           OnClick = chkAntialiasClick
         end

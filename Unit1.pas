@@ -1,7 +1,7 @@
 unit Unit1;
 
 {==============================================================================*
- *  Mainform of raylib sandbox & jolt phsics v0.64
+ *  Mainform of raylib sandbox & jolt phsics v0.642
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -356,6 +356,7 @@ end;
 procedure TForm1.chkAntialiasClick(Sender: TObject);
 begin
   FSandbox.AntiAliasing := chkAntialias.Checked;
+  //todo - we must restart fully...save ini or restart internally, i do later , no mood for this now :D
 end;
 
 procedure TForm1.chkDayNightRythmClick(Sender: TObject);
@@ -530,10 +531,8 @@ procedure TForm1.btnLoadSF2Click(Sender: TObject);
 begin
   // Set filter to Soundfont files
   OpenDialog1.Filter := 'SoundFont 2 (*.sf2)|*.sf2';
-
   // Set initial directory to the audio resources folder
   OpenDialog1.InitialDir := ExtractFilePath(ParamStr(0)) + 'ressources\audio';
-
   if OpenDialog1.Execute then
   begin
     try

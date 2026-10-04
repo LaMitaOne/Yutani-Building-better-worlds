@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.641 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.642 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -77,7 +77,6 @@
  *
  * Apache-2.0 license
  *==============================================================================}
-
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
@@ -88,7 +87,8 @@ uses
   Winapi.Windows, Winapi.MultiMon, Winapi.MMSystem, System.SysUtils,
   System.Classes, System.Math, System.SyncObjs, Vcl.Controls, Vcl.Forms,
   Vcl.Graphics, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
-  MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio;
+  MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
+  Yutani.VoronoiFracture;
 
 type
   PItemData = ^TItemData;
@@ -120,11 +120,11 @@ type
   end;
 
   TWorldBaseType = (wbLand, wbSpace, wbHolodeck, wbIsland);
-
   // Spawn effect types for manual and scripted spawns
-  TSpawnEffectType = (spefNone, spefBeam, spefFade);
 
+  TSpawnEffectType = (spefNone, spefBeam, spefFade);
   // Record to track an active spawn effect
+
   TSpawnEffect = record
     Position: TVector3;
     StartTime: Double;
@@ -152,10 +152,10 @@ type
 
   TEngineExceptionEvent = procedure(Sender: TObject; const Args: TEngineExceptionEventArgs) of object;
 
-  TGizmoMode = (gmNone, gmTranslate, gmRotate, gmScale, gmDragAndThrow);
-
+  TGizmoMode = (gmNone, gmTranslate, gmRotate, gmScale, gmUniformScale, gmDragAndThrow);
   // Independent Piano Component
   // Encapsulates the piano base and all keys as a single logical unit
+
   TPiano = class
   private
     FSandbox: TRaylibSandbox;
@@ -334,6 +334,12 @@ type
     // Independent Piano Component
     FPiano: TPiano;
 
+    // Voronoi Fracture System
+    FFractureQueue: TArray<TFragment>;
+    FFractureTimer: Single;
+    procedure ProcessFractureQueue(dt: Single);
+    procedure TriggerFracture(Actor: TA3DComponent; ImpactForce: Single);
+
     procedure UpdateBomb(dt: Single);
     procedure ExplodeBomb;
 
@@ -364,6 +370,8 @@ type
     function CheckGizmoAxisHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
     function CheckGizmoRingHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
     function CheckGizmoScaleHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
+    function CheckGizmoCornerHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
+    procedure UpdateGizmoCornerInteraction;
     function CheckButton(x, y, w, h: Integer): Boolean;
     procedure SetActive(const Value: Boolean);
     procedure SetTargetFPS(const Value: Integer);
@@ -1280,7 +1288,7 @@ begin
   JRot.w := RandQuat.w;
   Obj := TA3DComponent.Create('', FEngine, FSpawnShape, Size, FSpawnStatic, FSpawnDestructable, @JPos, @JRot);
   Obj.Name := Data^.Name;
-  Obj.Friction := 0.2;
+  Obj.Friction := 0.4;
   Obj.Restitution := 0.2;
   Obj.UserData := Data;
   Obj.Visible := True;
@@ -1401,7 +1409,7 @@ begin
   JRot.w := 1;
   Obj := TA3DComponent.Create('', FEngine, stSphere, Size, False, false, @JPos, @JRot);
   Obj.Mass := 1.0;
-  Obj.Friction := 0.2;
+  Obj.Friction := 0.4;
   Obj.Restitution := 0.2;
   Obj.ActivateBody;
   Obj.Visible := True;
@@ -1639,12 +1647,14 @@ begin
   begin
     if not FCtrlWasPressed then
     begin
-      // Cycle through tools including the new explicit Drag & Throw tool
+      // Cycle through tools
       if FGizmoMode = gmTranslate then
         FGizmoMode := gmRotate
       else if FGizmoMode = gmRotate then
         FGizmoMode := gmScale
       else if FGizmoMode = gmScale then
+        FGizmoMode := gmUniformScale
+      else if FGizmoMode = gmUniformScale then
         FGizmoMode := gmDragAndThrow
       else if FGizmoMode = gmDragAndThrow then
         FGizmoMode := gmNone
@@ -1930,6 +1940,20 @@ begin
           FGizmoStartMouse := FMousePos;
           FGizmoStartVal := FItemSelected.Scale;
           FGizmoStartPos := FItemSelected.Position; // Save position to calculate Y-Lift
+          FGizmoStartQuat := FItemSelected.Quaternion;
+          FMouseLeftHandled := True;
+          FItemSelected.DetachFromPhysics;
+          Exit;
+        end;
+      end
+      else if FGizmoMode = gmUniformScale then
+      begin
+        if CheckGizmoCornerHit(FItemSelected.Position, Vector3Create(GScaleX, GScaleY, GScaleZ), ClickRadius, ray, FGizmoAxis) then
+        begin
+          FGizmoDragging := True;
+          FGizmoStartMouse := FMousePos;
+          FGizmoStartVal := FItemSelected.Scale; // Save the initial Scale
+          FGizmoStartPos := FItemSelected.Position; // Save position for Y-Lift
           FGizmoStartQuat := FItemSelected.Quaternion;
           FMouseLeftHandled := True;
           FItemSelected.DetachFromPhysics;
@@ -2252,6 +2276,89 @@ begin
   end;
 end;
 
+function TRaylibSandbox.CheckGizmoCornerHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
+var
+  BBox: TBoundingBox;
+  Hit: TRayCollision;
+  InvRot: TQuaternion;
+  LocalRay: TRay;
+  LocalDir: TVector3;
+  R: Single;
+begin
+  Result := False;
+  Axis := 0;
+
+  // Radius for the corner click-box
+  R := RayRadius + 0.3;
+
+  InvRot := QuaternionInvert(FItemSelected.Quaternion);
+  LocalRay.position := Vector3RotateByQuaternion(Vector3Subtract(Ray.position, Pos), InvRot);
+  LocalDir := Vector3RotateByQuaternion(Ray.direction, InvRot);
+  LocalRay.direction := Vector3Normalize(LocalDir);
+
+  // Check all 8 corners of the bounding box
+  BBox.min := Vector3Create(-Scale.x - R, -Scale.y - R, -Scale.z - R);
+  BBox.max := Vector3Create(Scale.x + R, Scale.y + R, Scale.z + R);
+  Hit := GetRayCollisionBox(LocalRay, BBox);
+
+  if Hit.hit then
+  begin
+    Result := True;
+    // We only need to know it hit ANY corner, so we just return Axis 1 (Active state)
+    Axis := 1;
+    Exit;
+  end;
+end;
+
+procedure TRaylibSandbox.UpdateGizmoCornerInteraction;
+var
+  MouseDeltaX, MouseDeltaY: Single;
+  ScaleChange: Single;
+  EndScale: TVector3;
+  OldScaleY, NewScaleY, YLift: Single;
+  CamForward, CamRight, CamUp, MoveDir: TVector3;
+  CamDot: Single;
+begin
+  MouseDeltaX := FMousePos.x - FGizmoStartMouse.x;
+  MouseDeltaY := FMousePos.y - FGizmoStartMouse.y;
+
+  if Abs(MouseDeltaX) < 0.5 then
+    MouseDeltaX := 0;
+  if Abs(MouseDeltaY) < 0.5 then
+    MouseDeltaY := 0;
+
+  // Calculate proper 3D screen projection regardless of camera angle
+  CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
+  CamRight := Vector3Normalize(Vector3CrossProduct(CamForward, FCamera.up));
+  CamUp := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
+
+  // Project mouse movement onto screen space directions
+  MoveDir := Vector3Add(Vector3Scale(CamRight, MouseDeltaX * 0.1), Vector3Scale(CamUp, -MouseDeltaY * 0.1));
+
+  // We want to scale outwards when pulling to the right/up, and inwards when pulling left/down
+  // The magnitude of the movement defines the scale change
+  ScaleChange := (MoveDir.x + MoveDir.y) * 0.05;
+  // Fallback if movement is weird
+  if ScaleChange = 0 then
+    ScaleChange := (MouseDeltaX * 0.01) + (-MouseDeltaY * 0.01);
+
+  EndScale := FGizmoStartVal;
+
+  // Apply uniform scale equally to X, Y, and Z
+  var NewSize := EnsureRange(EndScale.x + ScaleChange, 0.05, 100);
+  EndScale.x := NewSize;
+  EndScale.y := NewSize;
+  EndScale.z := NewSize;
+
+  FItemSelected.Scale := EndScale;
+
+  // Y-LIFT STABILIZATION (Same logic as normal Scale)
+  OldScaleY := FGizmoStartVal.y;
+  NewScaleY := EndScale.y;
+  YLift := (NewScaleY - OldScaleY) * 0.5;
+  FItemSelected.SetPosition(Vector3Create(FGizmoStartPos.x, FGizmoStartPos.y + YLift, FGizmoStartPos.z));
+end;
+
 procedure TRaylibSandbox.UpdateGizmoInteraction;
 var
   MouseDeltaX, MouseDeltaY: Single;
@@ -2272,14 +2379,11 @@ var
 begin
   MouseDeltaX := FMousePos.x - FGizmoStartMouse.x;
   MouseDeltaY := FMousePos.y - FGizmoStartMouse.y;
-
   if Abs(MouseDeltaX) < 0.5 then
     MouseDeltaX := 0;
   if Abs(MouseDeltaY) < 0.5 then
     MouseDeltaY := 0;
-
   CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
-
   if FGizmoMode = gmTranslate then
   begin
     WorldAxis := Vector3Create(0, 0, 0);
@@ -2289,24 +2393,17 @@ begin
       WorldAxis := Vector3Create(0, 1, 0)
     else if FGizmoAxis = 3 then
       WorldAxis := Vector3Create(0, 0, 1);
-
     WorldAxis := Vector3RotateByQuaternion(WorldAxis, FItemSelected.Quaternion);
-
     // --- KORREKTE 3D-PROJEKTION FÜR ALLE ACHSEN ---
     CamRight := Vector3Normalize(Vector3CrossProduct(CamForward, FCamera.up));
     CamUp := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
-
     MoveDir := Vector3Add(Vector3Scale(CamRight, MouseDeltaX * 0.1), Vector3Scale(CamUp, -MouseDeltaY * 0.1));
-
     CamDot := Vector3DotProduct(WorldAxis, MoveDir);
     LocalMove := Vector3Scale(WorldAxis, CamDot);
-
     // Store old position before applying the new one
     OldBasePos := FItemSelected.Position;
-
     NewPos := Vector3Add(FGizmoStartVal, LocalMove);
     FItemSelected.SetPosition(NewPos);
-
     // ====================================================================
     // QUICK & DIRTY PIANO LINKING:
     // If we are moving the Piano Base, move all keys with it!
@@ -2322,7 +2419,6 @@ begin
         end;
       end;
     end;
-
   end
   else if FGizmoMode = gmRotate then
   begin
@@ -2333,12 +2429,10 @@ begin
       RotAxis := Vector3RotateByQuaternion(Vector3Create(0, 1, 0), FItemSelected.Quaternion)
     else if FGizmoAxis = 3 then
       RotAxis := Vector3RotateByQuaternion(Vector3Create(0, 0, 1), FItemSelected.Quaternion);
-
     if FGizmoAxis = 2 then
       RotAngle := (MouseDeltaX * 0.25) + (MouseDeltaY * 0.25)
     else
       RotAngle := (-MouseDeltaY * 0.5) + (MouseDeltaX * 0.25);
-
     if Abs(RotAngle) > 0.1 then
     begin
       RotDelta := QuaternionFromAxisAngle(RotAxis, DegToRad(RotAngle));
@@ -2354,7 +2448,6 @@ begin
   begin
     ScaleChange := (MouseDeltaX * 0.01) + (-MouseDeltaY * 0.01);
     EndScale := FGizmoStartVal;
-
     if FGizmoAxis = 1 then
     begin
       EndScale.x := EnsureRange(EndScale.x + ScaleChange, 0.05, 100);
@@ -2367,9 +2460,7 @@ begin
     begin
       EndScale.z := EnsureRange(EndScale.z + ScaleChange, 0.05, 100);
     end;
-
     FItemSelected.Scale := EndScale;
-
     // Y-LIFT STABILIZATION
     // Now that models are perfectly centered, they behave like primitives.
     // We lift the Y-Position by half the height change to keep the bottom on the ground.
@@ -2378,9 +2469,12 @@ begin
       OldScaleY := FGizmoStartVal.y;
       NewScaleY := EndScale.y;
       YLift := (NewScaleY - OldScaleY) * 0.5;
-
       FItemSelected.SetPosition(Vector3Create(FGizmoStartPos.x, FGizmoStartPos.y + YLift, FGizmoStartPos.z));
     end;
+  end
+  else if FGizmoMode = gmUniformScale then
+  begin
+    UpdateGizmoCornerInteraction;
   end;
 end;
 
@@ -2725,8 +2819,8 @@ begin
     FCustomModel.meshes := nil;
   end;
 
-  Obj.Friction := 1.0;
-  Obj.Restitution := 0.0;
+  Obj.Friction := 0.4;
+  Obj.Restitution := 0.2;
   Obj.UserData := Data;
   Obj.Visible := True;
 
@@ -2922,6 +3016,7 @@ begin
   HandleDesktopInput;
   ProcessSpawnQueue(dt);
   ProcessCustomSpawnQueue(dt); // Process custom external spawns
+  ProcessFractureQueue(dt);
   UpdateBomb(PhysDt); // Pass slowed down time to bomb timer
   if FSimulationRunning then
   begin
@@ -2934,11 +3029,34 @@ begin
       FActiveBodies := 0;
       for i := 0 to High(FItems) do
       begin
-        if Assigned(FItems[i]) then
+        if Assigned(FItems[i]) and not FItems[i].FIsDead then
         begin
           var Vel := FItems[i].GetLinearVelocity;
-          if (Abs(Vel.x) > 0.1) or (Abs(Vel.y) > 0.1) or (Abs(Vel.z) > 0.1) then
+          var SpeedSq := (Vel.x * Vel.x) + (Vel.y * Vel.y) + (Vel.z * Vel.z);
+
+          if SpeedSq > 1.0 then
             Inc(FActiveBodies);
+
+          // DESTRUCTION CHECK: Only fracture manually placed destructables!
+          if FItems[i].IsDestructable and (FItems[i].Name <> 'Fragment') then
+          begin
+            // Only trigger fracture if it hits the ground really hard
+            var HitGroundHard := (Vel.y < -15.0) and (FItems[i].Position.y <= 1.5);
+
+            if HitGroundHard then
+            begin
+              TriggerFracture(FItems[i], Sqrt(SpeedSq));
+
+              // Safely remove the old actor from Jolt Physics
+              if FItems[i].FBodyID <> 0 then
+              begin
+                JPH_BodyInterface_RemoveAndDestroyBody(FEngine.BodyInterface, FItems[i].FBodyID);
+                FItems[i].FBodyID := 0;
+              end;
+              FItems[i].FIsDead := True;
+              Continue;
+            end;
+          end;
         end;
       end;
     except
@@ -2993,6 +3111,11 @@ begin
     else if FGizmoMode = gmScale then
     begin
       if CheckGizmoScaleHit(FItemSelected.Position, Vector3Create(HoverScaleX, HoverScaleY, HoverScaleZ), 0.4, HoverRay, HoverAxis) then
+        FGizmoHoverAxis := HoverAxis;
+    end
+    else if FGizmoMode = gmUniformScale then
+    begin
+      if CheckGizmoCornerHit(FItemSelected.Position, Vector3Create(HoverScaleX, HoverScaleY, HoverScaleZ), 0.4, HoverRay, HoverAxis) then
         FGizmoHoverAxis := HoverAxis;
     end;
   end;
@@ -3137,6 +3260,29 @@ begin
   // Bias to prevent shadow acne
   var TempBias: Single := 0.05;
   SetShaderValue(FLightShader, GetShaderLocation(FLightShader, 'shadowBias'), @TempBias, SHADER_UNIFORM_FLOAT);
+  // CRITICAL: Remove dead actors from the list to prevent them
+  // from clogging up Jolt's body count and freezing in mid-air!
+  for i := High(FItems) downto 0 do
+  begin
+    if Assigned(FItems[i]) and FItems[i].FIsDead then
+    begin
+      if FItems[i] = FItemSelected then
+      begin
+        FItemSelected := nil;
+        DoObjectSelected(nil);
+      end;
+
+      // Free user data
+      if FItems[i].UserData <> nil then
+        Dispose(PItemData(FItems[i].UserData));
+
+      FItems[i].Free;
+      // Remove from array without leaving a gap
+      for var j := i to High(FItems) - 1 do
+        FItems[j] := FItems[j + 1];
+      SetLength(FItems, Length(FItems) - 1);
+    end;
+  end;
 end;
 
 procedure TRaylibSandbox.RenderGame;
@@ -3289,27 +3435,56 @@ var
 
   function GetActorColor(A: TA3DComponent): TColorB;
   const
-    COL_CUBE: TColorB = (R: 230; g: 41; b: 55; A: 255);
-    COL_PYRAMID: TColorB = (R: 255; g: 161; b: 0; A: 255);
-    COL_SPHERE: TColorB = (R: 179; g: 71; b: 217; A: 255);
-    COL_CAPSULE: TColorB = (R: 0; g: 168; b: 150; A: 255);
-    COL_TEAL: TColorB = (R: 64; g: 224; b: 208; A: 255);
+    COL_CUBE: TColorB = (
+    R: 230;
+    g: 41;
+    b: 55;
+    A: 255
+  );
+    COL_PYRAMID: TColorB = (
+    R: 255;
+    g: 161;
+    b: 0;
+    A: 255
+  );
+    COL_SPHERE: TColorB = (
+    R: 179;
+    g: 71;
+    b: 217;
+    A: 255
+  );
+    COL_CAPSULE: TColorB = (
+    R: 0;
+    g: 168;
+    b: 150;
+    A: 255
+  );
+    COL_TEAL: TColorB = (
+    R: 64;
+    g: 224;
+    b: 208;
+    A: 255
+  );
   begin
     Result.a := Round(255 * A.ActAlpha);
     if A.CollisionHighlighting then
       Exit(COL_TEAL);
-
     // If the Actor has a custom color assigned (like spawned walls), use it!
     if (A.ActColor.r <> WHITE.r) or (A.ActColor.g <> WHITE.g) or (A.ActColor.b <> WHITE.b) or (A.ActColor.a <> WHITE.a) then
       Exit(A.ActColor);
-
     case A.ShapeType of
-      stBox: Exit(COL_CUBE);
-      stPyramid: Exit(COL_PYRAMID);
-      stSphere: Exit(COL_SPHERE);
-      stCapsule: Exit(COL_CAPSULE);
-      stPrism: Exit(COL_PRISM);
-      stBomb: Exit(RED);
+      stBox:
+        Exit(COL_CUBE);
+      stPyramid:
+        Exit(COL_PYRAMID);
+      stSphere:
+        Exit(COL_SPHERE);
+      stCapsule:
+        Exit(COL_CAPSULE);
+      stPrism:
+        Exit(COL_PRISM);
+      stBomb:
+        Exit(RED);
     else
       Exit(WHITE);
     end;
@@ -3317,9 +3492,7 @@ var
 
 begin
   ActorColorLoc := GetShaderLocation(FLightShader, 'diffuse');
-
   BeginMode3D(FCamera);
-
   // 1. Draw Skybox (Infinite background)
   if FSkyboxModel.meshes <> nil then
   begin
@@ -3328,7 +3501,6 @@ begin
     ProjMat := MatrixPerspective(FCamera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
     SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
     SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
-
     if (FCurrentWorldBase = wbSpace) or (FCurrentWorldBase = wbHolodeck) then
     begin
       var BlackSkyColor: TColorB := BLACK;
@@ -3340,29 +3512,26 @@ begin
       DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
       rlEnableBackfaceCulling();
     end;
-
     rlEnableDepthMask();
   end;
-
   // 2. Draw Floor with Lighting Shader
   BeginShaderMode(FLightShader);
-
   if FCurrentWorldBase = wbLand then
     DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN)
   else if FCurrentWorldBase = wbSpace then
     DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK)
   else if FCurrentWorldBase = wbHolodeck then
     DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK);
-
   EndShaderMode();
-
   if FCurrentWorldBase = wbHolodeck then
   begin
     var WarmOrange: TColorB;
-    WarmOrange.r := 255; WarmOrange.g := 130; WarmOrange.b := 0; WarmOrange.a := 255;
+    WarmOrange.r := 255;
+    WarmOrange.g := 130;
+    WarmOrange.b := 0;
+    WarmOrange.a := 255;
     DrawHolodeckGrid(200, 5.0, Fade(WarmOrange, 0.85));
   end;
-
   // 3. Draw Clouds
   if (FCloudModel.meshes <> nil) and ((FCurrentWorldBase = wbLand) or (FCurrentWorldBase = wbIsland)) then
   begin
@@ -3370,13 +3539,11 @@ begin
     DrawModel(FCloudModel, Vector3Create(FCamera.position.x, 150, FCamera.position.z), 1.0, WHITE);
     EndShaderMode();
   end;
-
   // 4. Draw Actors
   MaxDist := FMaxRenderDistance;
   CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
   ModelMatLoc := GetShaderLocation(FLightShader, 'matModel');
   rlSetBlendMode(BLEND_ALPHA);
-
   for i := 0 to FEngine.Count - 1 do
   begin
     Actor := FEngine.Items[i];
@@ -3384,37 +3551,68 @@ begin
     begin
       if (Actor.UserData <> nil) and PItemData(Actor.UserData)^.IsProjectile then
         Continue;
-
       Dist := Vector3Distance(Actor.Position, FCamera.position);
-      if FDistanceCulling and (Dist > MaxDist) then Continue;
-
+      if FDistanceCulling and (Dist > MaxDist) then
+        Continue;
       ToActor := Vector3Subtract(Actor.Position, FCamera.position);
       ToActorNorm := Vector3Normalize(ToActor);
       DotP := Vector3DotProduct(ToActorNorm, CamForward);
-      if FFrustumCulling and (DotP < 0.5) then Continue;
-
+      if FFrustumCulling and (DotP < 0.5) then
+        Continue;
       rlPushMatrix();
       Pos := Actor.Position;
       rlTranslatef(Pos.x, Pos.y, Pos.z);
-
       Axis := Vector3Create(1, 1, 1);
       Angle := 0;
       if Actor.Quaternion.w < 1.0 then
         QuaternionToAxisAngle(Actor.Quaternion, @Axis, @Angle);
       rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
       rlDrawRenderBatchActive();
       BeginShaderMode(FLightShader);
-
       ModelMat := rlGetMatrixTransform();
       SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
       if Actor.ShapeType = stModel then
       begin
-        rlTranslatef(Actor.FModelOffset.x, Actor.FModelOffset.y, Actor.FModelOffset.z);
-        rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+        // 1. Calculate the exact offset the Ghost uses
+        var BBox := GetModelBoundingBox(Actor.FModel);
+        var MeshW := BBox.max.x - BBox.min.x;
+        var MeshH := BBox.max.y - BBox.min.y;
+        var MeshD := BBox.max.z - BBox.min.z;
+        var MaxDim := Max(MeshW, Max(MeshH, MeshD));
+        if MaxDim <= 0 then
+          MaxDim := 1.0;
+
+        var DrawScale := 1.0 / MaxDim;
+        var CenterX := ((BBox.max.x + BBox.min.x) / 2) * DrawScale;
+        var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * DrawScale;
+        var NormMinY := BBox.min.y * DrawScale;
+        var OffsetY := -NormMinY - (MeshH * DrawScale * 0.5) + 0.5;
+
+        // 2. Apply translations
+        rlTranslatef(-CenterX, OffsetY, -CenterZ);
+
+        // 3. Update shader matrix (for shadows)
+        ModelMat := rlGetMatrixTransform();
+        SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+
+        // 4. Pass diffuse color to the shader
         var TintCol: TColorB := GetActorColor(Actor);
+        ColorShaderVec[0] := TintCol.r / 255.0;
+        ColorShaderVec[1] := TintCol.g / 255.0;
+        ColorShaderVec[2] := TintCol.b / 255.0;
+        ColorShaderVec[3] := Actor.ActAlpha;
+        SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+
+        // 5. EXACT GHOST LOGIC: Save matrix, set to Identity, draw, restore!
+        var OldTransform: TMatrix := Actor.FModel.transform;
+        Actor.FModel.transform := MatrixIdentity();
+
+        // Scale is 1.0 because the Ghost uses 1.0.
+        // The offset we calculated above does all the centering.
         DrawModel(Actor.FModel, Vector3Create(0, 0, 0), 1.0, Fade(TintCol, Actor.ActAlpha));
+
+        // Restore original matrix so the model keeps its internal scale for the next frame
+        Actor.FModel.transform := OldTransform;
       end
       else
       begin
@@ -3424,7 +3622,6 @@ begin
         ColorShaderVec[2] := C.b / 255.0;
         ColorShaderVec[3] := Actor.ActAlpha;
         SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-
         // ====================================================================
         // PIANO KEY LOGIC: CHECK THIS FIRST SO IT NEVER GETS OVERRIDDEN!
         // ====================================================================
@@ -3433,23 +3630,18 @@ begin
           // 1. Move key DOWN BEFORE scaling! 0.15 is exactly 0.15 units.
           if Actor.IsPressed then
             rlTranslatef(0, -0.08, 0);
-
           // 2. Apply Scale ONCE
           rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-
           // 3. Render the key
           FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
           ModelMat := rlGetMatrixTransform();
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
           C := Actor.ActColor;
           ColorShaderVec[0] := C.r / 255.0;
           ColorShaderVec[1] := C.g / 255.0;
           ColorShaderVec[2] := C.b / 255.0;
           ColorShaderVec[3] := 1.0;
           SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-
           DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
           DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
         end
@@ -3466,26 +3658,29 @@ begin
           if Actor.FVideoTexture.id > 0 then
           begin
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture;
-            ColorShaderVec[0] := 1.0; ColorShaderVec[1] := 1.0; ColorShaderVec[2] := 1.0; ColorShaderVec[3] := 1.0;
+            ColorShaderVec[0] := 1.0;
+            ColorShaderVec[1] := 1.0;
+            ColorShaderVec[2] := 1.0;
+            ColorShaderVec[3] := 1.0;
             SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
           end
           else
           begin
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-            C:= GetActorColor(Actor);
-            ColorShaderVec[0] := C.r / 255.0; ColorShaderVec[1] := C.g / 255.0; ColorShaderVec[2] := C.b / 255.0; ColorShaderVec[3] := C.A / 255.0;
+            C := GetActorColor(Actor);
+            ColorShaderVec[0] := C.r / 255.0;
+            ColorShaderVec[1] := C.g / 255.0;
+            ColorShaderVec[2] := C.b / 255.0;
+            ColorShaderVec[3] := C.A / 255.0;
             SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
           end;
-
           rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
           ModelMat := rlGetMatrixTransform();
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
           if Actor.FVideoTexture.id > 0 then
             DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, WHITE)
           else
             DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
-
           DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
         end
         else if Actor.ShapeType = stBomb then
@@ -3526,7 +3721,6 @@ begin
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
           DrawModel(FPrismModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
           rlPopMatrix;
-
           ModelMat := rlGetMatrixTransform();
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
           rlPushMatrix;
@@ -3545,7 +3739,6 @@ begin
           var BtnOffset: Single := 0.0;
           if Actor.IsPressed then
             BtnOffset := -0.03; // Move slightly inward on click
-
           // 1. Draw the outer frame (darker color)
           rlPushMatrix();
           rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
@@ -3554,46 +3747,33 @@ begin
           FrameCol.g := Max(0, Round(Actor.BaseColor.g * 0.5));
           FrameCol.b := Max(0, Round(Actor.BaseColor.b * 0.5));
           FrameCol.a := 255;
-
           DrawCube(Vector3Create(0, 0, -0.1), 1.0, 1.0, 1.0, FrameCol);
           rlPopMatrix();
-
           rlPushMatrix();
           rlTranslatef(0, 0, BtnOffset);
           rlScalef(Actor.Scale.x * 0.85, Actor.Scale.y * 0.85, Actor.Scale.z);
-
           if Actor.FVideoTexture.id > 0 then
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture
           else if Actor.FButtonTexture.id > 0 then
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FButtonTexture
           else
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
           rlEnableBackfaceCulling();
-
           ModelMat := rlGetMatrixTransform();
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
           DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
-
           rlDisableBackfaceCulling();
-
           FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
           DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
           rlPopMatrix();
         end;
-
         EndShaderMode();
       end;
-
       EndShaderMode();
       rlPopMatrix();
     end;
   end;
-
   rlSetBlendMode(BLEND_ALPHA);
-
   // --- GHOST PREVIEW ---
   if FIsBrushActive and FGhostVisible then
   begin
@@ -3611,11 +3791,11 @@ begin
       var GBBOX := GetModelBoundingBox(FCustomModel);
       var GMeshH: Single := GBBOX.max.y - GBBOX.min.y;
       var GMaxDim: Single := Max(GBBOX.max.x - GBBOX.min.x, Max(GMeshH, GBBOX.max.z - GBBOX.min.z));
-      if GMaxDim <= 0 then GMaxDim := 1.0;
+      if GMaxDim <= 0 then
+        GMaxDim := 1.0;
       var GUniformScale: Single := 1.0 / GMaxDim;
       SurfaceY := FGhostPos.y + ((GMeshH * GUniformScale) * 0.5) + 0.05;
     end;
-
     if FBrushShape = stBox then
     begin
       rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
@@ -3656,7 +3836,8 @@ begin
         var GBBOX := GetModelBoundingBox(FCustomModel);
         var GMeshSize := Vector3Create(GBBOX.max.x - GBBOX.min.x, GBBOX.max.y - GBBOX.min.y, GBBOX.max.z - GBBOX.min.z);
         var GMaxDim: Single := Max(GMeshSize.x, Max(GMeshSize.y, GMeshSize.z));
-        if GMaxDim <= 0 then GMaxDim := 1.0;
+        if GMaxDim <= 0 then
+          GMaxDim := 1.0;
         var GUniformScale: Single := 1.0 / GMaxDim;
         var GCenterX := ((GBBOX.max.x + GBBOX.min.x) / 2) * GUniformScale;
         var GCenterZ := ((GBBOX.max.z + GBBOX.min.z) / 2) * GUniformScale;
@@ -3675,47 +3856,35 @@ begin
       DrawSphere(Vector3Create(0, 0, 0), 0.5, Fade(RED, 0.5));
       DrawSphereWires(Vector3Create(0, 0, 0), 0.5, 16, 16, YELLOW);
     end;
-
     rlPopMatrix;
   end;
-
   if Assigned(FItemSelected) and not FIsBrushActive and (FGizmoMode <> gmNone) then
     DrawGizmo;
-
   // Draw projectiles
   for i := 0 to High(FProjectiles) do
   begin
-    if FProjectiles[i] = nil then Continue;
-
+    if FProjectiles[i] = nil then
+      Continue;
     BeginShaderMode(FLightShader);
     rlPushMatrix;
-
     Pos := FProjectiles[i].Position;
     rlTranslatef(Pos.x, Pos.y + 0.3, Pos.z);
-
     var Quat := FProjectiles[i].Quaternion;
     Axis := Vector3Create(1, 1, 1);
     Angle := 0;
     if Quat.w < 1.0 then
       QuaternionToAxisAngle(Quat, @Axis, @Angle);
     rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
     rlScalef(0.3, 0.3, 0.3);
-
     ModelMat := rlGetMatrixTransform();
     SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
     DrawModel(FSphereModel, Vector3Create(0, 0, 0), 1.0, SKYBLUE);
-
     rlPopMatrix;
     EndShaderMode();
   end;
-
   dt := GetFrameTime();
   UpdateProjectiles(dt * FTimeScale);
-
   DrawSpawnEffects;
-
   EndMode3D();
 end;
 
@@ -3833,6 +4002,30 @@ begin
     DrawCube(EndZ, HandleSize, HandleSize, HandleSize, ColZ);
     DrawCube(NegEndZ, HandleSize, HandleSize, HandleSize, ColZ);
     DrawCube(Pos, HandleSize, HandleSize, HandleSize, WHITE);
+  end
+  else if FGizmoMode = gmUniformScale then
+  begin
+    // Draw the main axes faintly so the user sees the orientation
+    DrawCylinderEx(Pos, EndX, ArrowRadius * 0.5, ArrowRadius * 0.5, 8, Fade(ColX, 0.5));
+    DrawCylinderEx(Pos, EndY, ArrowRadius * 0.5, ArrowRadius * 0.5, 8, Fade(ColY, 0.5));
+    DrawCylinderEx(Pos, EndZ, ArrowRadius * 0.5, ArrowRadius * 0.5, 8, Fade(ColZ, 0.5));
+
+    // Determine handle color (Yellow if dragging/hovering, White otherwise)
+    var CornerCol: TColorB := WHITE;
+    if FGizmoDragging or (FGizmoHoverAxis > 0) then
+      CornerCol := YELLOW;
+
+    HandleSize := HandleSize * 1.2; // Make them slightly larger
+
+    // Draw 8 cubes at the corners of the bounding box
+    DrawCube(Vector3Create(EndX.x, EndY.y, EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(-EndX.x, EndY.y, EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(EndX.x, -EndY.y, EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(-EndX.x, -EndY.y, EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(EndX.x, EndY.y, -EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(-EndX.x, EndY.y, -EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(EndX.x, -EndY.y, -EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
+    DrawCube(Vector3Create(-EndX.x, -EndY.y, -EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
   end;
 end;
 
@@ -3987,6 +4180,8 @@ begin
       ModeStr := 'Mode: Scale (Resize)';
     gmDragAndThrow:
       ModeStr := 'Mode: Drag & Throw';
+    gmUniformScale:
+      ModeStr := 'Mode: Uniform Scale (Corner Resize)';
   else
     ModeStr := 'Mode: None (UI Interaction)';
   end;
@@ -4222,8 +4417,8 @@ begin
   // NOW WE PASS Req.IsStatic DIRECTLY! IF IT IS A KEY, IT IS STATIC FROM THE START!
   Obj := TA3DComponent.Create('', FEngine, Req.Shape, Req.Size, Req.IsStatic, Req.IsDestructable, @JPos, @JRot);
   Obj.Name := Req.Name;
-  Obj.Friction := 0.6;
-  Obj.Restitution := 0.1;
+  Obj.Friction := 0.4;
+  Obj.Restitution := 0.2;
 
   if IsKey then
   begin
@@ -4299,6 +4494,278 @@ begin
 
   FItems[oldLen] := Obj;
   DoActorSpawned(Obj, oldLen);
+end;
+
+procedure TRaylibSandbox.TriggerFracture(Actor: TA3DComponent; ImpactForce: Single);
+var
+  BaseMesh: TPolyMesh;
+  Seeds: array of TVec3;
+  Fragments: TFragmentArray;
+  I, J: Integer;
+  BBox: TBoundingBox;
+  Centroid: TVec3;
+  Dir: TVec3;
+  ScaleFactor: Single;
+begin
+  if not Assigned(Actor) or not Actor.IsDestructable then
+    Exit;
+
+  // 1. Generate a BaseMesh EXACTLY matching the Actor's Size
+  var HX: Single := Actor.Scale.x * 0.5;
+  var HY: Single := Actor.Scale.y * 0.5;
+  var HZ: Single := Actor.Scale.z * 0.5;
+
+  SetLength(BaseMesh, 6);
+  SetLength(BaseMesh[0], 4);
+  BaseMesh[0][0].x := -HX;
+  BaseMesh[0][0].y := -HY;
+  BaseMesh[0][0].Z := HZ;
+  BaseMesh[0][1].x := HX;
+  BaseMesh[0][1].y := -HY;
+  BaseMesh[0][1].Z := HZ;
+  BaseMesh[0][2].x := HX;
+  BaseMesh[0][2].y := HY;
+  BaseMesh[0][2].Z := HZ;
+  BaseMesh[0][3].x := -HX;
+  BaseMesh[0][3].y := HY;
+  BaseMesh[0][3].Z := HZ;
+
+  SetLength(BaseMesh[1], 4);
+  BaseMesh[1][0].x := HX;
+  BaseMesh[1][0].y := -HY;
+  BaseMesh[1][0].Z := -HZ;
+  BaseMesh[1][1].x := -HX;
+  BaseMesh[1][1].y := -HY;
+  BaseMesh[1][1].Z := -HZ;
+  BaseMesh[1][2].x := -HX;
+  BaseMesh[1][2].y := HY;
+  BaseMesh[1][2].Z := -HZ;
+  BaseMesh[1][3].x := HX;
+  BaseMesh[1][3].y := HY;
+  BaseMesh[1][3].Z := -HZ;
+
+  SetLength(BaseMesh[2], 4);
+  BaseMesh[2][0].x := -HX;
+  BaseMesh[2][0].y := -HY;
+  BaseMesh[2][0].Z := -HZ;
+  BaseMesh[2][1].x := -HX;
+  BaseMesh[2][1].y := -HY;
+  BaseMesh[2][1].Z := HZ;
+  BaseMesh[2][2].x := -HX;
+  BaseMesh[2][2].y := HY;
+  BaseMesh[2][2].Z := HZ;
+  BaseMesh[2][3].x := -HX;
+  BaseMesh[2][3].y := HY;
+  BaseMesh[2][3].Z := -HZ;
+
+  SetLength(BaseMesh[3], 4);
+  BaseMesh[3][0].x := HX;
+  BaseMesh[3][0].y := -HY;
+  BaseMesh[3][0].Z := HZ;
+  BaseMesh[3][1].x := HX;
+  BaseMesh[3][1].y := -HY;
+  BaseMesh[3][1].Z := -HZ;
+  BaseMesh[3][2].x := HX;
+  BaseMesh[3][2].y := HY;
+  BaseMesh[3][2].Z := -HZ;
+  BaseMesh[3][3].x := HX;
+  BaseMesh[3][3].y := HY;
+  BaseMesh[3][3].Z := HZ;
+
+  SetLength(BaseMesh[4], 4);
+  BaseMesh[4][0].x := -HX;
+  BaseMesh[4][0].y := HY;
+  BaseMesh[4][0].Z := HZ;
+  BaseMesh[4][1].x := HX;
+  BaseMesh[4][1].y := HY;
+  BaseMesh[4][1].Z := HZ;
+  BaseMesh[4][2].x := HX;
+  BaseMesh[4][2].y := HY;
+  BaseMesh[4][2].Z := -HZ;
+  BaseMesh[4][3].x := -HX;
+  BaseMesh[4][3].y := HY;
+  BaseMesh[4][3].Z := -HZ;
+
+  SetLength(BaseMesh[5], 4);
+  BaseMesh[5][0].x := -HX;
+  BaseMesh[5][0].y := -HY;
+  BaseMesh[5][0].Z := -HZ;
+  BaseMesh[5][1].x := HX;
+  BaseMesh[5][1].y := -HY;
+  BaseMesh[5][1].Z := -HZ;
+  BaseMesh[5][2].x := HX;
+  BaseMesh[5][2].y := -HY;
+  BaseMesh[5][2].Z := HZ;
+  BaseMesh[5][3].x := -HX;
+  BaseMesh[5][3].y := -HY;
+  BaseMesh[5][3].Z := HZ;
+
+  // 2. Generate random Voronoi seeds INSIDE the real size of the actor
+  // We map the 0..1 random values to the -HX..HX bounds
+  SetLength(Seeds, 10 + Random(5));
+  for I := 0 to High(Seeds) do
+  begin
+    Seeds[I].x := -HX + (Random * Actor.Scale.x);
+    Seeds[I].y := -HY + (Random * Actor.Scale.y);
+    Seeds[I].Z := -HZ + (Random * Actor.Scale.z);
+  end;
+
+  // 3. Fracture the mesh
+  Fragments := FractureMesh(BaseMesh, Seeds);
+
+  // 4. Distribute fragments into the queue with physics properties
+  for I := 0 to High(Fragments) do
+  begin
+    if Length(Fragments[I].Mesh) > 0 then
+    begin
+      // Calculate centroid
+      Centroid := Default(TVec3);
+      for J := 0 to High(Fragments[I].Mesh[0]) do
+        Centroid := Centroid + Fragments[I].Mesh[0][J];
+      if Length(Fragments[I].Mesh[0]) > 0 then
+        Centroid := Centroid * (1.0 / Length(Fragments[I].Mesh[0]));
+
+      // Position = Actor Position + Centroid offset
+      Fragments[I].Position.X := Actor.Position.x + Centroid.X;
+      Fragments[I].Position.Y := Actor.Position.y + Centroid.Y;
+      Fragments[I].Position.Z := Actor.Position.z + Centroid.Z;
+
+      // Outward direction
+      Dir := Centroid.Normalize;
+      Dir.Y := Dir.Y + 0.2; // Slight bias upwards
+
+      // Drastically limit the explosion force!
+      // Even if it falls at speed 20, the fragments only pop out at max 2.0 speed.
+      var DampenedForce := EnsureRange(ImpactForce * 0.05, 0.5, 2.0);
+      Fragments[I].Velocity := Dir * DampenedForce;
+
+      // Limit angular velocity so they don't spin like crazy
+      Fragments[I].AngularVelocity := (Random * 1.5) - 0.75;
+
+      SetLength(FFractureQueue, Length(FFractureQueue) + 1);
+      FFractureQueue[High(FFractureQueue)] := Fragments[I];
+    end;
+  end;
+
+  // Mark the original actor for deletion
+  Actor.FIsDead := True;
+end;
+
+procedure TRaylibSandbox.ProcessFractureQueue(dt: Single);
+var
+  Frag: TFragment;
+  oldLen: Integer;
+  Data: PItemData;
+  JPos: JPH_RVec3;
+  JRot: JPH_Quat;
+  Obj: TA3DComponent;
+  RandomColor: TColorB;
+  LocalMesh: TMesh;
+  BBox: TBoundingBox;
+  FragSize: TVector3;
+  OutwardDir: TVector3;
+  FRandID: Integer;
+begin
+  if Length(FFractureQueue) = 0 then
+    Exit;
+
+  if FFractureTimer > 0 then
+  begin
+    FFractureTimer := FFractureTimer - dt;
+    Exit;
+  end;
+
+  FFractureTimer := 0;
+
+  while Length(FFractureQueue) > 0 do
+  begin
+    FLock.Enter;
+    try
+      Frag := FFractureQueue[0];
+      if Length(FFractureQueue) > 1 then
+      begin
+        for var i := 0 to High(FFractureQueue) - 1 do
+          FFractureQueue[i] := FFractureQueue[i + 1];
+      end;
+      SetLength(FFractureQueue, Length(FFractureQueue) - 1);
+    finally
+      FLock.Leave;
+    end;
+
+    // 1. Build the perfectly centered Raylib mesh
+    LocalMesh := BuildRaylibMeshFromFragment(Frag);
+    BBox := GetMeshBoundingBox(LocalMesh);
+
+    FragSize := Vector3Create(BBox.max.x - BBox.min.x, BBox.max.y - BBox.min.y, BBox.max.z - BBox.min.z);
+    if Max(FragSize.x, Max(FragSize.y, FragSize.z)) < 0.1 then
+      FragSize := Vector3Create(0.2, 0.2, 0.2);
+
+    // 2. Push fragment outwards slightly
+    OutwardDir := Vector3Normalize(Vector3Create(Frag.Position.X, Frag.Position.Y, Frag.Position.Z));
+    if Vector3Length(OutwardDir) < 0.1 then
+      OutwardDir := Vector3Create(0, 1, 0);
+    OutwardDir := Vector3Scale(OutwardDir, 0.15);
+
+    // 3. Set Position (Mesh is centered, so Position is exact)
+    JPos.x := Frag.Position.X + OutwardDir.x;
+    JPos.y := Frag.Position.Y + OutwardDir.y;
+    JPos.z := Frag.Position.Z + OutwardDir.z;
+
+    if JPos.y < 0.5 then
+      JPos.y := 0.5;
+
+    JRot.x := 0;
+    JRot.y := 0;
+    JRot.z := 0;
+    JRot.w := 1;
+
+    // 4. Create Actor using a slightly SHRUNK size (85%) to prevent micro-jitter!
+    // SetScale will force ConvexRadius to 0.0 in ModelEngine (because Name='Fragment')
+    var ShrinkFactor: Single := 0.85;
+    var PhysSize: TVector3 := Vector3Create(FragSize.x * ShrinkFactor, FragSize.y * ShrinkFactor, FragSize.z * ShrinkFactor);
+
+    Obj := TA3DComponent.Create('', FEngine, stBox, PhysSize, False, False, @JPos, @JRot);
+    Obj.Name := 'Fragment';
+    Obj.Friction := 0.6;
+    Obj.Restitution := 0.1;
+    Obj.ActivateBody;
+    Obj.Visible := True;
+
+    // 5. Assign Mesh & Shader
+    Obj.ShapeType := stModel;
+    Obj.FModel := LoadModelFromMesh(LocalMesh);
+
+    if (Obj.FModel.materialCount > 0) and (Obj.FModel.materials <> nil) then
+      Obj.FModel.materials[0].shader := FLightShader;
+
+    // Mesh is centered, so no offset needed!
+    Obj.FModelOffset := Vector3Create(0, 0, 0);
+
+    RandomColor.r := Random(255);
+    RandomColor.g := Random(255);
+    RandomColor.b := Random(255);
+    RandomColor.a := 255;
+    Obj.ActColor := RandomColor;
+    Obj.TargetColor := RandomColor;
+
+    Obj.SetLinearVelocity(Vector3Create(Frag.Velocity.X, Frag.Velocity.Y, Frag.Velocity.Z));
+    Obj.SetAngularVelocity(Vector3Create(Frag.AngularVelocity, Frag.AngularVelocity, Frag.AngularVelocity));
+
+    // 6. Unique Name & Array Registration
+    FRandID := Random(1000000) + 100000;
+    oldLen := Length(FItems);
+    SetLength(FItems, oldLen + 1);
+    New(Data);
+    FillChar(Data^, SizeOf(TItemData), 0);
+    Data^.SpawnTime := GetTime();
+    Data^.IsProjectile := False; // MUST BE FALSE! If True, they vanish!
+    Data^.Name := 'Frag_' + IntToStr(FRandID) + '_' + IntToStr(oldLen);
+    Obj.UserData := Data;
+
+    FItems[oldLen] := Obj;
+
+    DoActorSpawned(Obj, oldLen);
+  end;
 end;
 
 procedure TRaylibSandbox.UpdateBomb(dt: Single);
@@ -4785,7 +5252,6 @@ begin
     end;
   end;
 end;
-
 { TPiano }
 
 constructor TPiano.Create(ASandbox: TRaylibSandbox);

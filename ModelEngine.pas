@@ -1,7 +1,7 @@
 ﻿unit ModelEngine;
 
 {==============================================================================*
- *  ModelEngine v0.64 - Actor Layer combining Raylib rendering with Jolt Physics
+ *  ModelEngine v0.642 - Actor Layer combining Raylib rendering with Jolt Physics
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -91,9 +91,9 @@ type
     FRestitution: Single;
     FMass: Single;
     FIsStatic: Boolean;
-    FIsDestructable: Boolean;
     FIsHovered: Boolean;
     FIsPressed: Boolean;
+    FIsDestructable: Boolean;
     FOnClick: TNotifyEvent;
     FBaseColor: TColorB;
     FHoverColor: TColorB;
@@ -133,6 +133,8 @@ type
     FButtonTexture: TTexture2D;
     FModelPath: string;
     FVideoTexture: TTexture2D;
+    MidiNote: Integer;
+    IsPianoKey: Boolean;
     constructor Create(AOwner: TComponent); overload; override;
     constructor Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean = False; IsDestructable: Boolean = False; APos: PJPH_RVec3 = nil; ARot: PJPH_Quat = nil); reintroduce; overload;
     destructor Destroy; override;
@@ -180,6 +182,7 @@ type
     property Caption: string read FButtonCaption write FButtonCaption;
     property Name: string read FName write SetName;
     property ModelPath: string read FModelPath write SetName;
+    property IsDestructable: Boolean read FIsDestructable write FIsDestructable;
   end;
 
 implementation
@@ -253,7 +256,7 @@ begin
   FObjectVsBroadPhaseLayerFilter := JPH_ObjectVsBroadPhaseLayerFilterMask_Create(FBroadPhaseLayerInterface);
   FCollideAllLayer := JPH_ObjectLayerPairFilterMask_GetObjectLayer(1, $FFFFFFFF);
   FillChar(Settings, SizeOf(Settings), 0);
-  Settings.maxBodies := 10240;
+  Settings.maxBodies := 20480;
   Settings.numBodyMutexes := 2;
   Settings.maxBodyPairs := 65536;
   Settings.maxContactConstraints := 65536;
@@ -430,7 +433,6 @@ begin
   FModelTransform := MatrixIdentity();
   FShapeType := AShapeType;
 
-  // NEW: Cache the static flag
   FIsStatic := IsStatic;
   FIsDestructable := IsDestructable;
 
@@ -865,6 +867,8 @@ begin
       HalfExtents.x := FScale.x * 0.5;
       HalfExtents.y := FScale.y * 0.5;
       HalfExtents.z := FScale.z * 0.5;
+      if Self.Name = 'Fragment' then
+        ConvexRadius := 0.0;
       ShapeSettings := JPH_BoxShapeSettings_Create(@HalfExtents, ConvexRadius);
       FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
     end;

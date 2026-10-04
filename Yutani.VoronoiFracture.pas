@@ -1,5 +1,5 @@
 {*******************************************************************************
-  Yutani.VoronoiFracture v0.1
+  Yutani.VoronoiFracture v0.2
 ********************************************************************************
   A pure Delphi implementation of 3D Voronoi mesh fracturing algorithms.
   Calculates structural fragmentation using Sutherland-Hodgman clipping.
@@ -9,6 +9,7 @@
   - Newell's Method: Calculates robust surface normals for non-planar caps.
   - Voronoi Cell Generation: Bisects a base mesh with planes equidistant to
     neighboring seeds to produce solid convex fragments.
+
    Author: Lara Miriam Tamy Reschke / LamitaOne
 *******************************************************************************}
 
@@ -17,7 +18,7 @@ unit Yutani.VoronoiFracture;
 interface
 
 uses
-  System.SysUtils, System.Math;
+  System.SysUtils, System.Math, raylib, rlgl;
 
 type
   // Lightweight 3D Vector with Delphi operator overloading
@@ -56,6 +57,8 @@ type
   end;
 
 function FractureMesh(const BaseMesh: TPolyMesh; const Seeds: array of TVec3): TFragmentArray;
+
+function BuildRaylibMeshFromFragment(const Frag: TFragment): TMesh;
 
 implementation
 
@@ -115,6 +118,7 @@ end;
 { --- 3D Sutherland-Hodgman Clipping Engine --- }
 
 // Clips a convex polygon by a single plane, tracking intersection points for cap generation
+
 procedure ClipPolygonByPlane(const Poly: TPolygon; const Plane: TPlane; var OutputPoly: TPolygon; var OutIntersectionPoints: TPolygon);
 var
   I: Integer;
@@ -177,6 +181,7 @@ begin
     Result := Result * (1.0 / Length(Poly));
 end;
 // Newell's method provides robust normals even for non-perfectly-planar polygons
+
 function CalculateNewellsNormal(const Poly: TPolygon): TVec3;
 var
   I, NextI: Integer;
@@ -200,6 +205,7 @@ begin
   Result := Result.Normalize;
 end;
 // Sorts cap vertices Counter-Clockwise relative to the normal to prevent invalid triangulation
+
 procedure SortCapPolygonCCW(var Poly: TPolygon; const Normal: TVec3);
 var
   Center, Right, Up: TVec3;
@@ -258,6 +264,7 @@ begin
   end;
 end;
 // Clips an entire mesh by a plane, adding a cap polygon where intersections occurred
+
 function ClipMeshByPlane(const Mesh: TPolyMesh; const Plane: TPlane): TPolyMesh;
 var
   I: Integer;
@@ -297,6 +304,7 @@ end;
 { --- The Voronoi Core --- }
 
 // Generates Voronoi fragments by iteratively slicing the base mesh with bisection planes
+
 function FractureMesh(const BaseMesh: TPolyMesh; const Seeds: array of TVec3): TFragmentArray;
 var
   I, J: Integer;
@@ -346,6 +354,149 @@ begin
 
     Result[I] := TempFragment;
   end;
+end;
+
+// Helper function to convert a Voronoi Fragment into a renderable Raylib Mesh
+function BuildRaylibMeshFromFragment(const Frag: TFragment): TMesh;
+var
+  I, J, VCount: Integer;
+  Vertices: array of Single;
+  Normals: array of Single;
+  TexCoords: array of Single;
+  VtxCounter: Integer;
+  Normal: TVec3;
+  MinV, MaxV, Center: TVec3;
+  Vert: TVec3;
+  Poly: TPolygon;
+  P0, P1, P2: TVec3;
+  CrossZ: Single;
+  TempVert: TVec3;
+begin
+  Result := Default(TMesh);
+  VCount := 0;
+  MinV := Default(TVec3);
+  MaxV := Default(TVec3);
+  var FirstVert: Boolean := True;
+
+  // 1. Find the exact geometric bounds of the fragment
+  for I := 0 to High(Frag.Mesh) do
+  begin
+    for J := 0 to High(Frag.Mesh[I]) do
+    begin
+      Vert := Frag.Mesh[I][J];
+      if FirstVert then
+      begin
+        MinV := Vert;
+        MaxV := Vert;
+        FirstVert := False;
+      end
+      else
+      begin
+        if Vert.X < MinV.X then MinV.X := Vert.X;
+        if Vert.Y < MinV.Y then MinV.Y := Vert.Y;
+        if Vert.Z < MinV.Z then MinV.Z := Vert.Z;
+        if Vert.X > MaxV.X then MaxV.X := Vert.X;
+        if Vert.Y > MaxV.Y then MaxV.Y := Vert.Y;
+        if Vert.Z > MaxV.Z then MaxV.Z := Vert.Z;
+      end;
+    end;
+  end;
+
+  if FirstVert then Exit; // No vertices found
+
+  // Calculate the exact center of the mesh
+  Center.X := (MinV.X + MaxV.X) * 0.5;
+  Center.Y := (MinV.Y + MaxV.Y) * 0.5;
+  Center.Z := (MinV.Z + MaxV.Z) * 0.5;
+
+  for I := 0 to High(Frag.Mesh) do
+    if Length(Frag.Mesh[I]) >= 3 then
+      Inc(VCount, (Length(Frag.Mesh[I]) - 2) * 3);
+
+  if VCount = 0 then
+    Exit;
+
+  SetLength(Vertices, VCount * 3);
+  SetLength(Normals, VCount * 3);
+  SetLength(TexCoords, VCount * 2);
+
+  VtxCounter := 0;
+  for I := 0 to High(Frag.Mesh) do
+  begin
+    if Length(Frag.Mesh[I]) >= 3 then
+    begin
+      // Copy polygon to ensure CCW winding
+      Poly := Copy(Frag.Mesh[I]);
+
+      // Calculate Newell's Normal first
+      Normal := CalculateNewellsNormal(Poly);
+
+      // ENSURE CCW: Check if the normal points towards the center of the fragment.
+      // If it points inwards, the winding is wrong (Clockwise), so we reverse the polygon!
+      var Centroid: TVec3 := Default(TVec3);
+      for J := 0 to High(Poly) do Centroid := Centroid + Poly[J];
+      Centroid := Centroid * (1.0 / Length(Poly));
+
+      var ToCenter: TVec3 := Center - Centroid;
+      if Normal.Dot(ToCenter) > 0 then
+      begin
+        // Normal points inwards! Reverse the polygon vertices
+        for J := 0 to (Length(Poly) div 2) - 1 do
+        begin
+          TempVert := Poly[J];
+          Poly[J] := Poly[High(Poly) - J];
+          Poly[High(Poly) - J] := TempVert;
+        end;
+        // Recalculate normal after reversing
+        Normal := CalculateNewellsNormal(Poly);
+      end;
+
+      for J := 1 to Length(Poly) - 2 do
+      begin
+        // Vertex 1 (Shifted by -Center)
+        Vertices[VtxCounter*3] := Poly[0].X - Center.X;
+        Vertices[VtxCounter*3+1] := Poly[0].Y - Center.Y;
+        Vertices[VtxCounter*3+2] := Poly[0].Z - Center.Z;
+        Normals[VtxCounter*3] := Normal.X;
+        Normals[VtxCounter*3+1] := Normal.Y;
+        Normals[VtxCounter*3+2] := Normal.Z;
+        TexCoords[VtxCounter*2] := 0.0;
+        TexCoords[VtxCounter*2+1] := 0.0;
+        Inc(VtxCounter);
+
+        // Vertex 2 (Shifted by -Center)
+        Vertices[VtxCounter*3] := Poly[J].X - Center.X;
+        Vertices[VtxCounter*3+1] := Poly[J].Y - Center.Y;
+        Vertices[VtxCounter*3+2] := Poly[J].Z - Center.Z;
+        Normals[VtxCounter*3] := Normal.X;
+        Normals[VtxCounter*3+1] := Normal.Y;
+        Normals[VtxCounter*3+2] := Normal.Z;
+        TexCoords[VtxCounter*2] := 1.0;
+        TexCoords[VtxCounter*2+1] := 0.0;
+        Inc(VtxCounter);
+
+        // Vertex 3 (Shifted by -Center)
+        Vertices[VtxCounter*3] := Poly[J+1].X - Center.X;
+        Vertices[VtxCounter*3+1] := Poly[J+1].Y - Center.Y;
+        Vertices[VtxCounter*3+2] := Poly[J+1].Z - Center.Z;
+        Normals[VtxCounter*3] := Normal.X;
+        Normals[VtxCounter*3+1] := Normal.Y;
+        Normals[VtxCounter*3+2] := Normal.Z;
+        TexCoords[VtxCounter*2] := 1.0;
+        TexCoords[VtxCounter*2+1] := 1.0;
+        Inc(VtxCounter);
+      end;
+    end;
+  end;
+
+  Result.vertexCount := VCount;
+  Result.triangleCount := VCount div 3;
+
+  Result.vertices := @Vertices[0];
+  Result.normals := @Normals[0];
+  Result.texcoords := @TexCoords[0];
+
+  UploadMesh(@Result, False);
 end;
 
 end.
