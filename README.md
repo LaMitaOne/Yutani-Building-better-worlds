@@ -35,8 +35,11 @@ Status: Work in Progress (Alpha v0.642)
 * **World Simulation:** Full asynchronous physics initialization, automated broadphase optimizations, and gravity control.     
 * **Rigid Bodies:** Complete state synchronization (`Static`, `Kinematic`, `Dynamic`) with seamless position, rotation, and custom scale transformations.
 * **Collision Shapes:** Native wrappers for Box, Sphere, Capsule, Cylinder, Tapered shapes, Convex Hulls, Compound shapes, Meshes, and Heightfields.     
-* **Physics Interactions:** Real-time application of forces, torques, linear/angular impulses, and precise velocity controls.     
-     
+* **Physics Interactions:** Real-time application of forces, torques, linear/angular impulses, and precise velocity controls.
+      
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/342702c4-c37f-4b50-ad2f-767175df1fd8" />
+Destruction fragments already looking good, only physics still more to do      
+           
 ### 🔍 Advanced Collision & Queries     
 * **3D Raycasting:** Screen-to-world raycasting for precise object grabbing, context selection, and mouse interaction.     
 * **Shape Casting (Sweeps):** Advanced `CastShape` and `CollideShape` implementations for swept-sphere and swept-capsule testing, crucial for smooth character navigation.     
