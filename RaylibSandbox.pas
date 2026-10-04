@@ -3571,7 +3571,7 @@ begin
       BeginShaderMode(FLightShader);
       ModelMat := rlGetMatrixTransform();
       SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-      if Actor.ShapeType = stModel then
+       if Actor.ShapeType = stModel then
       begin
         // 1. Calculate the exact offset the Ghost uses
         var BBox := GetModelBoundingBox(Actor.FModel);
@@ -3603,12 +3603,14 @@ begin
         ColorShaderVec[3] := Actor.ActAlpha;
         SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
 
-        // 5. EXACT GHOST LOGIC: Save matrix, set to Identity, draw, restore!
+        // 5. EXACT GHOST LOGIC: Save matrix, set to Identity
         var OldTransform: TMatrix := Actor.FModel.transform;
         Actor.FModel.transform := MatrixIdentity();
 
+        // 6. APPLY GIZMO SCALE! We multiply by Actor.Scale here so the Gizmo resizes the model!
+        rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+
         // Scale is 1.0 because the Ghost uses 1.0.
-        // The offset we calculated above does all the centering.
         DrawModel(Actor.FModel, Vector3Create(0, 0, 0), 1.0, Fade(TintCol, Actor.ActAlpha));
 
         // Restore original matrix so the model keeps its internal scale for the next frame
