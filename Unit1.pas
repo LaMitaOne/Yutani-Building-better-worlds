@@ -1,7 +1,7 @@
 unit Unit1;
 
 {==============================================================================*
- *  Mainform of raylib sandbox & jolt phsics v0.642
+ *  Mainform of Yutani v0.643
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -91,6 +91,7 @@ type
     chkDestructable: TCheckBox;
     btnPiano: TButton;
     btnLoadSF2: TButton;
+    tbSlowMotion: TTrackBar;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -140,6 +141,7 @@ type
     procedure chkDestructableClick(Sender: TObject);
     procedure btnPianoClick(Sender: TObject);
     procedure btnLoadSF2Click(Sender: TObject);
+    procedure tbSlowMotionChange(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -751,6 +753,11 @@ end;
 procedure TForm1.tbMasterVolumeChange(Sender: TObject);
 begin
   ma_engine_set_volume(FSandbox.FAudioEngine, tbMasterVolume.Position / 100.0);
+end;
+
+procedure TForm1.tbSlowMotionChange(Sender: TObject);
+begin
+ FSandbox.TimeScale := tbSlowMotion.Position / 100.0;
 end;
 
 procedure TForm1.TimePicker1Change(Sender: TObject);

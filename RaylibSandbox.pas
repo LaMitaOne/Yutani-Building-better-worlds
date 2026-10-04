@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.642 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.643 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -311,6 +311,7 @@ type
 
     // Slow Motion System Variables
     FTimeScale: Single;
+    FSavedTimeScale: Single;  // 1.0 = Normal speed, 0.2 = 20% speed (Slow Motion)
     FSlowMotionActive: Boolean;
 
     // Scene Save/Load Queues
@@ -404,6 +405,8 @@ type
 
     procedure SetAntiAliasing(const Value: Boolean);
     procedure SetGravity(const Value: Single);
+    procedure SetSlowMotionActive(const Value: Boolean);
+    procedure SetTimeScale(const Value: Single);
   protected
     procedure Resize; override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
@@ -480,6 +483,7 @@ type
     property SpawnEffectType: TSpawnEffectType read FSpawnEffectType write FSpawnEffectType default spefNone;
     property AntiAliasing: Boolean read FAntiAliasing write SetAntiAliasing default True;
     property Gravity: Single read FGravity write SetGravity;
+    property TimeScale: Single read FTimeScale write SetTimeScale;
   end;
 
 implementation
@@ -596,6 +600,7 @@ begin
 
   // Initialize Slow Motion System
   FTimeScale := 1.0; // Default to normal speed
+  FSavedTimeScale := 0.2;
   FSlowMotionActive := False;
 
   // Init Scene Load/Save flags
@@ -706,6 +711,27 @@ begin
   // Clamp the value to a reasonable range (e.g., 0.0 to pause, up to 1.0 for very fast)
   // Ensure the speed cannot be negative to prevent time going backwards unintentionally
   FDaySpeed := EnsureRange(Value, 0.0, 1.0);
+end;
+
+procedure TRaylibSandbox.SetTimeScale(const Value: Single);
+begin
+  FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
+
+  if FSlowMotionActive then
+    FTimeScale := FSavedTimeScale;
+end;
+
+procedure TRaylibSandbox.SetSlowMotionActive(const Value: Boolean);
+begin
+  if FSlowMotionActive <> Value then
+  begin
+    FSlowMotionActive := Value;
+
+    if FSlowMotionActive then
+      FTimeScale := FSavedTimeScale
+    else
+      FTimeScale := 1.0;
+  end;
 end;
 
 procedure TRaylibSandbox.SetWorldBase(const Value: TWorldBaseType);
@@ -3005,7 +3031,7 @@ begin
 
   // Slow Motion calculation: Scale time if active, otherwise normal speed
   if FSlowMotionActive then
-    FTimeScale := 0.2 // 20% speed
+    FTimeScale := FSavedTimeScale  //slowmotion
   else
     FTimeScale := 1.0; // Normal speed
 
@@ -5021,6 +5047,11 @@ begin
           Writer.WriteFloat(Actor.Friction);
           Writer.WriteFloat(Actor.Restitution);
 
+          if Actor.IsStatic then
+            Writer.WriteInteger(1)
+          else
+            Writer.WriteInteger(0);
+
           Writer.WriteInteger(Actor.ActColor.r);
           Writer.WriteInteger(Actor.ActColor.g);
           Writer.WriteInteger(Actor.ActColor.b);
@@ -5094,6 +5125,8 @@ begin
           Friction := Reader.ReadFloat;
           Restitution := Reader.ReadFloat;
 
+          var LoadIsStatic: Boolean := (Reader.ReadInteger = 1);
+
           LoadColor.r := Reader.ReadInteger;
           LoadColor.g := Reader.ReadInteger;
           LoadColor.b := Reader.ReadInteger;
@@ -5102,8 +5135,8 @@ begin
           // Read ModelPath ('-' if not a model)
           ModelPath := Reader.ReadStr;
 
-          // Create the Actor natively
-          Actor := TA3DComponent.Create('', FEngine, ShapeType, Size, False, false, @JPos, @JRot);
+          // Create the Actor natively and pass the loaded IsStatic state!
+          Actor := TA3DComponent.Create('', FEngine, ShapeType, Size, LoadIsStatic, False, @JPos, @JRot);
           Actor.Name := AName;
           Actor.Friction := Friction;
           Actor.Restitution := Restitution;
