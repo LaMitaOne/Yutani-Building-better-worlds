@@ -152,7 +152,8 @@ TinySoundFont4Delphi https://github.com/LaMitaOne/Tinysoundfont4delphi
 RecastNavigationDelphi https://github.com/Kromster80/RecastNavigationDelphi   
 VerySimpleLua https://github.com/Dennis1000/verysimplelua     
 GameNetworkingSockets4delphi https://github.com/LaMitaOne/GameNetworkingSockets4delphi        
-Yutani Voronoi-Destruction-Engine https://github.com/LaMitaOne/Yutani-Voronoi-Destruction-Engine       
+Yutani Voronoi-Destruction-Engine https://github.com/LaMitaOne/Yutani-Voronoi-Destruction-Engine     
+Yutani Particle Engine https://github.com/LaMitaOne/Yutani-Particle-Engine    
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
