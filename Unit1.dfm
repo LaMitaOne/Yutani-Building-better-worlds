@@ -12052,6 +12052,15 @@ object Form1: TForm1
           TabOrder = 19
           OnClick = btnPianoClick
         end
+        object btnFog: TButton
+          Left = 101
+          Top = 220
+          Width = 74
+          Height = 25
+          Caption = 'Fog'
+          TabOrder = 20
+          OnClick = btnFogClick
+        end
       end
       object tsEngine: TTabSheet
         Caption = 'Engine'
