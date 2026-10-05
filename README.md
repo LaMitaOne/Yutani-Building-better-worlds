@@ -147,6 +147,10 @@ v0.62:
     Added skia4delphi rendered splash intro
     Added OnActorDestroyed event
     Fixed bombs not getting removed after explode
+
+<img width="1196" height="795" alt="Unbenannt" src="https://github.com/user-attachments/assets/eb0d1c04-cca6-45e8-ad33-7fe69539d728" />
+
+700 fps on rtx 2060s... not bad :D    
                
 includes:      
 Raylib 3d https://github.com/LaMitaOne/r3d-delphi   
