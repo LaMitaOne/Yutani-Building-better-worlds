@@ -81,6 +81,7 @@ My first spaceship 🤤
 * **WASD:** Move Editor Camera    
 * **Mouse Wheel:** Zoom In / Out    
 * **CTRL + Q / E:** Select previous / next Actor in Hierarchy    
+* **F10 on selected send alive highlighter     
     
 ---    
     
