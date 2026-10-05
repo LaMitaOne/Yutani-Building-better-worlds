@@ -6,7 +6,8 @@ Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, Re
         
 <img width="1671" height="941" alt="yutani_wallpaper3" src="https://github.com/user-attachments/assets/bcce1fa4-51e7-4e91-a5a3-9275fb71967e" />
          
-Sample video: https://youtu.be/EaJqNMYcxJo        
+Sample video: https://youtu.be/uUjvsre8F4g         
+(thats the sf2 used in sample video "FluidR3 GM.sf2" get it at https://github.com/urish/cinto/tree/master/media ❗      
     
 Welcome to **Yutani**, a cutting-edge, fully asynchronous 3D Multimedia & Physics Engine written from scratch in Object Pascal.    
     
@@ -24,10 +25,10 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.63)    
+Status: Work in Progress (Alpha v0.642)    
          
-<img width="550" alt="Unbenannt" src="https://github.com/user-attachments/assets/cd3f12d5-3752-4585-9d49-bfa5002fc5ac" />    
-     
+<img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
+       
 ## ✨ Features     
 
 ### 🦾 Core Physics System (Jolt Physics)     
@@ -71,8 +72,9 @@ Status: Work in Progress (Alpha v0.63)
 * **Advanced Shading & Weather:** Custom GLSL shaders for real-time ambient/diffuse shading, moving procedural cloud layers, a horizon-to-zenith gradient skybox, and a full Day/Night progression cycle.    
 * **Dynamic Fake Shadows:** Shadow maps that scale in size and fade out realistically based on an object's Y-height.    
      
----    
-     
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/f195e0bf-d0ee-48e2-a4aa-f3b9c437b8dd" />     
+My first spaceship 🤤     
+             
 ## ⌨️ Controls    
 * **CTRL:** Toggle between Move / Rotate / Scale Gizmos    
 * **Middle Mouse Click + Drag:** Rotate Editor Camera    
@@ -84,7 +86,49 @@ Status: Work in Progress (Alpha v0.63)
     
   Exe and sample project included    
       
-Latest Changes:     
+Latest Changes:  
+      
+v0.643:        
+    
+    Fixed 3D Model Gizmo Resizing    
+    Scene Save/Load: The physics state (IsStatic) is now correctly serialized and restored.    
+    Added sample Scene. Load it, and objects falling down like i paused them here.    
+    Enhanced Slow Motion System: Added property and trackbar to dynamically adjust the exact slow-motion speed multiplier (0.05x to 1.0x) on the fly.    
+    Added Yutani.AliveHighlighter3d Select object, press F10 to send or Hide    
+    Added unit Yutani.Worlds.Island - WorldBase Island now partly working   
+    Added unit Yutani.Render.Particles and already working too   
+    Added fog button, 10k particles spawn  
+    Added particles on bomb explosion     
+     
+v0.642:    
+
+    Fixed textures black or blueish on 3d models from far distance       
+    Fixed spawned 3d model now same size like ghost preview     
+    Added new gizmo mode Uniform Scale (Corner Resize)        
+    Raised tinysoundfont thread idle timeout from 2s to 5s to allow sustained notes (e.g., piano) to fully decay and ring out without being abruptly cut off.        
+    Integrated Yutani.VoronoiFracture: Dynamically generates real 3D Voronoi fragments when destructable objects take heavy impact. The system now successfully creates custom Raylib meshes with lighting, injects them into the Jolt Physics engine, and applies explosion forces.     
+    Note: Fracture system is basically working now, but fragment rendering 
+    (some transparency/normal issues) and physics colliders (misalignment, floating, minor jitter) 
+    are not fully correct yet and require further headaches. :P   
+     
+v0.641:    
+
+    Added 3d working piano connected to tinysoundfont    
+    Added loadsoundfont btn in audio tab
+    Added unit yutani.audio
+
+<img height="150" alt="Unbenannt" src="https://github.com/user-attachments/assets/32c2bfca-4dd5-4b52-a5bb-6feca4320f42" />
+     
+v0.64:    
+     
+    Added TWorldBaseType = wbLand, wbSpace, wbHolodeck, wbIsland
+    Added WorldBase selection combobox in engine tab
+    Added TSpawnEffectType = spefNone, spefBeam, spefFade
+    Added Checkbox chkAntialias
+    Added Spinedit to set Gravity
+    Added isDestructable Checkbox and property in TA3DComponent/SpawnREquest
+    Improved Lighting System Reworked the GLSL light shader to prevent color washing on lit surfaces. Lighting is now calculated multiplicatively, preserving deep blacks and vibrant base colors while ensuring shadows darken surfaces correctly.
+    Added Yutani.VoronoiFracture unit
      
 v0.63:    
      
@@ -113,7 +157,8 @@ TinySoundFont4Delphi https://github.com/LaMitaOne/Tinysoundfont4delphi
 RecastNavigationDelphi https://github.com/Kromster80/RecastNavigationDelphi   
 VerySimpleLua https://github.com/Dennis1000/verysimplelua     
 GameNetworkingSockets4delphi https://github.com/LaMitaOne/GameNetworkingSockets4delphi        
-Yutani Voronoi-Destruction-Engine https://github.com/LaMitaOne/Yutani-Voronoi-Destruction-Engine       
+Yutani Voronoi-Destruction-Engine https://github.com/LaMitaOne/Yutani-Voronoi-Destruction-Engine      
+Yutani Particle Engine https://github.com/LaMitaOne/Yutani-Particle-Engine    
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
@@ -133,3 +178,6 @@ This project is licensed under the **Apache License 2.0** - see the LICENSE file
 ### 🛸 Trivia / Easter Egg      
 **Fun Fact:** The very first custom 3D `.glb` model successfully loaded and simulated into this engine's pipeline was the iconic **M577 Alien APC**. So choosing the name **Yutani** wasn't just a random sci-fi choice—it was practically hardcoded by fate! 🪐     
 Cultural Note: In Japanese, Yutani (由谷) translates to "Valley of Origin"...     
+
+<img height="500" alt="Unbenannt" src="https://github.com/user-attachments/assets/389ab4f3-4822-4042-b2c3-96f65ec53335" />   
+    
