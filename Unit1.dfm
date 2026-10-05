@@ -12052,6 +12052,15 @@ object Form1: TForm1
           TabOrder = 19
           OnClick = btnPianoClick
         end
+        object btnFog: TButton
+          Left = 101
+          Top = 220
+          Width = 74
+          Height = 25
+          Caption = 'Fog'
+          TabOrder = 20
+          OnClick = btnFogClick
+        end
       end
       object tsEngine: TTabSheet
         Caption = 'Engine'
@@ -12350,6 +12359,7 @@ object Form1: TForm1
           ParentFont = False
           State = cbChecked
           TabOrder = 12
+          Visible = False
           StyleElements = [seClient, seBorder]
           OnClick = chkAntialiasClick
         end
@@ -12363,6 +12373,19 @@ object Form1: TForm1
           TabOrder = 13
           Value = 1
           OnChange = seGravityChange
+        end
+        object tbSlowMotion: TTrackBar
+          Left = 16
+          Top = 282
+          Width = 161
+          Height = 45
+          Max = 100
+          Min = 5
+          Position = 20
+          ShowSelRange = False
+          TabOrder = 14
+          TickStyle = tsNone
+          OnChange = tbSlowMotionChange
         end
       end
       object tsControls: TTabSheet

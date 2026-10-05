@@ -1,7 +1,7 @@
 unit Unit1;
 
 {==============================================================================*
- *  Mainform of raylib sandbox & jolt phsics v0.64
+ *  Mainform of Yutani v0.643
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -91,6 +91,8 @@ type
     chkDestructable: TCheckBox;
     btnPiano: TButton;
     btnLoadSF2: TButton;
+    tbSlowMotion: TTrackBar;
+    btnFog: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -140,6 +142,8 @@ type
     procedure chkDestructableClick(Sender: TObject);
     procedure btnPianoClick(Sender: TObject);
     procedure btnLoadSF2Click(Sender: TObject);
+    procedure tbSlowMotionChange(Sender: TObject);
+    procedure btnFogClick(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -313,6 +317,7 @@ begin
   lblInfo.Caption := 'Tool: Drag & Throw Active.';
 end;
 
+
 procedure TForm1.btnSpawnButtonClick(Sender: TObject);
 begin
   TVCL3D.SpawnButton(FSandbox, 'Button', Vector3Create(0, 5, 0), Vector3Create(4, 1, 0.5), My3DButtonClick);
@@ -355,6 +360,7 @@ end;
 procedure TForm1.chkAntialiasClick(Sender: TObject);
 begin
   FSandbox.AntiAliasing := chkAntialias.Checked;
+  //todo - we must restart fully...save ini or restart internally, i do later , no mood for this now :D
 end;
 
 procedure TForm1.chkDayNightRythmClick(Sender: TObject);
@@ -505,6 +511,11 @@ begin
   lblInfo.Caption := 'Scene Cleared.';
 end;
 
+procedure TForm1.btnFogClick(Sender: TObject);
+begin
+  FSandbox.TriggerFogEffect;
+end;
+
 procedure TForm1.btnFullscreenClick(Sender: TObject);
 begin
   if BorderStyle = bsNone then
@@ -529,10 +540,8 @@ procedure TForm1.btnLoadSF2Click(Sender: TObject);
 begin
   // Set filter to Soundfont files
   OpenDialog1.Filter := 'SoundFont 2 (*.sf2)|*.sf2';
-
   // Set initial directory to the audio resources folder
   OpenDialog1.InitialDir := ExtractFilePath(ParamStr(0)) + 'ressources\audio';
-
   if OpenDialog1.Execute then
   begin
     try
@@ -751,6 +760,11 @@ end;
 procedure TForm1.tbMasterVolumeChange(Sender: TObject);
 begin
   ma_engine_set_volume(FSandbox.FAudioEngine, tbMasterVolume.Position / 100.0);
+end;
+
+procedure TForm1.tbSlowMotionChange(Sender: TObject);
+begin
+ FSandbox.TimeScale := tbSlowMotion.Position / 100.0;
 end;
 
 procedure TForm1.TimePicker1Change(Sender: TObject);

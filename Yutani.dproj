@@ -148,6 +148,10 @@
         </DCCReference>
         <DCCReference Include="uYutaniSkiaIntro.pas"/>
         <DCCReference Include="Yutani.VoronoiFracture.pas"/>
+        <DCCReference Include="Yutani.Render.Shaders.pas"/>
+        <DCCReference Include="Yutani.Worlds.Island.pas"/>
+        <DCCReference Include="Yutani.Render.Particles.pas"/>
+        <DCCReference Include="Yutani.AliveHighlighter3D.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
