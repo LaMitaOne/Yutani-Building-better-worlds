@@ -91,7 +91,7 @@ Latest Changes:
       
 v0.644:        
 
-    Changed spawn effect to new particle materialization 
+    Changed beam spawn effect to new particle materialization 
     Added button dematerialization - demat actual object
     Added functions: DematerializeSelectedObject,  DematerializeActor(Actor: TA3DComponent)     
       
