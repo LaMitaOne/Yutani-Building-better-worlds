@@ -25,7 +25,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.642)    
+Status: Work in Progress (Alpha v0.643)    
          
 <img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
        
