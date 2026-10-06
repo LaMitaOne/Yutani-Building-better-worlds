@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.643 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.644 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -43,7 +43,7 @@
  *      object's scale on each specific axis, ensuring they are always
  *      grabbable regardless of object dimensions.
  *    - Safe Editing: When a Gizmo is dragged, the target object is detached
- *      from Jolt Physics. Upon mouse release, the object is cleanly re-attached
+ *      from Jolt physics. Upon mouse release, the object is cleanly re-attached
  *      to the physics world with its new transform.
  *
  *  Interactive 3D Piano System:
@@ -125,6 +125,11 @@ type
     Count: Integer;
     Color: TColorB;
     IsSmoke: Boolean; // True = Smoke, False = Explosion
+  end;
+
+  // NEW: Thread-safe Dematerialize Request
+  TDematerializeRequest = record
+    Actor: TA3DComponent;
   end;
 
   TWorldBaseType = (wbLand, wbSpace, wbHolodeck, wbIsland);
@@ -311,6 +316,7 @@ type
     // Thread-safe Custom Spawn Queue
     FCustomSpawnQueue: TArray<TSpawnRequest>;
     FCustomSpawnTimer: Single;
+    FIsMaterializingActor: Boolean;
 
     // Bomb System Variables
     FBombActor: TA3DComponent;
@@ -352,9 +358,13 @@ type
     FFractureQueue: TArray<TFragment>;
     FFractureTimer: Single;
 
-    //AliveHighlighter3D
+    // AliveHighlighter3D
     FAliveHighlighter3D: TAliveHighlighter3D;
     FMouseWorldPos: TVector3;
+
+    // Dematerialize Queue
+    FDematerializeQueue: TArray<TDematerializeRequest>;
+    procedure ExecuteDematerializeActor(Actor: TA3DComponent);
 
     // Voronoi Fracture System
     procedure ProcessFractureQueue(dt: Single);
@@ -493,6 +503,11 @@ type
     // External Particle Triggers
     procedure TriggerFogEffect;
     procedure TriggerExplosionEffect;
+
+    // NEW: External Dematerialize Triggers
+    procedure DematerializeSelectedObject;
+    procedure DematerializeActor(Actor: TA3DComponent);
+    procedure ExecuteMaterializeActor(Actor: TA3DComponent);
   published
     property Align;
     property Anchors;
@@ -574,6 +589,7 @@ begin
   inherited Create(AOwner);
   FLock := TCriticalSection.Create;
   FThreadActive := False;
+  FIsMaterializingActor := False;
   FPaused := True;
   FActive := False;
   FTargetFPS := 60;
@@ -641,7 +657,7 @@ begin
   FCurrentWorldBase := wbHolodeck;
 
   // Initialize Spawn Effect System
-  FSpawnEffectType := spefFade;
+  FSpawnEffectType := spefBeam;
   FActiveSpawnEffects := nil;
   FAntiAliasing := True;
   FGravity := -9.81;
@@ -2933,6 +2949,16 @@ begin
 
   Obj.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
   Obj.SetRotation(QuaternionFromEuler(0, 0, 0));
+
+  // CRITICAL FIX: If Beam effect is active, force the object to be invisible from frame 1!
+  // This prevents the object from flashing visible before the materialize effect triggers.
+  if FSpawnEffectType = spefBeam then
+  begin
+    Obj.Visible := False;
+    Obj.ActAlpha := 0.0;
+    Obj.TargetAlpha := 0.0;
+  end;
+
   FItems[oldLen] := Obj;
   PlaySpawnSound;
   TriggerSpawnEffect(Vector3Create(JPos.x, JPos.y, JPos.z), Obj);
@@ -3050,6 +3076,24 @@ begin
       FLock.Leave;
     end;
   end;
+
+  // Process Thread-safe Dematerialize Queue
+  if Length(FDematerializeQueue) > 0 then
+  begin
+    var LocalQueue: TArray<TDematerializeRequest>;
+    FLock.Enter;
+    try
+      LocalQueue := Copy(FDematerializeQueue, 0, Length(FDematerializeQueue));
+      FDematerializeQueue := nil;
+    finally
+      FLock.Leave;
+    end;
+
+    for var Req in LocalQueue do
+      if Assigned(Req.Actor) then
+        ExecuteDematerializeActor(Req.Actor);
+  end;
+
   if FClearItemsQueued then
   begin
     FLock.Enter;
@@ -5331,15 +5375,19 @@ begin
 
   Effect.Position := Pos;
   Effect.StartTime := GetTime();
-  Effect.Duration := 1.5; // 1.5 seconds visual effect duration
+
+  Effect.Duration := 4.0;
+
   Effect.EffectType := FSpawnEffectType;
   Effect.TargetActor := Actor;
 
-  // Make the actor invisible at the start of the effect
+  // CRITICAL: Force the actor to be completely invisible at the start!
+  // This ensures DrawSpawnEffects will trigger the materialization process.
   if Assigned(Actor) then
   begin
+    Actor.Visible := False;
     Actor.ActAlpha := 0.0;
-    Actor.TargetAlpha := 1.0; // Let ModelEngine Lerp it to fully visible
+    Actor.TargetAlpha := 0.0; // Keep it 0 until particles are done
   end;
 
   // Add to active effects array
@@ -5350,76 +5398,102 @@ end;
 procedure TRaylibSandbox.DrawSpawnEffects;
 var
   i: Integer;
-  Elapsed, Progress, Alpha, Flicker: Single;
-  BasePos, TopPos: TVector3;
-  OuterRadius, InnerRadius: Single;
+  Elapsed, Progress, Alpha: Single;
+  BasePos: TVector3;
+  bRemove: Boolean;
 begin
   for i := 0 to High(FActiveSpawnEffects) do
   begin
-    Elapsed := GetTime() - FActiveSpawnEffects[i].StartTime;
+    bRemove := False;
 
-    // Skip expired effects
-    if Elapsed >= FActiveSpawnEffects[i].Duration then
-      Continue;
-
-    Progress := Elapsed / FActiveSpawnEffects[i].Duration;
-    Alpha := 1.0 - Progress;
-
-    // Flicker effect to simulate the classic Enterprise transporter shimmer
-    Flicker := 0.8 + (Random * 0.2);
-
-    BasePos := FActiveSpawnEffects[i].Position;
-    TopPos := Vector3Create(BasePos.x, BasePos.y + 150.0, BasePos.z);
-
-    // Draw Visuals
-    if FActiveSpawnEffects[i].EffectType = spefBeam then
+    // ==============================================================
+    // FADE EFFECT (Uses Duration / Time)
+    // ==============================================================
+    if FActiveSpawnEffects[i].EffectType = spefFade then
     begin
-      // ==============================================================
-      // ENTERPRISE BEAM EFFECT
-      // ==============================================================
-      OuterRadius := 1.5 + (Sin(GetTime() * 20.0) * 0.2);
-      InnerRadius := 0.5 + (Sin(GetTime() * 30.0) * 0.1);
+      Elapsed := GetTime() - FActiveSpawnEffects[i].StartTime;
+      if Elapsed >= FActiveSpawnEffects[i].Duration then
+      begin
+        bRemove := True;
+      end
+      else
+      begin
+        Progress := Elapsed / FActiveSpawnEffects[i].Duration;
+        Alpha := 1.0 - Progress;
+        BasePos := FActiveSpawnEffects[i].Position;
 
-      // 1. Outer Glow Cone (narrow at top, wide at bottom)
-      DrawCylinderEx(TopPos, BasePos, OuterRadius * 0.3, OuterRadius, 16, Fade(GOLD, Alpha * 0.4 * Flicker));
+        if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) then
+        begin
+          FActiveSpawnEffects[i].TargetActor.Visible := True;
+          FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
+          FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
+        end;
 
-      // 2. Inner Core (solid bright light)
-      DrawCylinderEx(TopPos, BasePos, InnerRadius * 0.3, InnerRadius, 16, Fade(WHITE, Alpha * 0.9 * Flicker));
-
-      // 3. Base glow disc (illuminating the floor)
-      DrawCircle3D(BasePos, 2.5 + (Sin(GetTime() * 10.0) * 0.5), Vector3Create(1, 0, 0), 90.0, Fade(GOLD, Alpha * 0.7 * Flicker));
+        DrawSphere(BasePos, 0.5 + (Progress * 2.0), Fade(SKYBLUE, Alpha * 0.4));
+        DrawSphereWires(BasePos, 0.5 + (Progress * 2.0), 8, 8, Fade(WHITE, Alpha * 0.8));
+      end;
     end
-    else if FActiveSpawnEffects[i].EffectType = spefFade then
+    // ==============================================================
+    // BEAM MATERIALIZATION (IGNORES DURATION / TIME!)
+    // ==============================================================
+    else if FActiveSpawnEffects[i].EffectType = spefBeam then
     begin
-      // ==============================================================
-      // SIMPLE FADE EFFECT
-      // ==============================================================
-      DrawSphere(BasePos, 0.5 + (Progress * 2.0), Fade(SKYBLUE, Alpha * 0.4));
-      DrawSphereWires(BasePos, 0.5 + (Progress * 2.0), 8, 8, Fade(WHITE, Alpha * 0.8));
+      // 1. Trigger exactly once if the Actor is still invisible
+      if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) and (not FIsMaterializingActor) then
+      begin
+        FIsMaterializingActor := True;
+        ExecuteMaterializeActor(FActiveSpawnEffects[i].TargetActor);
+      end;
+
+      // 2. WAIT FOR THE TOP LAYER!
+      // The model is only shown when the Particle Engine signals: "All arrived!"
+      if Assigned(FParticleEngine) and FParticleEngine.SolidCubeReady then
+      begin
+        if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) then
+        begin
+          FActiveSpawnEffects[i].TargetActor.Visible := True;
+          FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
+          FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
+
+          FParticleEngine.SolidCubeReady := False;
+          FIsMaterializingActor := False;
+          bRemove := True; // End effect because the top layer has been reached!
+        end;
+      end;
+
+      // Safety: Abort if the object is deleted before it could materialize
+      if not Assigned(FActiveSpawnEffects[i].TargetActor) then
+      begin
+        bRemove := True;
+        FIsMaterializingActor := False;
+      end;
     end;
+
+    // Mark the effect for removal if it is finished
+    if bRemove then
+      FActiveSpawnEffects[i].StartTime := -99999.0;
   end;
 
-  // Cleanup expired effects to prevent memory leaks and array bloat
+  // --- CLEANUP: Remove finished effects from the array ---
   for i := High(FActiveSpawnEffects) downto 0 do
   begin
-    if (GetTime() - FActiveSpawnEffects[i].StartTime) >= FActiveSpawnEffects[i].Duration then
+    if FActiveSpawnEffects[i].StartTime = -99999.0 then
     begin
-      // Ensure the object is fully opaque when the effect ends!
       if Assigned(FActiveSpawnEffects[i].TargetActor) then
       begin
         FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
         FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
+        FActiveSpawnEffects[i].TargetActor.Visible := True;
       end;
 
-      // Shift elements down if not the last element
       if i < High(FActiveSpawnEffects) then
         FActiveSpawnEffects[i] := FActiveSpawnEffects[High(FActiveSpawnEffects)];
 
-      // Resize array
       SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) - 1);
     end;
   end;
 end;
+
 { TPiano }
 
 constructor TPiano.Create(ASandbox: TRaylibSandbox);
@@ -5643,6 +5717,528 @@ begin
   finally
     FLock.Leave;
   end;
+end;
+
+// ============================================================================
+// EXTERNAL MATERIALIZATION TRIGGERS (Safe to call from VCL/UI Thread)
+// ============================================================================
+
+procedure TRaylibSandbox.DematerializeSelectedObject;
+begin
+  if Assigned(FItemSelected) then
+    DematerializeActor(FItemSelected);
+end;
+
+procedure TRaylibSandbox.DematerializeActor(Actor: TA3DComponent);
+var
+  Req: TDematerializeRequest;
+begin
+  if not Assigned(Actor) then
+    Exit;
+
+  Req.Actor := Actor;
+
+  // Thread-safe queueing. The actual Raylib & Particle logic happens in UpdateGame.
+  FLock.Enter;
+  try
+    SetLength(FDematerializeQueue, Length(FDematerializeQueue) + 1);
+    FDematerializeQueue[High(FDematerializeQueue)] := Req;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TRaylibSandbox.ExecuteDematerializeActor(Actor: TA3DComponent);
+var
+  BaseMesh: TMesh;
+  FinalVerts: array of Single;
+  vCount: Integer;
+  i, j, k: Integer;
+  OffsetX, OffsetY, OffsetZ: Single;
+  GridSize: Integer;
+  LenX, LenY, LenZ: Single;
+  DistSq, RadSq: Single;
+  CapY: Single;
+  t, Angle, MaxR: Single;
+  TempVerts: array of Single;
+  Mesh: TMesh;
+  vx, vy, vz: Single;
+begin
+  if not Assigned(Actor) or not Assigned(FParticleEngine) then
+    Exit;
+
+  // HIDE ORIGINAL IMMEDIATELY: The particles take over the visual representation.
+  Actor.Visible := False;
+
+  // ========================================================================
+  // FALL 1: CUSTOM 3D MODEL
+  // We extract the real mesh shell from the loaded model file.
+  // ========================================================================
+  if Actor.ShapeType = stModel then
+  begin
+    if (Actor.FModel.meshes <> nil) and (Actor.FModel.meshes[0].vertices <> nil) then
+      Mesh := Actor.FModel.meshes[0]
+    else
+      Exit; // Safety abort
+
+    if (Mesh.vertexCount > 0) and (Mesh.vertices <> nil) then
+    begin
+      // Cap to 3000 to prevent massive memory leaks on huge models!
+      if Mesh.vertexCount > 10000 then
+        BaseMesh.vertexCount := 10000
+      else
+        BaseMesh.vertexCount := Mesh.vertexCount;
+
+      SetLength(TempVerts, BaseMesh.vertexCount * 3);
+      for i := 0 to BaseMesh.vertexCount - 1 do
+      begin
+        vx := Mesh.vertices[i * 3];
+        vy := Mesh.vertices[i * 3 + 1];
+        vz := Mesh.vertices[i * 3 + 2];
+
+        vx := vx * Actor.Scale.x;
+        vy := vy * Actor.Scale.y;
+        vz := vz * Actor.Scale.z;
+
+        vx := vx + Actor.FModelOffset.x;
+        vy := vy + Actor.FModelOffset.y;
+        vz := vz + Actor.FModelOffset.z;
+
+        TempVerts[i * 3] := vx;
+        TempVerts[i * 3 + 1] := vy;
+        TempVerts[i * 3 + 2] := vz;
+      end;
+
+      BaseMesh.vertices := @TempVerts[0];
+      BaseMesh.indices := nil;
+      BaseMesh.texcoords := nil;
+      BaseMesh.normals := nil;
+      BaseMesh.tangents := nil;
+      BaseMesh.colors := nil;
+      BaseMesh.animVertices := nil;
+      BaseMesh.animNormals := nil;
+      BaseMesh.boneIndices := nil;
+      BaseMesh.boneWeights := nil;
+      BaseMesh.vaoId := 0;
+      BaseMesh.vboId := nil;
+
+      FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
+    end;
+    Exit;
+  end;
+
+  // ========================================================================
+  // FALL 2: PRIMITIVES (Voxel Generation)
+  // We generate a dense, solid voxel cloud matching the exact shape.
+  // ========================================================================
+  GridSize := 10;
+  SetLength(FinalVerts, GridSize * GridSize * GridSize * 3);
+  vCount := 0;
+
+  // Calculate exact half-dimensions
+  LenX := Actor.Scale.x * 0.5;
+  LenY := Actor.Scale.y * 0.5;
+  LenZ := Actor.Scale.z * 0.5;
+
+  case Actor.ShapeType of
+    stSphere:
+      begin
+        // SOLID SPHERE
+        RadSq := Sqr(Max(LenX, Max(LenY, LenZ)));
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+
+              DistSq := Sqr(OffsetX) + Sqr(OffsetY) + Sqr(OffsetZ);
+              if DistSq <= RadSq then
+              begin
+                FinalVerts[vCount] := OffsetX;
+                FinalVerts[vCount + 1] := OffsetY;
+                FinalVerts[vCount + 2] := OffsetZ;
+                Inc(vCount, 3);
+              end;
+            end;
+      end;
+
+    stCapsule:
+      begin
+        // SOLID CAPSULE
+        RadSq := Sqr(Max(LenX, LenZ));
+        CapY := LenY - Max(LenX, LenZ);
+        if CapY < 0 then
+          CapY := 0;
+
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+
+              DistSq := Sqr(OffsetX) + Sqr(OffsetZ);
+
+              if DistSq <= RadSq then
+              begin
+                if (OffsetY >= -CapY) and (OffsetY <= CapY) then
+                begin
+                  FinalVerts[vCount] := OffsetX;
+                  FinalVerts[vCount + 1] := OffsetY;
+                  FinalVerts[vCount + 2] := OffsetZ;
+                  Inc(vCount, 3);
+                end
+                else
+                begin
+                  if OffsetY > CapY then
+                    DistSq := DistSq + Sqr(OffsetY - CapY)
+                  else
+                    DistSq := DistSq + Sqr(OffsetY + CapY);
+
+                  if DistSq <= RadSq then
+                  begin
+                    FinalVerts[vCount] := OffsetX;
+                    FinalVerts[vCount + 1] := OffsetY;
+                    FinalVerts[vCount + 2] := OffsetZ;
+                    Inc(vCount, 3);
+                  end;
+                end;
+              end;
+            end;
+      end;
+
+    stPyramid:
+      begin
+        // SOLID PYRAMID (4-sided cone)
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+
+              t := 1.0 - ((OffsetY + LenY) / Actor.Scale.y);
+              if t < 0 then
+                t := 0;
+
+              if (Abs(OffsetX) <= LenX * t) and (Abs(OffsetZ) <= LenZ * t) then
+              begin
+                FinalVerts[vCount] := OffsetX;
+                FinalVerts[vCount + 1] := OffsetY;
+                FinalVerts[vCount + 2] := OffsetZ;
+                Inc(vCount, 3);
+              end;
+            end;
+      end;
+
+    stPrism:
+      begin
+        // SOLID PRISM (3-sided cylinder standing)
+        // We use the inscribed circle radius of the triangle to make it perfectly round
+        MaxR := Min(LenX, LenZ) * 0.866; // sqrt(3)/2 approx
+
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+
+              // Calculate angle and check if the point is inside the triangle
+              if (Abs(OffsetX) <= MaxR) and (Abs(OffsetZ) <= MaxR) then
+              begin
+                Angle := ArcTan2(OffsetZ, OffsetX);
+                // Triangle points to the right (0, 120, 240 degrees)
+                while Angle < 0 do
+                  Angle := Angle + 2 * PI;
+                while Angle >= 2 * PI do
+                  Angle := Angle - 2 * PI;
+
+                // Modulo 120 degrees (2*PI/3)
+                if Angle > 2 * PI / 3 then
+                  Angle := Angle - 2 * PI / 3;
+                if Angle > 2 * PI / 3 then
+                  Angle := Angle - 2 * PI / 3;
+
+                // Angle is now between -60 and +60 degrees relative to the triangle edge
+                // Max distance from center to edge is cos(Angle - 60deg) * MaxR
+                if Sqr(OffsetX) + Sqr(OffsetZ) <= Sqr(MaxR / Cos(Angle - PI / 3)) then
+                begin
+                  FinalVerts[vCount] := OffsetX;
+                  FinalVerts[vCount + 1] := OffsetY;
+                  FinalVerts[vCount + 2] := OffsetZ;
+                  Inc(vCount, 3);
+                end;
+              end;
+            end;
+      end
+  else
+    begin
+        // SOLID BOX (Default for stBox, stButton, etc.)
+      for i := 0 to GridSize - 1 do
+        for j := 0 to GridSize - 1 do
+          for k := 0 to GridSize - 1 do
+          begin
+            FinalVerts[vCount] := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+            FinalVerts[vCount + 1] := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+            FinalVerts[vCount + 2] := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+            Inc(vCount, 3);
+          end;
+    end;
+  end;
+
+  // Configure the temporary mesh struct
+  BaseMesh.vertexCount := vCount div 3; // Only count the points we actually generated
+  BaseMesh.vertices := @FinalVerts[0];
+  BaseMesh.indices := nil;
+  BaseMesh.texcoords := nil;
+  BaseMesh.normals := nil;
+  BaseMesh.tangents := nil;
+  BaseMesh.colors := nil;
+  BaseMesh.animVertices := nil;
+  BaseMesh.animNormals := nil;
+  BaseMesh.boneIndices := nil;
+  BaseMesh.boneWeights := nil;
+  BaseMesh.vaoId := 0;
+  BaseMesh.vboId := nil;
+
+  // Pass the real, exact-size voxel cloud to the particle engine
+  FParticleEngine.EmitDematerializeMesh(Actor.Position, BaseMesh);
+
+  // Mark as dead. The engine's garbage collector will safely dispose of it.
+  Actor.FIsDead := True;
+end;
+
+procedure TRaylibSandbox.ExecuteMaterializeActor(Actor: TA3DComponent);
+var
+  BaseMesh: TMesh;
+  FinalVerts: array of Single;
+  vCount: Integer;
+  i, j, k: Integer;
+  OffsetX, OffsetY, OffsetZ: Single;
+  GridSize: Integer;
+  LenX, LenY, LenZ: Single;
+  DistSq, RadSq: Single;
+  CapY: Single;
+  t, Angle, MaxR: Single;
+  TempVerts: array of Single;
+  Mesh: TMesh;
+  vx, vy, vz: Single;
+begin
+  if not Assigned(Actor) or not Assigned(FParticleEngine) then
+    Exit;
+
+  // HIDE ORIGINAL IMMEDIATELY
+  Actor.Visible := False;
+  Actor.ActAlpha := 0.0;
+  Actor.TargetAlpha := 0.0;
+
+  // ========================================================================
+  // FALL 1: CUSTOM 3D MODEL (Use real vertices, but cap to max 5000)
+  // ========================================================================
+  if Actor.ShapeType = stModel then
+  begin
+    if (Actor.FModel.meshes <> nil) and (Actor.FModel.meshes[0].vertices <> nil) then
+      Mesh := Actor.FModel.meshes[0]
+    else
+      Exit;
+
+    if (Mesh.vertexCount > 0) and (Mesh.vertices <> nil) then
+    begin
+      // Cap to 3000 to prevent massive memory leaks on huge models!
+      if Mesh.vertexCount > 3000 then
+        BaseMesh.vertexCount := 3000
+      else
+        BaseMesh.vertexCount := Mesh.vertexCount;
+
+      SetLength(TempVerts, BaseMesh.vertexCount * 3);
+      for i := 0 to BaseMesh.vertexCount - 1 do
+      begin
+        vx := Mesh.vertices[i * 3];
+        vy := Mesh.vertices[i * 3 + 1];
+        vz := Mesh.vertices[i * 3 + 2];
+        TempVerts[i * 3] := vx * Actor.Scale.x;
+        TempVerts[i * 3 + 1] := vy * Actor.Scale.y;
+        TempVerts[i * 3 + 2] := vz * Actor.Scale.z;
+      end;
+
+      BaseMesh.vertices := @TempVerts[0];
+      BaseMesh.indices := nil;
+      BaseMesh.texcoords := nil;
+      BaseMesh.normals := nil;
+      BaseMesh.tangents := nil;
+      BaseMesh.colors := nil;
+      BaseMesh.animVertices := nil;
+      BaseMesh.animNormals := nil;
+      BaseMesh.boneIndices := nil;
+      BaseMesh.boneWeights := nil;
+      BaseMesh.vaoId := 0;
+      BaseMesh.vboId := nil;
+
+      FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
+    end;
+    Exit;
+  end;
+
+  // ========================================================================
+  // FALL 2: PRIMITIVES (Reduced Voxel Grid to save memory!)
+  // ========================================================================
+  GridSize := 6;
+  SetLength(FinalVerts, GridSize * GridSize * GridSize * 3);
+  vCount := 0;
+
+  LenX := Actor.Scale.x * 0.5;
+  LenY := Actor.Scale.y * 0.5;
+  LenZ := Actor.Scale.z * 0.5;
+
+  case Actor.ShapeType of
+    stSphere:
+      begin
+        RadSq := Sqr(Max(LenX, Max(LenY, LenZ)));
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+              DistSq := Sqr(OffsetX) + Sqr(OffsetY) + Sqr(OffsetZ);
+              if DistSq <= RadSq then
+              begin
+                FinalVerts[vCount] := OffsetX;
+                FinalVerts[vCount + 1] := OffsetY;
+                FinalVerts[vCount + 2] := OffsetZ;
+                Inc(vCount, 3);
+              end;
+            end;
+      end;
+    stCapsule:
+      begin
+        RadSq := Sqr(Max(LenX, LenZ));
+        CapY := LenY - Max(LenX, LenZ);
+        if CapY < 0 then
+          CapY := 0;
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+              DistSq := Sqr(OffsetX) + Sqr(OffsetZ);
+              if DistSq <= RadSq then
+              begin
+                if (OffsetY >= -CapY) and (OffsetY <= CapY) then
+                begin
+                  FinalVerts[vCount] := OffsetX;
+                  FinalVerts[vCount + 1] := OffsetY;
+                  FinalVerts[vCount + 2] := OffsetZ;
+                  Inc(vCount, 3);
+                end
+                else
+                begin
+                  if OffsetY > CapY then
+                    DistSq := DistSq + Sqr(OffsetY - CapY)
+                  else
+                    DistSq := DistSq + Sqr(OffsetY + CapY);
+                  if DistSq <= RadSq then
+                  begin
+                    FinalVerts[vCount] := OffsetX;
+                    FinalVerts[vCount + 1] := OffsetY;
+                    FinalVerts[vCount + 2] := OffsetZ;
+                    Inc(vCount, 3);
+                  end;
+                end;
+              end;
+            end;
+      end;
+    stPyramid:
+      begin
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+              t := 1.0 - ((OffsetY + LenY) / Actor.Scale.y);
+              if t < 0 then
+                t := 0;
+              if (Abs(OffsetX) <= LenX * t) and (Abs(OffsetZ) <= LenZ * t) then
+              begin
+                FinalVerts[vCount] := OffsetX;
+                FinalVerts[vCount + 1] := OffsetY;
+                FinalVerts[vCount + 2] := OffsetZ;
+                Inc(vCount, 3);
+              end;
+            end;
+      end;
+    stPrism:
+      begin
+        MaxR := Min(LenX, LenZ) * 0.866;
+        for i := 0 to GridSize - 1 do
+          for j := 0 to GridSize - 1 do
+            for k := 0 to GridSize - 1 do
+            begin
+              OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+              OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+              OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+              if (Abs(OffsetX) <= MaxR) and (Abs(OffsetZ) <= MaxR) then
+              begin
+                Angle := ArcTan2(OffsetZ, OffsetX);
+                while Angle < 0 do
+                  Angle := Angle + 2 * PI;
+                while Angle >= 2 * PI do
+                  Angle := Angle - 2 * PI;
+                if Angle > 2 * PI / 3 then
+                  Angle := Angle - 2 * PI / 3;
+                if Angle > 2 * PI / 3 then
+                  Angle := Angle - 2 * PI / 3;
+                if Sqr(OffsetX) + Sqr(OffsetZ) <= Sqr(MaxR / Cos(Angle - PI / 3)) then
+                begin
+                  FinalVerts[vCount] := OffsetX;
+                  FinalVerts[vCount + 1] := OffsetY;
+                  FinalVerts[vCount + 2] := OffsetZ;
+                  Inc(vCount, 3);
+                end;
+              end;
+            end;
+      end
+  else
+    begin
+      // SOLID BOX (Default)
+      for i := 0 to GridSize - 1 do
+        for j := 0 to GridSize - 1 do
+          for k := 0 to GridSize - 1 do
+          begin
+            FinalVerts[vCount] := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
+            FinalVerts[vCount + 1] := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
+            FinalVerts[vCount + 2] := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
+            Inc(vCount, 3);
+          end;
+    end;
+  end;
+
+  BaseMesh.vertexCount := vCount div 3;
+  BaseMesh.vertices := @FinalVerts[0];
+  BaseMesh.indices := nil;
+  BaseMesh.texcoords := nil;
+  BaseMesh.normals := nil;
+  BaseMesh.tangents := nil;
+  BaseMesh.colors := nil;
+  BaseMesh.animVertices := nil;
+  BaseMesh.animNormals := nil;
+  BaseMesh.boneIndices := nil;
+  BaseMesh.boneWeights := nil;
+  BaseMesh.vaoId := 0;
+  BaseMesh.vboId := nil;
+
+  FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
 end;
 
 end.

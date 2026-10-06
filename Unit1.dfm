@@ -12061,6 +12061,15 @@ object Form1: TForm1
           TabOrder = 20
           OnClick = btnFogClick
         end
+        object btnDemat: TButton
+          Left = 101
+          Top = 116
+          Width = 74
+          Height = 25
+          Caption = 'Dematerialize'
+          TabOrder = 21
+          OnClick = btnDematClick
+        end
       end
       object tsEngine: TTabSheet
         Caption = 'Engine'
@@ -12332,10 +12341,10 @@ object Form1: TForm1
           Font.Height = -12
           Font.Name = 'Segoe UI'
           Font.Style = []
-          ItemIndex = 2
+          ItemIndex = 1
           ParentFont = False
           TabOrder = 11
-          Text = 'Fade'
+          Text = 'Beam'
           OnChange = cbSpawnEffectsChange
           Items.Strings = (
             'None'

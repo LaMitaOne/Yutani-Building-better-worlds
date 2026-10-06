@@ -93,6 +93,7 @@ type
     btnLoadSF2: TButton;
     tbSlowMotion: TTrackBar;
     btnFog: TButton;
+    btnDemat: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -144,6 +145,7 @@ type
     procedure btnLoadSF2Click(Sender: TObject);
     procedure tbSlowMotionChange(Sender: TObject);
     procedure btnFogClick(Sender: TObject);
+    procedure btnDematClick(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -509,6 +511,13 @@ begin
   FSandbox.ClearItems;
   StringGrid1.Visible := False;
   lblInfo.Caption := 'Scene Cleared.';
+end;
+
+procedure TForm1.btnDematClick(Sender: TObject);
+begin
+  FSandbox.DematerializeSelectedObject;
+   //or
+  //FSandbox.DematerializeActor(  --  TA3DComponent  --  );
 end;
 
 procedure TForm1.btnFogClick(Sender: TObject);
