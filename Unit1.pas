@@ -94,6 +94,8 @@ type
     tbSlowMotion: TTrackBar;
     btnFog: TButton;
     btnDemat: TButton;
+    btnNanoFog: TButton;
+    btnEndNanoFog: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -146,6 +148,8 @@ type
     procedure tbSlowMotionChange(Sender: TObject);
     procedure btnFogClick(Sender: TObject);
     procedure btnDematClick(Sender: TObject);
+    procedure btnNanoFogClick(Sender: TObject);
+    procedure btnEndNanoFogClick(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -319,6 +323,11 @@ begin
   lblInfo.Caption := 'Tool: Drag & Throw Active.';
 end;
 
+
+procedure TForm1.btnNanoFogClick(Sender: TObject);
+begin
+  FSandbox.TriggerNanoFogDuplicate;
+end;
 
 procedure TForm1.btnSpawnButtonClick(Sender: TObject);
 begin
@@ -518,6 +527,11 @@ begin
   FSandbox.DematerializeSelectedObject;
    //or
   //FSandbox.DematerializeActor(  --  TA3DComponent  --  );
+end;
+
+procedure TForm1.btnEndNanoFogClick(Sender: TObject);
+begin
+  FSandbox.KillNanoFog;
 end;
 
 procedure TForm1.btnFogClick(Sender: TObject);

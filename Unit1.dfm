@@ -11978,7 +11978,7 @@ object Form1: TForm1
         end
         object btnSpawnBomb: TButton
           Left = 13
-          Top = 251
+          Top = 197
           Width = 74
           Height = 25
           Caption = 'Bomb'
@@ -12053,8 +12053,8 @@ object Form1: TForm1
           OnClick = btnPianoClick
         end
         object btnFog: TButton
-          Left = 101
-          Top = 220
+          Left = 13
+          Top = 251
           Width = 74
           Height = 25
           Caption = 'Fog'
@@ -12063,12 +12063,30 @@ object Form1: TForm1
         end
         object btnDemat: TButton
           Left = 101
-          Top = 116
+          Top = 84
           Width = 74
           Height = 25
           Caption = 'Dematerialize'
           TabOrder = 21
           OnClick = btnDematClick
+        end
+        object btnNanoFog: TButton
+          Left = 101
+          Top = 115
+          Width = 74
+          Height = 25
+          Caption = 'NanoFog'
+          TabOrder = 22
+          OnClick = btnNanoFogClick
+        end
+        object btnEndNanoFog: TButton
+          Left = 101
+          Top = 146
+          Width = 74
+          Height = 25
+          Caption = 'End NanoFog'
+          TabOrder = 23
+          OnClick = btnEndNanoFogClick
         end
       end
       object tsEngine: TTabSheet

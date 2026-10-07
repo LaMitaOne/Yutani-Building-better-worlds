@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.644 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.645 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -87,9 +87,14 @@ uses
   Winapi.Windows, Winapi.MultiMon, Winapi.MMSystem, System.SysUtils,
   System.Classes, System.Math, System.SyncObjs, Vcl.Controls, Vcl.Forms,
   Vcl.Graphics, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
-  MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
-  Yutani.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
-  Yutani.Render.Shaders, Yutani.Render.Particles;
+  MiniAudio4Delphi, MPVManager, MPVEmbedded,
+  Yutani.Audio,
+  Yutani.VoronoiFracture,
+  Yutani.AliveHighlighter3D,
+  Yutani.Worlds.Island,
+  Yutani.Render.Shaders,
+  Yutani.Render.Particles,
+  Yutani.Render.NanoFog;
 
 type
   PItemData = ^TItemData;
@@ -126,7 +131,6 @@ type
     Color: TColorB;
     IsSmoke: Boolean; // True = Smoke, False = Explosion
   end;
-
   // NEW: Thread-safe Dematerialize Request
   TDematerializeRequest = record
     Actor: TA3DComponent;
@@ -327,6 +331,10 @@ type
     FParticleEngine: TYutaniParticleEngine;
     FParticleSpawnQueue: TArray<TParticleSpawnRequest>;
 
+  // NanoFog Engine
+    FNanoFog: TNanoFogEngine;
+    FNanoFogAvatarID: Integer;
+
     // Slow Motion System Variables
     FTimeScale: Single;
     FSavedTimeScale: Single;  // 1.0 = Normal speed, 0.2 = 20% speed (Slow Motion)
@@ -503,6 +511,11 @@ type
     // External Particle Triggers
     procedure TriggerFogEffect;
     procedure TriggerExplosionEffect;
+
+    // Nanofog
+    procedure TriggerNanoFogDuplicate;
+    procedure MorphSelectedToFog;
+    procedure KillNanoFog;
 
     // NEW: External Dematerialize Triggers
     procedure DematerializeSelectedObject;
@@ -1135,6 +1148,10 @@ begin
 
           FParticleEngine := TYutaniParticleEngine.Create;
 
+          // Init NanoFog Engine
+          FNanoFog := TNanoFogEngine.Create;
+          FNanoFogAvatarID := 1;
+
           FInitialized := True;
           FSceneStartTime := GetTime();
           DoViewportReady;
@@ -1184,6 +1201,7 @@ begin
           ClearItems;
           FreeAndNil(FParticleEngine);
           FreeAndNil(FFloorActor);
+          FreeAndNil(FNanoFog);
           FreeAndNil(FEngine);
           if FShadowMap.id > 0 then
             UnloadRenderTexture(FShadowMap);
@@ -1776,7 +1794,6 @@ begin
   var GroundHit := GetRayCollisionBox(ray, GroundRayBox);
   if GroundHit.hit then
     FMouseWorldPos := Vector3Create(GroundHit.point.x, 2.0, GroundHit.point.z);
-
 
   // ====================================================================
   // 3D BUTTON INTERACTION LOGIC (Hover & Click)
@@ -3146,8 +3163,13 @@ begin
   // Calculate physics delta time based on slow motion scale
   var PhysDt: Single := dt * FTimeScale;
 
+  if Assigned(FNanoFog) then
+    FNanoFog.Update(PhysDt);
+
+
   if Assigned(FParticleEngine) then
     FParticleEngine.Update(PhysDt);
+
   if Assigned(FParticleEngine) and (Length(FParticleSpawnQueue) > 0) then
   begin
     FLock.Enter;
@@ -4070,9 +4092,12 @@ begin
 
   if Assigned(FParticleEngine) then
   begin
-
     FParticleEngine.Render;
+  end;
 
+  if Assigned(FNanoFog) then
+  begin
+    FNanoFog.Render;
   end;
 
   dt := GetFrameTime();
@@ -5008,7 +5033,7 @@ begin
   begin
     FParticleEngine.EmitExplosion(FBombActor.Position, 2000, RED);
     FParticleEngine.EmitSparks(FBombActor.Position, 2000, GOLD);
-    FParticleEngine.EmitSmoke(FBombActor.Position, 1000, DARKGRAY);
+   // FParticleEngine.EmitSmoke(FBombActor.Position, 1000, DARKGRAY);
   end;
 
   // Loop through all items and apply massive explosion force
@@ -5493,7 +5518,6 @@ begin
     end;
   end;
 end;
-
 { TPiano }
 
 constructor TPiano.Create(ASandbox: TRaylibSandbox);
@@ -5718,7 +5742,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 // ============================================================================
 // EXTERNAL MATERIALIZATION TRIGGERS (Safe to call from VCL/UI Thread)
 // ============================================================================
@@ -6240,6 +6263,115 @@ begin
 
   FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
 end;
+
+procedure TRaylibSandbox.TriggerNanoFogDuplicate;
+var
+  TargetPos: TVector3;
+  BaseMesh: TMesh;
+  TempVerts: array of Single;
+  Mesh: TMesh;
+  i: Integer;
+  vx, vy, vz: Single;
+  NanoShape: TNanoShapeType;
+  PrevAvatarID: Integer;
+begin
+  if not Assigned(FItemSelected) or not Assigned(FNanoFog) then
+    Exit;
+
+  // 1. IMMEDIATELY DISSOLVE THE PREVIOUS FORM: The current shape breaks apart
+  // and turns back into a roaming swarm before heading to the new target.
+  PrevAvatarID := FNanoFogAvatarID - 1;
+  if PrevAvatarID > 0 then
+    FNanoFog.MorphToFog(PrevAvatarID);
+
+  // Calculate offset position so the duplicate doesn't overlap the original
+  TargetPos.x := FItemSelected.Position.x + (FItemSelected.Scale.x * 1.5) + 2.0;
+  TargetPos.y := FItemSelected.Position.y;
+  TargetPos.z := FItemSelected.Position.z + (FItemSelected.Scale.z * 1.5) + 2.0;
+
+  if FItemSelected.ShapeType = stModel then
+  begin
+    // CUSTOM 3D MODEL
+    if (FItemSelected.FModel.meshes <> nil) and (FItemSelected.FModel.meshes[0].vertices <> nil) then
+      Mesh := FItemSelected.FModel.meshes[0]
+    else
+      Exit;
+
+    if (Mesh.vertexCount > 0) and (Mesh.vertices <> nil) then
+    begin
+      // Cap to 8000 to prevent memory overload on huge models
+      if Mesh.vertexCount > 8000 then
+        BaseMesh.vertexCount := 8000
+      else
+        BaseMesh.vertexCount := Mesh.vertexCount;
+
+      SetLength(TempVerts, BaseMesh.vertexCount * 3);
+      for i := 0 to BaseMesh.vertexCount - 1 do
+      begin
+        vx := Mesh.vertices[i * 3];
+        vy := Mesh.vertices[i * 3 + 1];
+        vz := Mesh.vertices[i * 3 + 2];
+        // Engine handles the uniform scaling internally now
+        TempVerts[i * 3] := vx;
+        TempVerts[i * 3 + 1] := vy;
+        TempVerts[i * 3 + 2] := vz;
+      end;
+
+      BaseMesh.vertices := @TempVerts[0];
+      BaseMesh.indices := nil;
+      BaseMesh.texcoords := nil;
+      BaseMesh.normals := nil;
+      BaseMesh.tangents := nil;
+      BaseMesh.colors := nil;
+      BaseMesh.animVertices := nil;
+      BaseMesh.animNormals := nil;
+      BaseMesh.boneIndices := nil;
+      BaseMesh.boneWeights := nil;
+      BaseMesh.vaoId := 0;
+      BaseMesh.vboId := nil;
+
+      // Send the swarm to form the new mesh
+      FNanoFog.EmitMaterializeMesh(TargetPos, BaseMesh, FNanoFogAvatarID);
+      Inc(FNanoFogAvatarID);
+    end;
+  end
+  else
+  begin
+    // PRIMITIVES
+    case FItemSelected.ShapeType of
+      stBox: NanoShape := nstBox;
+      stSphere: NanoShape := nstSphere;
+      stCapsule: NanoShape := nstCapsule;
+      stPyramid: NanoShape := nstPyramid;
+      stPrism: NanoShape := nstPrism;
+    else
+      NanoShape := nstBox;
+    end;
+
+    // Send the swarm to form the primitive
+    FNanoFog.EmitMaterializePrimitive(TargetPos, NanoShape, FItemSelected.Scale, FNanoFogAvatarID);
+    Inc(FNanoFogAvatarID);
+  end;
+end;
+
+procedure TRaylibSandbox.MorphSelectedToFog;
+begin
+  // Dissolve the current avatar back into ambient roaming fog
+  if Assigned(FNanoFog) and (FNanoFogAvatarID > 1) then
+  begin
+    FNanoFog.MorphToFog(FNanoFogAvatarID - 1);
+    Inc(FNanoFogAvatarID); // Increment so the next build uses a fresh ID
+  end;
+end;
+
+procedure TRaylibSandbox.KillNanoFog;
+begin
+  if Assigned(FNanoFog) then
+  begin
+    FNanoFog.ExplodeAndKill;
+  end;
+end;
+
 
 end.
 
