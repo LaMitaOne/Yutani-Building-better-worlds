@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.645 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.646 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -87,14 +87,9 @@ uses
   Winapi.Windows, Winapi.MultiMon, Winapi.MMSystem, System.SysUtils,
   System.Classes, System.Math, System.SyncObjs, Vcl.Controls, Vcl.Forms,
   Vcl.Graphics, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
-  MiniAudio4Delphi, MPVManager, MPVEmbedded,
-  Yutani.Audio,
-  Yutani.VoronoiFracture,
-  Yutani.AliveHighlighter3D,
-  Yutani.Worlds.Island,
-  Yutani.Render.Shaders,
-  Yutani.Render.Particles,
-  Yutani.Render.NanoFog;
+  MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
+  Yutani.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
+  Yutani.Render.Shaders, Yutani.Render.Particles, Yutani.Render.NanoFog;
 
 type
   PItemData = ^TItemData;
@@ -132,6 +127,7 @@ type
     IsSmoke: Boolean; // True = Smoke, False = Explosion
   end;
   // NEW: Thread-safe Dematerialize Request
+
   TDematerializeRequest = record
     Actor: TA3DComponent;
   end;
@@ -254,6 +250,7 @@ type
     FSkyboxViewLoc: Integer;
     FSkyboxProjLoc: Integer;
     FSkyboxTex: TTexture2D;
+    FSkyboxSpaceTex: TTexture2D;
 
     FCloudModel: TModel;
     FCloudShader: TShader;
@@ -1021,6 +1018,15 @@ begin
     // The procedural shader handles the actual rendering, this texture might be used for lookup if needed
   end;
 
+  // Load Space Skybox texture and assign immediately
+  if FileExists(PAnsiChar(AnsiString(FilePath + 'spaceGradient.png'))) then
+  begin
+    FSkyboxSpaceTex := LoadTexture(PAnsiChar(AnsiString(FilePath + 'spaceGradient.png')));
+    SetTextureFilter(FSkyboxSpaceTex, TEXTURE_FILTER_TRILINEAR);
+  end
+  else
+    FSkyboxSpaceTex := FSkyboxTex; // Fallback if file is missing
+
   // Initialize Clouds (Uses constants from Yutani.Render.Shaders unit)
   FCloudShader := LoadShaderFromMemory(PAnsiChar(CLOUD_VERT), PAnsiChar(CLOUD_FRAG));
   FCloudMoveFactorLoc := GetShaderLocation(FCloudShader, 'moveFactor');
@@ -1220,6 +1226,8 @@ begin
             UnloadModel(FSkyboxModel);
             if FSkyboxTex.id > 0 then
               UnloadTexture(FSkyboxTex);
+            if (FSkyboxSpaceTex.id > 0) and (FSkyboxSpaceTex.id <> FSkyboxTex.id) then
+              UnloadTexture(FSkyboxSpaceTex);
           end;
           if FCloudShader.id > 0 then
           begin
@@ -1271,13 +1279,15 @@ end;
 
 procedure TRaylibSandbox.InitScene;
 begin
-  // No walls are generated to keep the skybox horizon fully visible
-  FFloorActor := TA3DComponent.Create('', FEngine, stBox, Vector3Create(1000, 1, 1000), True);
+  if FCurrentWorldBase = wbSpace then
+    FFloorActor := TA3DComponent.Create('', FEngine, stBox, Vector3Create(5, 1, 5), True)
+  else
+    FFloorActor := TA3DComponent.Create('', FEngine, stBox, Vector3Create(1000, 1, 1000), True);
+
   FFloorActor.SetPosition(Vector3Create(0, -0.5, 0));
   FFloorActor.Visible := False;
   FFloorActor.Friction := 0.5;
 
-  // Initialize items array
   FItems := nil;
 end;
 
@@ -3166,7 +3176,6 @@ begin
   if Assigned(FNanoFog) then
     FNanoFog.Update(PhysDt);
 
-
   if Assigned(FParticleEngine) then
     FParticleEngine.Update(PhysDt);
 
@@ -3677,41 +3686,67 @@ begin
     ProjMat := MatrixPerspective(FCamera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
     SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
     SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
-    if (FCurrentWorldBase = wbSpace) or (FCurrentWorldBase = wbHolodeck) then
+
+    // SPACE WORLD: Bypass custom gradient shader and just draw the texture directly!
+    if (FCurrentWorldBase = wbSpace) then
+    begin
+      if FSkyboxSpaceTex.id > 0 then
+      begin
+        // Override the gradient shader with the standard default shader
+        FSkyboxModel.materials[0].shader := FDefaultShader;
+        FSkyboxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSkyboxSpaceTex;
+
+        rlDisableBackfaceCulling();
+        DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
+        rlEnableBackfaceCulling();
+
+        // Restore the gradient shader for other worlds
+        FSkyboxModel.materials[0].shader := FSkyboxShader;
+      end
+      else
+      begin
+        // Fallback to pure black if texture is broken
+        var BlackSkyColor: TColorB := BLACK;
+        DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
+      end;
+    end
+    // HOLODECK: Draw pure black skybox (no texture)
+    else if (FCurrentWorldBase = wbHolodeck) then
     begin
       var BlackSkyColor: TColorB := BLACK;
       DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
     end
+    // NORMAL WORLD (Land/Island): Draw standard skybox with day/night gradient shader
     else
     begin
+      if FSkyboxTex.id > 0 then
+        FSkyboxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSkyboxTex;
+
       rlDisableBackfaceCulling();
       DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
       rlEnableBackfaceCulling();
     end;
+
     rlEnableDepthMask();
   end;
 
   // 2. Draw Floor with Lighting Shader
-  if FCurrentWorldBase <> wbIsland then
+  if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
     BeginShaderMode(FLightShader);
 
   if FCurrentWorldBase = wbLand then
     DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN)
   else if FCurrentWorldBase = wbSpace then
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK)
+    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(20, 20), BLACK)
   else if FCurrentWorldBase = wbHolodeck then
     DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK)
-
-  // ====================================================================
-  // ISLAND WORLD: Draw the self-contained 3D Erosion Island and Ocean.
-  // ====================================================================
   else if FCurrentWorldBase = wbIsland then
   begin
     if Assigned(FIslandWorld) then
       FIslandWorld.Draw(FCamera);
   end;
 
-  if FCurrentWorldBase <> wbIsland then
+  if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
     EndShaderMode();
 
   EndShaderMode();
@@ -6277,18 +6312,15 @@ var
 begin
   if not Assigned(FItemSelected) or not Assigned(FNanoFog) then
     Exit;
-
   // 1. IMMEDIATELY DISSOLVE THE PREVIOUS FORM: The current shape breaks apart
   // and turns back into a roaming swarm before heading to the new target.
   PrevAvatarID := FNanoFogAvatarID - 1;
   if PrevAvatarID > 0 then
     FNanoFog.MorphToFog(PrevAvatarID);
-
   // Calculate offset position so the duplicate doesn't overlap the original
   TargetPos.x := FItemSelected.Position.x + (FItemSelected.Scale.x * 1.5) + 2.0;
   TargetPos.y := FItemSelected.Position.y;
   TargetPos.z := FItemSelected.Position.z + (FItemSelected.Scale.z * 1.5) + 2.0;
-
   if FItemSelected.ShapeType = stModel then
   begin
     // CUSTOM 3D MODEL
@@ -6296,7 +6328,6 @@ begin
       Mesh := FItemSelected.FModel.meshes[0]
     else
       Exit;
-
     if (Mesh.vertexCount > 0) and (Mesh.vertices <> nil) then
     begin
       // Cap to 8000 to prevent memory overload on huge models
@@ -6304,7 +6335,6 @@ begin
         BaseMesh.vertexCount := 8000
       else
         BaseMesh.vertexCount := Mesh.vertexCount;
-
       SetLength(TempVerts, BaseMesh.vertexCount * 3);
       for i := 0 to BaseMesh.vertexCount - 1 do
       begin
@@ -6316,7 +6346,6 @@ begin
         TempVerts[i * 3 + 1] := vy;
         TempVerts[i * 3 + 2] := vz;
       end;
-
       BaseMesh.vertices := @TempVerts[0];
       BaseMesh.indices := nil;
       BaseMesh.texcoords := nil;
@@ -6329,7 +6358,6 @@ begin
       BaseMesh.boneWeights := nil;
       BaseMesh.vaoId := 0;
       BaseMesh.vboId := nil;
-
       // Send the swarm to form the new mesh
       FNanoFog.EmitMaterializeMesh(TargetPos, BaseMesh, FNanoFogAvatarID);
       Inc(FNanoFogAvatarID);
@@ -6339,15 +6367,19 @@ begin
   begin
     // PRIMITIVES
     case FItemSelected.ShapeType of
-      stBox: NanoShape := nstBox;
-      stSphere: NanoShape := nstSphere;
-      stCapsule: NanoShape := nstCapsule;
-      stPyramid: NanoShape := nstPyramid;
-      stPrism: NanoShape := nstPrism;
+      stBox:
+        NanoShape := nstBox;
+      stSphere:
+        NanoShape := nstSphere;
+      stCapsule:
+        NanoShape := nstCapsule;
+      stPyramid:
+        NanoShape := nstPyramid;
+      stPrism:
+        NanoShape := nstPrism;
     else
       NanoShape := nstBox;
     end;
-
     // Send the swarm to form the primitive
     FNanoFog.EmitMaterializePrimitive(TargetPos, NanoShape, FItemSelected.Scale, FNanoFogAvatarID);
     Inc(FNanoFogAvatarID);
@@ -6371,7 +6403,6 @@ begin
     FNanoFog.ExplodeAndKill;
   end;
 end;
-
 
 end.
 
