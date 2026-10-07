@@ -46,8 +46,9 @@ uniform Light lights[MAX_LIGHTS];
 uniform vec4 ambient;
 uniform vec3 viewPos;
 
-const float minHeight = -1.2;
-const float maxHeight = 5.8; // sarebbe 6.8
+// Adjusted min and max height to match the new 80.0 vertex height multiplier
+const float minHeight = -12.0;
+const float maxHeight = 50.0; 
 const float GrassSlopeThreshold = 0.17; // maximum slope where grass grows (higher = more grass)
 const float GrassBlendAmount = 0.55; // how much grass blends with rock (higher = smoother gradient)
 
@@ -146,7 +147,7 @@ void main()
     vec3 light = vec3(0.0);
     for (int i = 0; i < 1; i++)//MAX_LIGHTS; i++)
     {
-	    light = -normalize(lights[i].target - lights[i].position);
+        light = -normalize(lights[i].target - lights[i].position);
         float NdotL = max(dot(normal, light), 0.0);
         lightDot += lights[i].color.rgb * NdotL;
         finalColor = mix(mix(vec4(ambient.rgb,1.0),texelColor,ambient.a),texelColor, NdotL);

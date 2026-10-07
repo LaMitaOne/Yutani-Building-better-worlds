@@ -46,7 +46,8 @@ mat3 transpose(mat3 m)
 void main()
 {
     // Send vertex attributes to fragment shader
-    float height = texture2D(texture2, vertexTexCoord).r * 8.0;
+    // Increased height multiplier from 8.0 to 80.0 to match the 512x512 terrain scale
+    float height = texture2D(texture2, vertexTexCoord).r * 50.0;
     vec3 offset = vec3(0, height, 0);
     fragPosition = vec3(matModel*vec4(vertexPosition + offset, 1.0));
     fragTexCoord = vertexTexCoord;
