@@ -25,7 +25,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.645)    
+Status: Work in Progress (Alpha v0.646)    
          
 <img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
        
@@ -90,6 +90,25 @@ My first spaceship 🤤
   Exe and sample project included    
       
 Latest Changes:  
+      
+v0.646:        
+
+  - Added space skybox 
+  - Removed space skybox, built real infinite procedural cosmos
+    (Yutani.Worlds.Space: star sprites, nebulae, comets, planets)
+  - Added Yutani.Worlds.Space.Textures: Skia-rendered procedural
+    planet surfaces (Rocky, Earth, Mars, Gas Giant, Ice)
+  - Planets are now textured 3D spheres (Mario Galaxy scale)
+  - Comets now spray hundreds of flame particles (white-hot → dark red)
+  - Nebulae use circular gradient billboards
+  - Atmosphere glow uses two-layer circular billboards
+  - Far plane extended to 10000 during space rendering
+  - Stars use 4-pointed gradient sprites with twinkle
+  - Chunk-based infinite procedural generation (deterministic per chunk)
+  - Added SQLite.dll cause I think I Need it...later :D
+     
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/81943bd5-f072-4e5d-a045-d278d088adee" />
+    
       
 v0.645:        
 
