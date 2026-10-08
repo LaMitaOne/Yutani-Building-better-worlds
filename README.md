@@ -74,6 +74,8 @@ Status: Work in Progress (Alpha v0.645)
      
 <img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/f195e0bf-d0ee-48e2-a4aa-f3b9c437b8dd" />     
 My first spaceship 🤤     
+<img width="1920" height="1080" alt="Unbenannt" src="https://github.com/user-attachments/assets/07855a87-702d-461c-b1e0-fc2274b29e88" />
+    
              
 ## ⌨️ Controls    
 * **CTRL:** Toggle between Move / Rotate / Scale Gizmos    
