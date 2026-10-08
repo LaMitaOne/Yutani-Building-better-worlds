@@ -18,7 +18,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 ### 🛠️ The Tech-Stack Powering the Core:    
 * **3D Physics Core:** Powered by **Jolt Physics** via a robust, custom multi-threaded wrapper with precise continuous collision detection (CCD).    
 * **Blazing Fast Rendering:** Driven by **Raylib & r3d**, utilizing custom GLSL shaders for advanced lighting and shadows directly on the GPU.    
-* **Procedural Textures & HUD (to do):** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
+* **Procedural Textures & HUD :** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
 * **Cinematic Multimedia:** Integrated **libmpv** engine streaming hardware-accelerated video feeds straight into real-time 3D OpenGL textures.    
 * **Input Layer:** Multi-threaded **SDL3 Gamepad Core** featuring button mapping and zero-latency feedback.    
 * **Advanced Audio Engine:** A dual-engine setup providing full acoustic feedback. MiniAudio drives real-time 3D spatial sound and HRTF attenuation, while TinySoundFont handles on-the-fly SF2 synthesis for dynamic music sequences and retro soundtracks.
