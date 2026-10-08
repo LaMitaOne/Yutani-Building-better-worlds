@@ -152,6 +152,9 @@
         <DCCReference Include="Yutani.Worlds.Island.pas"/>
         <DCCReference Include="Yutani.Render.Particles.pas"/>
         <DCCReference Include="Yutani.AliveHighlighter3D.pas"/>
+        <DCCReference Include="Yutani.Render.NanoFog.pas"/>
+        <DCCReference Include="Yutani.Worlds.Space.pas"/>
+        <DCCReference Include="Yutani.Worlds.Space.Textures.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

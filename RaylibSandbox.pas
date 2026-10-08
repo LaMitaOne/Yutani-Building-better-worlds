@@ -89,7 +89,8 @@ uses
   Vcl.Graphics, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
   MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
   Yutani.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
-  Yutani.Render.Shaders, Yutani.Render.Particles, Yutani.Render.NanoFog;
+  Yutani.Worlds.Space, Yutani.Render.Shaders, Yutani.Render.Particles,
+  Yutani.Render.NanoFog;
 
 type
   PItemData = ^TItemData;
@@ -349,6 +350,7 @@ type
     //base world
     FCurrentWorldBase: TWorldBaseType;
     FIslandWorld: TIslandWorld;
+    FSpaceWorld: TSpaceWorld;
 
     // Spawn Effect System
     FSpawnEffectType: TSpawnEffectType;
@@ -1057,6 +1059,10 @@ begin
   // Create the Island World
   if not Assigned(FIslandWorld) then
     FIslandWorld := TIslandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', FDefaultWhiteTex);
+
+ // Create the Infinite Space World
+  if not Assigned(FSpaceWorld) then
+    FSpaceWorld := TSpaceWorld.Create;
 end;
 
 procedure TRaylibSandbox.PlayTestSound;
@@ -1252,6 +1258,8 @@ begin
           end;
           if Assigned(FIslandWorld) then
             FreeAndNil(FIslandWorld);
+          if Assigned(FSpaceWorld) then
+            FreeAndNil(FSpaceWorld);
           if Assigned(FMPVPlayer) then
             FreeAndNil(FMPVPlayer);
           CloseWindow();
@@ -1455,8 +1463,17 @@ begin
     FCamera.target.z := FCamera.target.z + rightZ * panSpeed;
     FCameraMoved := True;
   end;
-  FCamera.target.x := EnsureRange(FCamera.target.x, -450.0, 450.0);
-  FCamera.target.z := EnsureRange(FCamera.target.z, -450.0, 450.0);
+  // Extend camera limits for infinite space exploration
+  if FCurrentWorldBase = wbSpace then
+  begin
+    FCamera.target.x := EnsureRange(FCamera.target.x, -100000.0, 100000.0);
+    FCamera.target.z := EnsureRange(FCamera.target.z, -100000.0, 100000.0);
+  end
+  else
+  begin
+    FCamera.target.x := EnsureRange(FCamera.target.x, -450.0, 450.0);
+    FCamera.target.z := EnsureRange(FCamera.target.z, -450.0, 450.0);
+  end;
   if GetMouseWheelMove() <> 0 then
   begin
     FCamDist := EnsureRange(FCamDist - GetMouseWheelMove() * 3.0, 10, 250);
@@ -3176,6 +3193,10 @@ begin
   if Assigned(FNanoFog) then
     FNanoFog.Update(PhysDt);
 
+  // Update the infinite procedural cosmos when in space world
+  if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
+    FSpaceWorld.Update(dt, FCamera.position);
+
   if Assigned(FParticleEngine) then
     FParticleEngine.Update(PhysDt);
 
@@ -3687,28 +3708,11 @@ begin
     SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
     SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
 
-    // SPACE WORLD: Bypass custom gradient shader and just draw the texture directly!
+    // SPACE WORLD: Render the infinite procedural cosmos instead of a static texture
     if (FCurrentWorldBase = wbSpace) then
     begin
-      if FSkyboxSpaceTex.id > 0 then
-      begin
-        // Override the gradient shader with the standard default shader
-        FSkyboxModel.materials[0].shader := FDefaultShader;
-        FSkyboxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSkyboxSpaceTex;
-
-        rlDisableBackfaceCulling();
-        DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
-        rlEnableBackfaceCulling();
-
-        // Restore the gradient shader for other worlds
-        FSkyboxModel.materials[0].shader := FSkyboxShader;
-      end
-      else
-      begin
-        // Fallback to pure black if texture is broken
-        var BlackSkyColor: TColorB := BLACK;
-        DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
-      end;
+      if Assigned(FSpaceWorld) then
+        FSpaceWorld.Render(FCamera);
     end
     // HOLODECK: Draw pure black skybox (no texture)
     else if (FCurrentWorldBase = wbHolodeck) then

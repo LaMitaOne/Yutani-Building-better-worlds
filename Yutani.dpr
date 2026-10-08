@@ -16,7 +16,10 @@ uses
   Yutani.Render.Shaders in 'Yutani.Render.Shaders.pas',
   Yutani.Worlds.Island in 'Yutani.Worlds.Island.pas',
   Yutani.Render.Particles in 'Yutani.Render.Particles.pas',
-  Yutani.AliveHighlighter3D in 'Yutani.AliveHighlighter3D.pas';
+  Yutani.AliveHighlighter3D in 'Yutani.AliveHighlighter3D.pas',
+  Yutani.Render.NanoFog in 'Yutani.Render.NanoFog.pas',
+  Yutani.Worlds.Space in 'Yutani.Worlds.Space.pas',
+  Yutani.Worlds.Space.Textures in 'Yutani.Worlds.Space.Textures.pas';
 
 {$R *.res}
 
