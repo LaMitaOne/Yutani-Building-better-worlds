@@ -251,7 +251,6 @@ type
     FSkyboxViewLoc: Integer;
     FSkyboxProjLoc: Integer;
     FSkyboxTex: TTexture2D;
-    FSkyboxSpaceTex: TTexture2D;
 
     FCloudModel: TModel;
     FCloudShader: TShader;
@@ -1020,15 +1019,6 @@ begin
     // The procedural shader handles the actual rendering, this texture might be used for lookup if needed
   end;
 
-  // Load Space Skybox texture and assign immediately
-  if FileExists(PAnsiChar(AnsiString(FilePath + 'spaceGradient.png'))) then
-  begin
-    FSkyboxSpaceTex := LoadTexture(PAnsiChar(AnsiString(FilePath + 'spaceGradient.png')));
-    SetTextureFilter(FSkyboxSpaceTex, TEXTURE_FILTER_TRILINEAR);
-  end
-  else
-    FSkyboxSpaceTex := FSkyboxTex; // Fallback if file is missing
-
   // Initialize Clouds (Uses constants from Yutani.Render.Shaders unit)
   FCloudShader := LoadShaderFromMemory(PAnsiChar(CLOUD_VERT), PAnsiChar(CLOUD_FRAG));
   FCloudMoveFactorLoc := GetShaderLocation(FCloudShader, 'moveFactor');
@@ -1232,8 +1222,6 @@ begin
             UnloadModel(FSkyboxModel);
             if FSkyboxTex.id > 0 then
               UnloadTexture(FSkyboxTex);
-            if (FSkyboxSpaceTex.id > 0) and (FSkyboxSpaceTex.id <> FSkyboxTex.id) then
-              UnloadTexture(FSkyboxSpaceTex);
           end;
           if FCloudShader.id > 0 then
           begin
