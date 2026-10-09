@@ -764,7 +764,7 @@ var
   cx, cy, cz: Integer;
   ScaledDt: Single;
 begin
-  FTime := FTime + dt;
+  FTime := FTime + dt; // Real time for twinkle effects
   FCameraPos := CameraPos;
   FTimeScale := TimeScale;
   ScaledDt := dt * FTimeScale;
@@ -775,7 +775,7 @@ begin
   if (cx <> FLastChunkX) or (cy <> FLastChunkY) or (cz <> FLastChunkZ) then
     RegenerateNearContent(CameraPos);
 
-  FSpawnTimer := FSpawnTimer - dt;
+  FSpawnTimer := FSpawnTimer - ScaledDt;
   if FSpawnTimer <= 0 then
   begin
     SpawnComet(CameraPos);

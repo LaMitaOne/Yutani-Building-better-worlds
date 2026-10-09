@@ -1138,7 +1138,7 @@ begin
             SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE)
           else
             SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-          InitWindow(1280, 720, 'Raylib Sandbox');
+          InitWindow(1360, 768, 'Raylib Sandbox');
           FRaylibWnd := FindWindow(nil, 'Raylib Sandbox');
           if FRaylibWnd <> 0 then
           begin
@@ -3336,8 +3336,8 @@ begin
     FNanoFog.Update(PhysDt);
 
   // Update the infinite procedural cosmos when in space world
-  if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
-    FSpaceWorld.Update(dt, FCamera.position);
+ if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
+    FSpaceWorld.Update(dt, FCamera.position, FTimeScale);
 
   if Assigned(FParticleEngine) then
     FParticleEngine.Update(PhysDt);

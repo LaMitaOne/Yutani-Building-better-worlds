@@ -211,6 +211,8 @@ begin
   pnlRight.Hide;
   pnlLeft.Hide;
   pnlBottom.Hide;
+  Splitter3.Hide;
+  Splitter1.Hide;
   tmrShowControls.Enabled := True;
 
   FYutaniIntro := TYutaniSkiaIntro.Create;
@@ -915,8 +917,11 @@ end;
 procedure TForm1.tmrShowControlsTimer(Sender: TObject);
 begin
   tmrShowControls.Enabled := False;
-  Freeandnil(tmrShowControls);
   pnlRight.Show;
+  Splitter3.Show;
+  Splitter1.Show;
+  Splitter3.Align := alRIght;
+  pnlRight.left := Splitter3.Left +2;
   pnlLeft.Show;
   pnlBottom.Show;
 end;
