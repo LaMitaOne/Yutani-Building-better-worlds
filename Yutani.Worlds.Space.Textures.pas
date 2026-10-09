@@ -6,7 +6,7 @@ unit Yutani.Worlds.Space.Textures;
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
  *  Description:
- *    Generates seamless 2:1 (4096x2048) textures for perfect sphere mapping.
+ *    Generates seamless 2:1 (3072×1536) textures for perfect sphere mapping.
  *    Uses Skia Perlin Noise shaders with TileSize for eliminating UV seams.
  *==============================================================================}
 
@@ -19,6 +19,12 @@ interface
 uses
   System.SysUtils, System.Classes, System.Math, System.Types, System.UITypes,
   Skia, Raylib;
+
+type
+  TSunTextureGen = class
+  public
+    class function Generate(Seed: Cardinal; Size: Integer): TTexture2D;
+  end;
 
 type
   TPlanetTextureGen = class
@@ -371,6 +377,112 @@ begin
     end;
     Paint.Color := SkCol(150,190,235,140);
     Canvas.DrawPath(PB.Snapshot, Paint);
+  end;
+end;
+
+
+{ TSunTextureGen }
+
+class function TSunTextureGen.Generate(Seed: Cardinal; Size: Integer): TTexture2D;
+var
+  ImgInfo: TSkImageInfo;
+  Surface: ISkSurface;
+  Canvas: ISkCanvas;
+  Paint: ISkPaint;
+  SkImage: ISkImage;
+  MemStream: TMemoryStream;
+  RayImg: TImage;
+  i: Integer;
+  X, Y, R: Single;
+  Colors: TArray<TAlphaColor>;
+  PB: ISkPathBuilder;
+  BaseColor, DarkSpot, BrightCrack: TAlphaColor;
+begin
+  Result.id := 0;
+  ImgInfo := TSkImageInfo.Create(Size, Size div 2);
+  Surface := TSkSurface.MakeRaster(ImgInfo);
+  if not Assigned(Surface) then Exit;
+  Canvas := Surface.Canvas;
+
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+
+  // 1. Base Color: Bright White-Yellow (Fully Opaque)
+  BaseColor := SkCol(255, 200, 160, 255);
+  Canvas.Clear(BaseColor);
+
+  // 2. Dark Sunspots (Fully Opaque)
+  Paint.Style := TSkPaintStyle.Fill;
+  Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 12.0);
+  DarkSpot := SkCol(180, 60, 0, 255); // Darker orange-brown spots
+  for i := 0 to 20 do
+  begin
+    X := Random * Size;
+    Y := Random * (Size div 2);
+    R := 15 + Random * 50;
+    Paint.Color := DarkSpot;
+    Canvas.DrawCircle(PointF(X, Y), R, Paint);
+  end;
+
+  // 3. Bright Yellow Granulation / Plasma (Fully Opaque)
+  Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 4.0);
+  BrightCrack := SkCol(255, 255, 240, 255); // Very bright yellow-white
+  for i := 0 to 200 do
+  begin
+    X := Random * Size;
+    Y := Random * (Size div 2);
+    R := 4 + Random * 12;
+    Paint.Color := BrightCrack;
+    Canvas.DrawCircle(PointF(X, Y), R, Paint);
+  end;
+
+  // 4. Fine White Lightning / Crackles (Fully Opaque)
+  Paint.MaskFilter := nil;
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.StrokeWidth := 3.0;
+  Paint.StrokeCap := TSkStrokeCap.Round;
+  for i := 0 to 60 do
+  begin
+    X := Random * Size;
+    Y := Random * (Size div 2);
+    PB := TSkPathBuilder.Create;
+    PB.MoveTo(X, Y);
+    var SegLen: Single := 20 + Random * 40;
+    var Ang: Single := Random * 6.28;
+    var j: Integer;
+    for j := 0 to 3 + Trunc(Random * 4) do
+    begin
+      Ang := Ang + (Random - 0.5) * 1.5;
+      X := X + Cos(Ang) * SegLen;
+      Y := Y + Sin(Ang) * SegLen;
+      if X > Size then X := X - Size; if X < 0 then X := X + Size;
+      if Y > Size/2 then Y := Y - Size/2; if Y < 0 then Y := Y + Size/2;
+      PB.LineTo(X, Y);
+    end;
+    Paint.Color := SkCol(255, 255, 255, 255); // Pure white
+    Canvas.DrawPath(PB.Snapshot, Paint);
+  end;
+
+  SkImage := Surface.MakeImageSnapshot;
+  MemStream := TMemoryStream.Create;
+  try
+    if SkImage.EncodeToStream(MemStream, TSkEncodedImageFormat.PNG) then
+    begin
+      MemStream.Position := 0;
+      RayImg := LoadImageFromMemory('.png', MemStream.Memory, Integer(MemStream.Size));
+      if RayImg.data <> nil then
+      begin
+        Result := LoadTextureFromImage(RayImg);
+        UnloadImage(RayImg);
+        if Result.id > 0 then
+        begin
+          SetTextureFilter(Result, TEXTURE_FILTER_TRILINEAR);
+          SetTextureWrap(Result, TEXTURE_WRAP_REPEAT);
+        end;
+      end;
+    end;
+  finally
+    MemStream.Free;
   end;
 end;
 

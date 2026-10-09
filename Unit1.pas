@@ -19,7 +19,7 @@ uses
   Winapi.UxTheme, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, RaylibSandbox,
   ModelEngine, TypInfo, JoltPhysics, Vcl.Grids, Raylib, Vcl.Menus,
   Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain,
-  uYutaniSkiaIntro, MiniAudio4Delphi;
+  Yutani.SkiaIntro, MiniAudio4Delphi;
 
 type
   TForm1 = class(TForm)

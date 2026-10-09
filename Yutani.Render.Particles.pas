@@ -48,7 +48,6 @@ unit Yutani.Render.Particles;
  *      the volumetric build matches the final rendered 3D model perfectly.
  *==============================================================================}
 
-
 {$POINTERMATH ON}
 
 interface
@@ -140,7 +139,6 @@ implementation
 
 const
   MAX_PARTICLES = 1000000;
-
 { TYutaniParticleEngine }
 
 constructor TYutaniParticleEngine.Create;
@@ -674,13 +672,11 @@ begin
   MatAliveCount := 0;
   DematAliveCount := 0;
   FMatArrivedCount := 0;
-
   i := 0;
   while i <= High(FParticles) do
   begin
     P := @FParticles[i];
     P.Life := P.Life - dt;
-
     // 1. Instant destruction check to prevent stale memory registration
     if P.Life <= 0 then
     begin
@@ -690,12 +686,10 @@ begin
       SetLength(FParticles, LastIdx);
       Continue; // Skip index increment since a new particle shifted down
     end;
-
     // --- LOGIC FOR MATERIALIZATION ---
     if P.IsMaterializing then
     begin
       Inc(MatAliveCount);
-
       if P.SpawnTimer < P.SpawnDelay then
       begin
         P.SpawnTimer := P.SpawnTimer + dt;
@@ -709,10 +703,8 @@ begin
           DirToTarget := Vector3Scale(DirToTarget, 1.0 / Dist)
         else
           DirToTarget := Vector3Create(0, 0, 0);
-
         Sog := 30.0 * Dist;
         P.Velocity := Vector3Scale(DirToTarget, Sog);
-
         if Dist < 0.05 then
         begin
           // ARRIVED! Move exactly to target and freeze
@@ -734,7 +726,6 @@ begin
     else if P.IsDematerializing then
     begin
       Inc(DematAliveCount);
-
       if P.SpawnTimer < P.SpawnDelay then
       begin
         P.SpawnTimer := P.SpawnTimer + dt;
@@ -748,20 +739,16 @@ begin
           DirToTarget := Vector3Scale(DirToTarget, 1.0 / Dist)
         else
           DirToTarget := Vector3Create(0, 0, 0);
-
         // Smooth sinking speed towards bottom layer
         Sog := 3.0 * Dist;
         P.Velocity := Vector3Scale(DirToTarget, Sog);
-
         if Dist < 0.05 then
         begin
           P.Position := P.TargetPosition;
           P.Velocity := Vector3Create(0, 0, 0);
-
           // RADICAL LEAK FIX: Force immediate termination flags
           P.Life := -1.0;
           P.IsDematerializing := False;
-
           LastIdx := High(FParticles);
           if i <> LastIdx then
             Move(FParticles[LastIdx], FParticles[i], SizeOf(TParticleInstance));
@@ -778,30 +765,24 @@ begin
         CurrentY := P.Velocity.y + (FGravity * dt);
         P.Velocity.y := CurrentY;
       end;
-
       CurrentVel := 1.0 - (FDrag * dt);
       if CurrentVel < 0 then
         CurrentVel := 0;
       P.Velocity := Vector3Scale(P.Velocity, CurrentVel);
-
       Progress := 1.0 - (P.Life / P.MaxLife);
       if Progress > 1.0 then
         Progress := 1.0;
       if Progress < 0.0 then
         Progress := 0.0;
-
       P.Size := Lerp(P.StartSize, P.EndSize, Progress);
-
       DeltaColor.r := Round(Lerp(P.StartColor.r, P.EndColor.r, Progress));
       DeltaColor.g := Round(Lerp(P.StartColor.g, P.EndColor.g, Progress));
       DeltaColor.b := Round(Lerp(P.StartColor.b, P.EndColor.b, Progress));
       DeltaColor.a := Round(Lerp(P.StartColor.a, P.EndColor.a, Progress));
       P.Color := DeltaColor;
     end;
-
     // Integrate velocity into final 3D position vector
     P.Position := Vector3Add(P.Position, Vector3Scale(P.Velocity, dt));
-
     Inc(i);
   end;
   // --- ISOLATED COMPONENT STATE TRIGGERS ---
@@ -815,14 +796,12 @@ begin
     // Now that the model is finished, we kill all particles together
     SetLength(FParticles, 0);
   end;
-
   if FIsDematerializing and (DematAliveCount = 0) then
   begin
     FIsDematerializing := False;
     FHasSolidCube := False;
   end;
 end;
-
 procedure TYutaniParticleEngine.Render;
 var
   i: Integer;
@@ -843,9 +822,7 @@ begin
   try
     if Length(FParticles) = 0 then
       Exit;
-
     rlSetBlendMode(BLEND_ALPHA);
-
     case FRenderShape of
       rsCube:
         begin
@@ -859,7 +836,6 @@ begin
               PosX := P.Position.x;
               PosY := P.Position.y;
               PosZ := P.Position.z;
-
               // 8 corners of the cube
               V0 := Vector3Create(PosX - HalfSize, PosY - HalfSize, PosZ - HalfSize);
               V1 := Vector3Create(PosX + HalfSize, PosY - HalfSize, PosZ - HalfSize);
@@ -869,9 +845,7 @@ begin
               V5 := Vector3Create(PosX + HalfSize, PosY - HalfSize, PosZ + HalfSize);
               V6 := Vector3Create(PosX + HalfSize, PosY + HalfSize, PosZ + HalfSize);
               V7 := Vector3Create(PosX - HalfSize, PosY + HalfSize, PosZ + HalfSize);
-
               rlColor4ub(P.Color.r, P.Color.g, P.Color.b, P.Color.a);
-
               // Front face
               rlVertex3f(V0.x, V0.y, V0.z); rlVertex3f(V1.x, V1.y, V1.z); rlVertex3f(V2.x, V2.y, V2.z);
               rlVertex3f(V0.x, V0.y, V0.z); rlVertex3f(V2.x, V2.y, V2.z); rlVertex3f(V3.x, V3.y, V3.z);
@@ -907,12 +881,9 @@ begin
               Cx := P.Position.x;
               Cy := P.Position.y;
               Cz := P.Position.z;
-
               // Top, Bottom, Left, Right, Front, Back
               Sx := HalfSize; Sy := HalfSize; Sz := HalfSize;
-
               rlColor4ub(P.Color.r, P.Color.g, P.Color.b, P.Color.a);
-
               // Top-Left triangles
               rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx - Sx, Cy, Cz - Sz); rlVertex3f(Cx - Sx, Cy, Cz + Sz);
               // Top-Right triangles
@@ -921,7 +892,6 @@ begin
               rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx, Cy, Cz + Sz); rlVertex3f(Cx + Sx, Cy, Cz + Sz); // Wait, need simpler octa
               // Actually, let's just use 8 simple faces (Octahedron)
               // Re-doing it cleanly below for top/bottom left/right front/back
-
               // Top Front
               rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx, Cy, Cz + Sz); rlVertex3f(Cx + Sx, Cy, Cz);
               rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx - Sx, Cy, Cz); rlVertex3f(Cx, Cy, Cz + Sz);
@@ -949,7 +919,6 @@ begin
           UpX := CamUp.x;
           UpY := CamUp.y;
           UpZ := CamUp.z;
-
           rlBegin(RL_QUADS);
           try
             for i := 0 to High(FParticles) do
@@ -959,9 +928,7 @@ begin
               PosX := P.Position.x;
               PosY := P.Position.y;
               PosZ := P.Position.z;
-
               rlColor4ub(P.Color.r, P.Color.g, P.Color.b, P.Color.a);
-
               rlVertex3f(PosX + (RgtX *  - HalfSize) + (UpX * HalfSize), PosY + (RgtY *  - HalfSize) + (UpY * HalfSize), PosZ + (RgtZ *  - HalfSize) + (UpZ * HalfSize));
               rlVertex3f(PosX + (RgtX * HalfSize) + (UpX * HalfSize), PosY + (RgtY * HalfSize) + (UpY * HalfSize), PosZ + (RgtZ * HalfSize) + (UpZ * HalfSize));
               rlVertex3f(PosX + (RgtX * HalfSize) + (UpX *  - HalfSize), PosY + (RgtY * HalfSize) + (UpY *  - HalfSize), PosZ + (RgtZ * HalfSize) + (UpZ *  - HalfSize));
@@ -972,7 +939,6 @@ begin
           end;
         end;
     end;
-
     rlDrawRenderBatchActive();
     rlSetBlendMode(BLEND_ALPHA);
   finally

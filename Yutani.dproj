@@ -146,7 +146,7 @@
             <Form>Form2</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="uYutaniSkiaIntro.pas"/>
+        <DCCReference Include="Yutani.SkiaIntro.pas"/>
         <DCCReference Include="Yutani.VoronoiFracture.pas"/>
         <DCCReference Include="Yutani.Render.Shaders.pas"/>
         <DCCReference Include="Yutani.Worlds.Island.pas"/>

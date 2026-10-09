@@ -377,7 +377,6 @@ begin
   MinV := Default(TVec3);
   MaxV := Default(TVec3);
   var FirstVert: Boolean := True;
-
   // 1. Find the exact geometric bounds of the fragment
   for I := 0 to High(Frag.Mesh) do
   begin
@@ -401,25 +400,19 @@ begin
       end;
     end;
   end;
-
   if FirstVert then Exit; // No vertices found
-
   // Calculate the exact center of the mesh
   Center.X := (MinV.X + MaxV.X) * 0.5;
   Center.Y := (MinV.Y + MaxV.Y) * 0.5;
   Center.Z := (MinV.Z + MaxV.Z) * 0.5;
-
   for I := 0 to High(Frag.Mesh) do
     if Length(Frag.Mesh[I]) >= 3 then
       Inc(VCount, (Length(Frag.Mesh[I]) - 2) * 3);
-
   if VCount = 0 then
     Exit;
-
   SetLength(Vertices, VCount * 3);
   SetLength(Normals, VCount * 3);
   SetLength(TexCoords, VCount * 2);
-
   VtxCounter := 0;
   for I := 0 to High(Frag.Mesh) do
   begin
@@ -427,16 +420,13 @@ begin
     begin
       // Copy polygon to ensure CCW winding
       Poly := Copy(Frag.Mesh[I]);
-
       // Calculate Newell's Normal first
       Normal := CalculateNewellsNormal(Poly);
-
       // ENSURE CCW: Check if the normal points towards the center of the fragment.
       // If it points inwards, the winding is wrong (Clockwise), so we reverse the polygon!
       var Centroid: TVec3 := Default(TVec3);
       for J := 0 to High(Poly) do Centroid := Centroid + Poly[J];
       Centroid := Centroid * (1.0 / Length(Poly));
-
       var ToCenter: TVec3 := Center - Centroid;
       if Normal.Dot(ToCenter) > 0 then
       begin
@@ -450,7 +440,6 @@ begin
         // Recalculate normal after reversing
         Normal := CalculateNewellsNormal(Poly);
       end;
-
       for J := 1 to Length(Poly) - 2 do
       begin
         // Vertex 1 (Shifted by -Center)
@@ -463,7 +452,6 @@ begin
         TexCoords[VtxCounter*2] := 0.0;
         TexCoords[VtxCounter*2+1] := 0.0;
         Inc(VtxCounter);
-
         // Vertex 2 (Shifted by -Center)
         Vertices[VtxCounter*3] := Poly[J].X - Center.X;
         Vertices[VtxCounter*3+1] := Poly[J].Y - Center.Y;
@@ -474,7 +462,6 @@ begin
         TexCoords[VtxCounter*2] := 1.0;
         TexCoords[VtxCounter*2+1] := 0.0;
         Inc(VtxCounter);
-
         // Vertex 3 (Shifted by -Center)
         Vertices[VtxCounter*3] := Poly[J+1].X - Center.X;
         Vertices[VtxCounter*3+1] := Poly[J+1].Y - Center.Y;
@@ -488,14 +475,11 @@ begin
       end;
     end;
   end;
-
   Result.vertexCount := VCount;
   Result.triangleCount := VCount div 3;
-
   Result.vertices := @Vertices[0];
   Result.normals := @Normals[0];
   Result.texcoords := @TexCoords[0];
-
   UploadMesh(@Result, False);
 end;
 

@@ -11,7 +11,7 @@ uses
   MPVEmbedded in 'MPVEmbedded.pas',
   uMRX_GamepadCore in 'uMRX_GamepadCore.pas',
   uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {Form2},
-  uYutaniSkiaIntro in 'uYutaniSkiaIntro.pas',
+  Yutani.SkiaIntro in 'Yutani.SkiaIntro.pas',
   Yutani.VoronoiFracture in 'Yutani.VoronoiFracture.pas',
   Yutani.Render.Shaders in 'Yutani.Render.Shaders.pas',
   Yutani.Worlds.Island in 'Yutani.Worlds.Island.pas',
