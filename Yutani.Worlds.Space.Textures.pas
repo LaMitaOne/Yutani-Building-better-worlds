@@ -9,23 +9,18 @@ unit Yutani.Worlds.Space.Textures;
  *    Generates seamless 2:1 (3072×1536) textures for perfect sphere mapping.
  *    Uses Skia Perlin Noise shaders with TileSize for eliminating UV seams.
  *==============================================================================}
-
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
-
 interface
-
 uses
   System.SysUtils, System.Classes, System.Math, System.Types, System.UITypes,
   Skia, Raylib;
-
 type
   TSunTextureGen = class
   public
     class function Generate(Seed: Cardinal; Size: Integer): TTexture2D;
   end;
-
 type
   TPlanetTextureGen = class
   private
@@ -37,31 +32,24 @@ type
   public
     class function Generate(PlanetType: Integer; Seed: Cardinal; Size: Integer = 1024): TTexture2D;
   end;
-
 implementation
-
 var
   FRng: Cardinal;
-
 procedure RngSeed(s: Cardinal);
 begin
   if s = 0 then s := 1;
   FRng := s;
 end;
-
 function RngNext: Single;
 begin
   FRng := FRng * 1664525 + 1013904223;
   Result := (FRng and $00FFFFFF) / $00FFFFFF;
 end;
-
 function SkCol(r, g, b: Byte; a: Byte = 255): TAlphaColor;
 begin
   Result := TAlphaColor((a shl 24) or (r shl 16) or (g shl 8) or b);
 end;
-
 { TPlanetTextureGen }
-
 class function TPlanetTextureGen.Generate(PlanetType: Integer; Seed: Cardinal; Size: Integer): TTexture2D;
 var
   ImgInfo: TSkImageInfo;
@@ -78,7 +66,6 @@ begin
   if not Assigned(Surface) then Exit;
   Canvas := Surface.Canvas;
   Canvas.Clear(TAlphaColorRec.Null);
-
   case PlanetType of
     0: DrawRocky(Canvas, Size, Size div 2, Seed);
     1: DrawEarth(Canvas, Size, Size div 2, Seed);
@@ -86,7 +73,6 @@ begin
     3: DrawGasGiant(Canvas, Size, Size div 2, Seed);
     4: DrawIce(Canvas, Size, Size div 2, Seed);
   end;
-
   SkImage := Surface.MakeImageSnapshot;
   MemStream := TMemoryStream.Create;
   try
@@ -111,7 +97,6 @@ begin
     MemStream.Free;
   end;
 end;
-
 { Helper: Tileable Noise Painter using Skia Perlin Noise }
 procedure DrawTileableNoise(Canvas: ISkCanvas; W, H: Integer; Seed: Cardinal; BaseColor: TAlphaColor; Opacity: Byte);
 var
@@ -124,13 +109,11 @@ begin
   Paint.Style := TSkPaintStyle.Fill;
   Paint.Color := BaseColor;
   Paint.Alpha := Opacity;
-
   // Create native tileable Perlin Fractal Noise
   // Using TileSize ensures the noise pattern wraps perfectly horizontally
   TileSize.Width := W;
   TileSize.Height := H;
   Shader := TSkShader.MakePerlinNoiseFractalNoise(0.015, 0.015, 4, 0.0, TileSize);
-
   if Assigned(Shader) then
   begin
     Paint.Shader := Shader;
@@ -142,7 +125,6 @@ begin
     Canvas.DrawPaint(Paint);
   end;
 end;
-
 {==============================================================================*
  *  ROCKY PLANET
  *==============================================================================}
@@ -156,16 +138,13 @@ begin
   RngSeed(Seed);
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
-
   Colors := TArray<TAlphaColor>.Create(SkCol(75,60,45), SkCol(130,110,85), SkCol(95,80,60));
   Paint.Shader := TSkShader.MakeGradientLinear(PointF(0,0), PointF(0,H), Colors);
   Paint.Style := TSkPaintStyle.Fill;
   Canvas.DrawPaint(Paint);
   Paint.Shader := nil;
-
   // Tileable noise for surface variation
   DrawTileableNoise(Canvas, W, H, Seed, SkCol(50,40,30), 80);
-
   // Craters: ensure horizontal wrapping
   Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 3.0);
   for i := 0 to 40 do
@@ -181,7 +160,6 @@ begin
     if X > W-R then Canvas.DrawCircle(PointF(X-W,Y), R, Paint);
   end;
 end;
-
 {==============================================================================*
  *  EARTH-LIKE PLANET
  *==============================================================================}
@@ -195,13 +173,11 @@ begin
   RngSeed(Seed);
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
-
   Colors := TArray<TAlphaColor>.Create(SkCol(15,50,100), SkCol(25,75,130), SkCol(10,40,85));
   Paint.Shader := TSkShader.MakeGradientLinear(PointF(0,0), PointF(0,H), Colors);
   Paint.Style := TSkPaintStyle.Fill;
   Canvas.DrawPaint(Paint);
   Paint.Shader := nil;
-
   // Continents (wrapped)
   Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 15.0);
   for i := 0 to 10 do
@@ -223,7 +199,6 @@ begin
       Canvas.DrawCircle(PointF(CX,CY), CR, Paint);
     end;
   end;
-
   // Clouds (wrapped)
   Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 25.0);
   for i := 0 to 40 do
@@ -237,7 +212,6 @@ begin
     if X > W-R then Canvas.DrawCircle(PointF(X-W,Y), R, Paint);
   end;
 end;
-
 {==============================================================================*
  *  MARS-LIKE PLANET
  *==============================================================================}
@@ -251,16 +225,13 @@ begin
   RngSeed(Seed);
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
-
   Colors := TArray<TAlphaColor>.Create(SkCol(130,55,25), SkCol(190,95,45), SkCol(145,65,30));
   Paint.Shader := TSkShader.MakeGradientLinear(PointF(0,0), PointF(0,H), Colors);
   Paint.Style := TSkPaintStyle.Fill;
   Canvas.DrawPaint(Paint);
   Paint.Shader := nil;
-
   // Add some tileable noise detail
   DrawTileableNoise(Canvas, W, H, Seed, SkCol(80,30,15), 100);
-
   // Small craters wrapped
   Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 3.0);
   for i := 0 to 20 do
@@ -275,7 +246,6 @@ begin
     if X > W-R then Canvas.DrawCircle(PointF(X-W,Y), R, Paint);
   end;
 end;
-
 {==============================================================================*
  *  GAS GIANT
  *==============================================================================}
@@ -290,7 +260,6 @@ begin
   RngSeed(Seed);
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
-
   Colors := TArray<TAlphaColor>.Create(
     SkCol(190,150,90), SkCol(230,200,150), SkCol(170,120,70),
     SkCol(220,185,130), SkCol(150,100,60), SkCol(210,170,110),
@@ -299,7 +268,6 @@ begin
   Paint.Style := TSkPaintStyle.Fill;
   Canvas.DrawPaint(Paint);
   Paint.Shader := nil;
-
   // Wavy lines (naturally wrap if sinusoidal)
   Paint.Style := TSkPaintStyle.Stroke;
   Paint.StrokeWidth := 4.0;
@@ -327,7 +295,6 @@ begin
     Canvas.DrawPath(PB.Snapshot, Paint);
   end;
 end;
-
 {==============================================================================*
  *  ICE PLANET
  *==============================================================================}
@@ -342,16 +309,13 @@ begin
   RngSeed(Seed);
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
-
   Colors := TArray<TAlphaColor>.Create(SkCol(220,235,250), SkCol(190,215,240), SkCol(225,240,255));
   Paint.Shader := TSkShader.MakeGradientLinear(PointF(0,0), PointF(0,H), Colors);
   Paint.Style := TSkPaintStyle.Fill;
   Canvas.DrawPaint(Paint);
   Paint.Shader := nil;
-
   // Add tileable noise for ice variation
   DrawTileableNoise(Canvas, W, H, Seed, SkCol(100,140,200), 100);
-
   // Cracks (wrapped)
   Paint.MaskFilter := nil;
   Paint.Style := TSkPaintStyle.Stroke;
@@ -380,9 +344,7 @@ begin
   end;
 end;
 
-
 { TSunTextureGen }
-
 class function TSunTextureGen.Generate(Seed: Cardinal; Size: Integer): TTexture2D;
 var
   ImgInfo: TSkImageInfo;
@@ -403,14 +365,11 @@ begin
   Surface := TSkSurface.MakeRaster(ImgInfo);
   if not Assigned(Surface) then Exit;
   Canvas := Surface.Canvas;
-
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
-
   // 1. Base Color: Bright White-Yellow (Fully Opaque)
-  BaseColor := SkCol(255, 200, 160, 255);
+  BaseColor := SkCol(255, 180, 140, 255);
   Canvas.Clear(BaseColor);
-
   // 2. Dark Sunspots (Fully Opaque)
   Paint.Style := TSkPaintStyle.Fill;
   Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 12.0);
@@ -423,7 +382,6 @@ begin
     Paint.Color := DarkSpot;
     Canvas.DrawCircle(PointF(X, Y), R, Paint);
   end;
-
   // 3. Bright Yellow Granulation / Plasma (Fully Opaque)
   Paint.MaskFilter := TSkMaskFilter.MakeBlur(TSkBlurStyle.Normal, 4.0);
   BrightCrack := SkCol(255, 255, 240, 255); // Very bright yellow-white
@@ -435,7 +393,6 @@ begin
     Paint.Color := BrightCrack;
     Canvas.DrawCircle(PointF(X, Y), R, Paint);
   end;
-
   // 4. Fine White Lightning / Crackles (Fully Opaque)
   Paint.MaskFilter := nil;
   Paint.Style := TSkPaintStyle.Stroke;
@@ -462,7 +419,6 @@ begin
     Paint.Color := SkCol(255, 255, 255, 255); // Pure white
     Canvas.DrawPath(PB.Snapshot, Paint);
   end;
-
   SkImage := Surface.MakeImageSnapshot;
   MemStream := TMemoryStream.Create;
   try
@@ -485,5 +441,4 @@ begin
     MemStream.Free;
   end;
 end;
-
 end.

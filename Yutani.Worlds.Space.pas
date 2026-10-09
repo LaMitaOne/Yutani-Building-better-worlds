@@ -7,6 +7,8 @@ unit Yutani.Worlds.Space;
  *==============================================================================}
 
 {$POINTERMATH ON}
+{$Q-}
+{$R-}
 
 interface
 
@@ -150,29 +152,26 @@ type
 implementation
 
 const
-  DISTANT_STAR_COUNT = 3000;
-  CHUNK_SIZE = 2000.0;
-  CHUNK_RADIUS = 1;
-  STAR_CLUSTER_CHANCE = 0.6;
-  NEBULA_CHANCE = 0.08;
-  SUN_CHANCE = 0.04;
-  COMET_SHELL_RADIUS = 500.0;
-  MAX_COMETS = 8;
-  NEBULA_BASE_SIZE = 150.0;
+  DISTANT_STAR_COUNT   = 3000;
+  CHUNK_SIZE           = 2000.0;
+  CHUNK_RADIUS         = 1;
+  STAR_CLUSTER_CHANCE  = 0.6;
+  NEBULA_CHANCE        = 0.08;
+  SUN_CHANCE           = 0.04;
+  COMET_SHELL_RADIUS   = 500.0;
+  MAX_COMETS           = 8;
+  NEBULA_BASE_SIZE     = 150.0;
   DISTANT_SHELL_RADIUS = 950.0;
-  FADE_START_DIST = 700.0;
-  FADE_END_DIST = 940.0;
-  MAX_COMET_PARTICLES = 10000;
-  COMET_PARTICLE_RATE = 7;
-  PLANET_MIN_RADIUS = 60.0;
-  PLANET_MAX_RADIUS = 180.0;
+  FADE_START_DIST      = 700.0;
+  FADE_END_DIST        = 940.0;
+  MAX_COMET_PARTICLES  = 10000;
+  COMET_PARTICLE_RATE  = 7;
+  PLANET_MIN_RADIUS    = 60.0;
+  PLANET_MAX_RADIUS    = 180.0;
 
 function MakeCol(r, g, b: Byte): TColorB;
 begin
-  Result.r := r;
-  Result.g := g;
-  Result.b := b;
-  Result.a := 255;
+  Result.r := r; Result.g := g; Result.b := b; Result.a := 255;
 end;
 
 { TSpaceWorld }
@@ -201,11 +200,13 @@ begin
   // Generate Sun Texture
   FSunTexture := TSunTextureGen.Generate(Cardinal(Random(MaxInt)), 2048);
 
+  // Use EXACT same resolution as planets
   Mesh := GenMeshSphere(1.0, 48, 32);
   UploadMesh(@Mesh, False);
   FSunModel := LoadModelFromMesh(Mesh);
 
-  // CRITICAL: Use the Default Shader for the sun! NO LIGHTING!
+  // CRITICAL FIX: DO NOT use ALightShader for the sun!
+  // Use the Default Shader to prevent lighting Z-fighting / flashing on poles!
   DefaultShader := LoadShader(nil, nil);
   if DefaultShader.id > 0 then
     FSunModel.materials[0].shader := DefaultShader;
@@ -218,10 +219,8 @@ end;
 destructor TSpaceWorld.Destroy;
 begin
   DestroyPlanetAssets;
-  if FSunTexture.id > 0 then
-    UnloadTexture(FSunTexture);
-  if FSunModel.meshes <> nil then
-    UnloadModel(FSunModel);
+  if FSunTexture.id > 0 then UnloadTexture(FSunTexture);
+  if FSunModel.meshes <> nil then UnloadModel(FSunModel);
   SetLength(FDistantStars, 0);
   SetLength(FNearStars, 0);
   SetLength(FNebulae, 0);
@@ -232,8 +231,12 @@ begin
   inherited;
 end;
 
-{ Localized Compiler Directives to allow integer wrapping for Hashing without Range Checks }
-{$Q-} {$R-}
+procedure TSpaceWorld.SeedRand(Seed: Cardinal);
+begin
+  if Seed = 0 then Seed := 1;
+  FRngState := Seed;
+end;
+
 function TSpaceWorld.NextRand: Single;
 begin
   FRngState := FRngState xor (FRngState shl 13);
@@ -243,8 +246,7 @@ begin
 end;
 
 function TSpaceWorld.HashChunk(cx, cy, cz: Integer): Cardinal;
-var
-  h: Cardinal;
+var h: Cardinal;
 begin
   h := Cardinal(cx) * 73856093;
   h := h xor (Cardinal(cy) * 19349663);
@@ -254,26 +256,17 @@ begin
   h := h xor (h shr 16);
   Result := h;
 end;
-{$Q+} {$R+}
-
-procedure TSpaceWorld.SeedRand(Seed: Cardinal);
-begin
-  if Seed = 0 then
-    Seed := 1;
-  FRngState := Seed;
-end;
 
 function TSpaceWorld.GetStarColor(Tint: Byte; Alpha: Byte): TColorB;
 begin
+  // Expanded color palette: White, Blue, Red, Yellow, Orange, Purple, Cyan
   case Tint of
-    0:
-      Result := ColorAlpha(WHITE, Alpha);
-    1:
-      Result := ColorAlpha(Fade(BLUE, 0.8), Alpha);
-    2:
-      Result := ColorAlpha(Fade(ORANGE, 0.9), Alpha);
-    3:
-      Result := ColorAlpha(Fade(RED, 0.8), Alpha);
+    0: Result := ColorAlpha(WHITE, Alpha);
+    1: Result := ColorAlpha(Fade(BLUE, 0.8), Alpha);
+    2: Result := ColorAlpha(Fade(RED, 0.8), Alpha);
+    3: Result := ColorAlpha(Fade(YELLOW, 0.9), Alpha);
+    4: Result := ColorAlpha(Fade(ORANGE, 0.9), Alpha);
+    5: Result := ColorAlpha(Fade(PURPLE, 0.8), Alpha);
   else
     Result := ColorAlpha(WHITE, Alpha);
   end;
@@ -288,31 +281,19 @@ var
   TopV, RightV, BottomV, LeftV: TVector3;
 begin
   H := Size * 0.5;
-  TopV := Vector3Add(Pos, Vector3Scale(CamUp, H));
-  RightV := Vector3Add(Pos, Vector3Scale(CamRight, H));
+  TopV    := Vector3Add(Pos, Vector3Scale(CamUp, H));
+  RightV  := Vector3Add(Pos, Vector3Scale(CamRight, H));
   BottomV := Vector3Subtract(Pos, Vector3Scale(CamUp, H));
-  LeftV := Vector3Subtract(Pos, Vector3Scale(CamRight, H));
+  LeftV   := Vector3Subtract(Pos, Vector3Scale(CamRight, H));
 
-  rlColor4ub(Col.r, Col.g, Col.b, Alpha);
-  rlVertex3f(Pos.x, Pos.y, Pos.z);
-  rlColor4ub(Col.r, Col.g, Col.b, 0);
-  rlVertex3f(TopV.x, TopV.y, TopV.z);
-  rlVertex3f(RightV.x, RightV.y, RightV.z);
-  rlColor4ub(Col.r, Col.g, Col.b, Alpha);
-  rlVertex3f(Pos.x, Pos.y, Pos.z);
-  rlColor4ub(Col.r, Col.g, Col.b, 0);
-  rlVertex3f(RightV.x, RightV.y, RightV.z);
-  rlVertex3f(BottomV.x, BottomV.y, BottomV.z);
-  rlColor4ub(Col.r, Col.g, Col.b, Alpha);
-  rlVertex3f(Pos.x, Pos.y, Pos.z);
-  rlColor4ub(Col.r, Col.g, Col.b, 0);
-  rlVertex3f(BottomV.x, BottomV.y, BottomV.z);
-  rlVertex3f(LeftV.x, LeftV.y, LeftV.z);
-  rlColor4ub(Col.r, Col.g, Col.b, Alpha);
-  rlVertex3f(Pos.x, Pos.y, Pos.z);
-  rlColor4ub(Col.r, Col.g, Col.b, 0);
-  rlVertex3f(LeftV.x, LeftV.y, LeftV.z);
-  rlVertex3f(TopV.x, TopV.y, TopV.z);
+  rlColor4ub(Col.r, Col.g, Col.b, Alpha); rlVertex3f(Pos.x, Pos.y, Pos.z);
+  rlColor4ub(Col.r, Col.g, Col.b, 0);     rlVertex3f(TopV.x, TopV.y, TopV.z); rlVertex3f(RightV.x, RightV.y, RightV.z);
+  rlColor4ub(Col.r, Col.g, Col.b, Alpha); rlVertex3f(Pos.x, Pos.y, Pos.z);
+  rlColor4ub(Col.r, Col.g, Col.b, 0);     rlVertex3f(RightV.x, RightV.y, RightV.z); rlVertex3f(BottomV.x, BottomV.y, BottomV.z);
+  rlColor4ub(Col.r, Col.g, Col.b, Alpha); rlVertex3f(Pos.x, Pos.y, Pos.z);
+  rlColor4ub(Col.r, Col.g, Col.b, 0);     rlVertex3f(BottomV.x, BottomV.y, BottomV.z); rlVertex3f(LeftV.x, LeftV.y, LeftV.z);
+  rlColor4ub(Col.r, Col.g, Col.b, Alpha); rlVertex3f(Pos.x, Pos.y, Pos.z);
+  rlColor4ub(Col.r, Col.g, Col.b, 0);     rlVertex3f(LeftV.x, LeftV.y, LeftV.z); rlVertex3f(TopV.x, TopV.y, TopV.z);
 end;
 
 procedure TSpaceWorld.DrawCircularBillboard(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
@@ -327,10 +308,8 @@ begin
   begin
     Angle := (i / 8.0) * 2.0 * PI;
     NextAngle := ((i + 1) / 8.0) * 2.0 * PI;
-    EdgeX := Cos(Angle) * H;
-    EdgeY := Sin(Angle) * H;
-    NextEdgeX := Cos(NextAngle) * H;
-    NextEdgeY := Sin(NextAngle) * H;
+    EdgeX := Cos(Angle) * H; EdgeY := Sin(Angle) * H;
+    NextEdgeX := Cos(NextAngle) * H; NextEdgeY := Sin(NextAngle) * H;
     Ex := Pos.x + CamRight.x * EdgeX + CamUp.x * EdgeY;
     Ey := Pos.y + CamRight.y * EdgeX + CamUp.y * EdgeY;
     Ez := Pos.z + CamRight.z * EdgeX + CamUp.z * EdgeY;
@@ -338,11 +317,8 @@ begin
     Ny := Pos.y + CamRight.y * NextEdgeX + CamUp.y * NextEdgeY;
     Nz := Pos.z + CamRight.z * NextEdgeX + CamUp.z * NextEdgeY;
 
-    rlColor4ub(Col.r, Col.g, Col.b, Alpha);
-    rlVertex3f(Pos.x, Pos.y, Pos.z);
-    rlColor4ub(Col.r, Col.g, Col.b, 0);
-    rlVertex3f(Ex, Ey, Ez);
-    rlVertex3f(Nx, Ny, Nz);
+    rlColor4ub(Col.r, Col.g, Col.b, Alpha); rlVertex3f(Pos.x, Pos.y, Pos.z);
+    rlColor4ub(Col.r, Col.g, Col.b, 0);     rlVertex3f(Ex, Ey, Ez); rlVertex3f(Nx, Ny, Nz);
   end;
 end;
 
@@ -378,10 +354,8 @@ var
 begin
   for i := 0 to 4 do
   begin
-    if FPlanetTextures[i].id > 0 then
-      UnloadTexture(FPlanetTextures[i]);
-    if FPlanetModels[i].meshes <> nil then
-      UnloadModel(FPlanetModels[i]);
+    if FPlanetTextures[i].id > 0 then UnloadTexture(FPlanetTextures[i]);
+    if FPlanetModels[i].meshes <> nil then UnloadModel(FPlanetModels[i]);
   end;
 end;
 
@@ -399,10 +373,8 @@ var
   RadiusArr: array[0..0] of Single;
   Shader: TShader;
 begin
-  if (Length(FSuns) = 0) or (Length(FPlanetModels) = 0) then
-    Exit;
-  if FPlanetModels[0].materials[0].Shader.id = 0 then
-    Exit;
+  if (Length(FSuns) = 0) or (Length(FPlanetModels) = 0) then Exit;
+  if FPlanetModels[0].materials[0].shader.id = 0 then Exit;
 
   HasSun := False;
   NearestDist := 1e9;
@@ -417,8 +389,7 @@ begin
     end;
   end;
 
-  if not HasSun then
-    Exit;
+  if not HasSun then Exit;
 
   LightPosArr[0] := NearestSun.Position.x;
   LightPosArr[1] := NearestSun.Position.y;
@@ -429,16 +400,10 @@ begin
   ViewPosArr[2] := CameraPos.z;
 
   // Higher ambient so the darkside is not pitch black
-  Ambient[0] := 0.25;
-  Ambient[1] := 0.25;
-  Ambient[2] := 0.3;
-  Ambient[3] := 1.0;
+  Ambient[0] := 0.25; Ambient[1] := 0.25; Ambient[2] := 0.3; Ambient[3] := 1.0;
 
   // Very bright sun diffuse
-  Diffuse[0] := 2.0;
-  Diffuse[1] := 2.0;
-  Diffuse[2] := 1.8;
-  Diffuse[3] := 1.0;
+  Diffuse[0] := 2.0; Diffuse[1] := 2.0; Diffuse[2] := 1.8; Diffuse[3] := 1.0;
 
   // Set the light radius VERY high so the sun reaches far planets
   Radius := 10000.0;
@@ -449,7 +414,7 @@ begin
     if FPlanetModels[i].meshes <> nil then
     begin
       // Get the TShader object directly from the material
-      Shader := FPlanetModels[i].materials[0].Shader;
+      Shader := FPlanetModels[i].materials[0].shader;
 
       // Pass it to GetShaderLocation and SetShaderValue
       SetShaderValue(Shader, GetShaderLocation(Shader, 'lightPos'), @LightPosArr, SHADER_UNIFORM_VEC3);
@@ -470,8 +435,8 @@ var
   OrbitR: Single;
   SystemOffset: TVector3;
 begin
-  // Home System is 600 units away so we don't spawn inside the sun, but it's still close
-  SystemOffset := Vector3Create(600, 0, 600);
+  // Home System is 400 units away.
+  SystemOffset := Vector3Create(400, 0, 400);
 
   // 1. Home Sun
   SunIdx := Length(FSuns);
@@ -481,10 +446,14 @@ begin
   FSuns[SunIdx].Color := MakeCol(180, 100, 0);
 
   // 2. Home Planets
-  OrbitR := 400.0; // Start closer to the sun
+  // CRITICAL FIX: Distance from Sun(400,0,400) to Origin(0,0,0) is ~565 units.
+  // To GUARANTEE that no planet ever crosses (0,0,0), the orbit radius
+  // MUST be strictly greater than the distance from the Sun to the Origin.
+  // We start the first planet at OrbitR = 650, which is safely outside 565.
+  OrbitR := 600.0;
   for i := 0 to 4 do
   begin
-    OrbitR := OrbitR + 200.0 + (i * 50.0); // Closer orbits
+    OrbitR := OrbitR + 150.0 + (i * 50.0); // Safe, non-intersecting orbits: 750, 950, 1150, 1350, 1550
     idx := Length(FPlanets);
     SetLength(FPlanets, idx + 1);
 
@@ -499,39 +468,17 @@ begin
     FPlanets[idx].IsLocked := False;
 
     case i of
-      0:
-        begin
-          FPlanets[idx].PlanetColor := MakeCol(140, 120, 100);
-          FPlanets[idx].AtmosphereColor := MakeCol(100, 80, 60);
-          FPlanets[idx].HasAtmosphere := False;
-        end;
-      1:
-        begin
-          FPlanets[idx].PlanetColor := MakeCol(40, 100, 160);
-          FPlanets[idx].AtmosphereColor := MakeCol(100, 150, 255);
-          FPlanets[idx].HasAtmosphere := True;
-        end;
-      2:
-        begin
-          FPlanets[idx].PlanetColor := MakeCol(180, 80, 40);
-          FPlanets[idx].AtmosphereColor := MakeCol(200, 100, 50);
-          FPlanets[idx].HasAtmosphere := True;
-        end;
-      3:
-        begin
-          FPlanets[idx].PlanetColor := MakeCol(200, 160, 100);
-          FPlanets[idx].AtmosphereColor := MakeCol(255, 200, 150);
-          FPlanets[idx].HasAtmosphere := True;
-        end;
-      4:
-        begin
-          FPlanets[idx].PlanetColor := MakeCol(200, 220, 240);
-          FPlanets[idx].AtmosphereColor := MakeCol(180, 210, 255);
-          FPlanets[idx].HasAtmosphere := True;
-        end;
+      0: begin FPlanets[idx].PlanetColor := MakeCol(140,120,100); FPlanets[idx].AtmosphereColor := MakeCol(100,80,60); FPlanets[idx].HasAtmosphere := False; end;
+      1: begin FPlanets[idx].PlanetColor := MakeCol(40,100,160); FPlanets[idx].AtmosphereColor := MakeCol(100,150,255); FPlanets[idx].HasAtmosphere := True; end;
+      2: begin FPlanets[idx].PlanetColor := MakeCol(180,80,40); FPlanets[idx].AtmosphereColor := MakeCol(200,100,50); FPlanets[idx].HasAtmosphere := True; end;
+      3: begin FPlanets[idx].PlanetColor := MakeCol(200,160,100); FPlanets[idx].AtmosphereColor := MakeCol(255,200,150); FPlanets[idx].HasAtmosphere := True; end;
+      4: begin FPlanets[idx].PlanetColor := MakeCol(200,220,240); FPlanets[idx].AtmosphereColor := MakeCol(180,210,255); FPlanets[idx].HasAtmosphere := True; end;
     end;
 
-    FPlanets[idx].Position := Vector3Add(FSuns[SunIdx].Position, Vector3Create(Cos(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius, 0, Sin(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius));
+    // CRITICAL: Position is relative to the sun!
+    FPlanets[idx].Position := Vector3Add(SystemOffset, Vector3Create(
+      Cos(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius, 0,
+      Sin(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius));
   end;
 end;
 
@@ -543,6 +490,7 @@ var
   OrbitR, SunRadius: Single;
   HasMoon: Boolean;
   ClusterCenter: TVector3;
+  PotentialSunPos: TVector3;
 begin
   cx := Round(CameraPos.x / CHUNK_SIZE);
   cy := Round(CameraPos.y / CHUNK_SIZE);
@@ -581,22 +529,24 @@ begin
             FNearStars[idx].Brightness := 0.6 + NextRand * 0.4;
             FNearStars[idx].TwinklePhase := NextRand * 2.0 * PI;
             FNearStars[idx].TwinkleSpeed := 0.5 + NextRand * 2.5;
-            FNearStars[idx].ColorTint := Trunc(NextRand * 4);
+            FNearStars[idx].ColorTint := Trunc(NextRand * 7); // 0-6 (7 colors)
           end;
         end
         else
         begin
-          StarCount := Trunc(NextRand * 3);
+          // FILL BACKGROUND: More scattered single stars to reduce empty space
+          StarCount := 5 + Trunc(NextRand * 5); // 5-10 stars per chunk
           for i := 0 to StarCount - 1 do
           begin
             idx := Length(FNearStars);
             SetLength(FNearStars, idx + 1);
             FNearStars[idx].Position := Vector3Add(ChunkOrigin, Vector3Create((NextRand - 0.5) * CHUNK_SIZE, (NextRand - 0.5) * CHUNK_SIZE, (NextRand - 0.5) * CHUNK_SIZE));
-            FNearStars[idx].Size := 5.0 + NextRand * NextRand * 18.0;
-            FNearStars[idx].Brightness := 0.5 + NextRand * 0.5;
+            // Small and dim
+            FNearStars[idx].Size := 2.0 + NextRand * 4.0;
+            FNearStars[idx].Brightness := 0.3 + NextRand * 0.3;
             FNearStars[idx].TwinklePhase := NextRand * 2.0 * PI;
             FNearStars[idx].TwinkleSpeed := 0.3 + NextRand * 2.0;
-            FNearStars[idx].ColorTint := Trunc(NextRand * 4);
+            FNearStars[idx].ColorTint := Trunc(NextRand * 7); // 0-6 (7 colors)
           end;
         end;
 
@@ -627,9 +577,17 @@ begin
 
         if NextRand < SUN_CHANCE then
         begin
+          // CRITICAL FIX: Calculate potential sun position and check distance to origin (0,0,0)
+          PotentialSunPos := Vector3Add(ChunkOrigin, Vector3Create((NextRand - 0.5) * CHUNK_SIZE * 0.3, 0, (NextRand - 0.5) * CHUNK_SIZE * 0.3));
+
+          // EXCLUSION ZONE: 1500 units around origin (0,0,0) for the Terraforming Station!
+          if Vector3Distance(PotentialSunPos, Vector3Create(0, 0, 0)) < 1500.0 then
+            Continue; // Skip this system, it's too close to our home station!
+
           SunIdx := Length(FSuns);
           SetLength(FSuns, SunIdx + 1);
-          FSuns[SunIdx].Position := Vector3Add(ChunkOrigin, Vector3Create((NextRand - 0.5) * CHUNK_SIZE * 0.3, 0, (NextRand - 0.5) * CHUNK_SIZE * 0.3));
+          FSuns[SunIdx].Position := PotentialSunPos; // Use the calculated position
+
           SunRadius := 80.0 + NextRand * 100.0;
           FSuns[SunIdx].Radius := SunRadius;
           if NextRand > 0.5 then
@@ -722,16 +680,15 @@ var
   C: ^TSpaceComet;
   Speed: Single;
 begin
-  if Length(FComets) >= MAX_COMETS then
-    Exit;
+  if Length(FComets) >= MAX_COMETS then Exit;
   idx := Length(FComets);
   SetLength(FComets, idx + 1);
   C := @FComets[idx];
   theta := Random * 2.0 * PI;
   phi := ArcCos(Random * 2.0 - 1.0);
-  SpawnDir := Vector3Create(Sin(phi) * Cos(theta), Sin(phi) * Sin(theta), Cos(phi));
+  SpawnDir := Vector3Create(Sin(phi)*Cos(theta), Sin(phi)*Sin(theta), Cos(phi));
   C^.Position := Vector3Add(CameraPos, Vector3Scale(SpawnDir, COMET_SHELL_RADIUS));
-  TargetOffset := Vector3Create((Random - 0.5) * 200, (Random - 0.5) * 200, (Random - 0.5) * 200);
+  TargetOffset := Vector3Create((Random-0.5)*200, (Random-0.5)*200, (Random-0.5)*200);
   C^.Velocity := Vector3Subtract(Vector3Add(CameraPos, TargetOffset), C^.Position);
   Speed := 40.0 + Random * 60.0;
   C^.Velocity := Vector3Scale(Vector3Normalize(C^.Velocity), Speed);
@@ -739,10 +696,7 @@ begin
   C^.Life := C^.MaxLife;
   C^.Size := 3.0 + Random * 4.0;
   C^.ParticleTimer := 0;
-  if Random > 0.5 then
-    C^.Color := ColorAlpha(SKYBLUE, 230)
-  else
-    C^.Color := ColorAlpha(Fade(ORANGE, 0.9), 230);
+  if Random > 0.5 then C^.Color := ColorAlpha(SKYBLUE, 230) else C^.Color := ColorAlpha(Fade(ORANGE, 0.9), 230);
 end;
 
 procedure TSpaceWorld.SpawnCometParticle(const Pos, Vel: TVector3; Size: Single);
@@ -755,8 +709,8 @@ begin
     if not FCometParticles[i].Active then
     begin
       FCometParticles[i].Active := True;
-      FCometParticles[i].Position := Vector3Add(Pos, Vector3Create((Random - 0.5) * 6, (Random - 0.5) * 6, (Random - 0.5) * 6));
-      Spread := Vector3Create((Random - 0.5) * 15, (Random - 0.5) * 15, (Random - 0.5) * 15);
+      FCometParticles[i].Position := Vector3Add(Pos, Vector3Create((Random-0.5)*6, (Random-0.5)*6, (Random-0.5)*6));
+      Spread := Vector3Create((Random-0.5)*15, (Random-0.5)*15, (Random-0.5)*15);
       FCometParticles[i].Velocity := Vector3Add(Vector3Scale(Vel, 0.1), Spread);
       FCometParticles[i].MaxLife := 0.6 + Random * 1.4;
       FCometParticles[i].Life := FCometParticles[i].MaxLife;
@@ -789,8 +743,7 @@ begin
     Dist := Vector3Distance(C^.Position, CameraPos);
     if (C^.Life <= 0) or (Dist > COMET_SHELL_RADIUS * 1.8) then
     begin
-      if i < High(FComets) then
-        FComets[i] := FComets[High(FComets)];
+      if i < High(FComets) then FComets[i] := FComets[High(FComets)];
       SetLength(FComets, Length(FComets) - 1);
     end;
   end;
@@ -803,8 +756,7 @@ var
 begin
   for i := 0 to High(FCometParticles) do
   begin
-    if not FCometParticles[i].Active then
-      Continue;
+    if not FCometParticles[i].Active then Continue;
     P := @FCometParticles[i];
     P^.Life := P^.Life - dt;
     if P^.Life <= 0 then
@@ -840,8 +792,7 @@ begin
         for var k := 0 to 30 do
           SpawnCometParticle(ImpactPos, Vector3Scale(SurfDir, 50.0), C^.Size * 2.0);
 
-        if i < High(FComets) then
-          FComets[i] := FComets[High(FComets)];
+        if i < High(FComets) then FComets[i] := FComets[High(FComets)];
         SetLength(FComets, Length(FComets) - 1);
         Break;
       end;
@@ -861,8 +812,7 @@ begin
   for i := 0 to High(FPlanets) do
   begin
     P := @FPlanets[i];
-    if P^.IsLocked then
-      Continue;
+    if P^.IsLocked then Continue;
 
     if P^.IsMoon then
     begin
@@ -870,14 +820,16 @@ begin
       if P^.ParentPlanetIndex >= 0 then
       begin
         ParentPos := FPlanets[P^.ParentPlanetIndex].Position;
-        P^.Position := Vector3Add(ParentPos, Vector3Create(Cos(P^.MoonAngle) * P^.MoonRadius, 0, Sin(P^.MoonAngle) * P^.MoonRadius));
+        P^.Position := Vector3Add(ParentPos, Vector3Create(
+          Cos(P^.MoonAngle) * P^.MoonRadius, 0, Sin(P^.MoonAngle) * P^.MoonRadius));
       end;
     end
     else if P^.OrbitSunIndex >= 0 then
     begin
       P^.OrbitAngle := P^.OrbitAngle + P^.OrbitSpeed * dt;
       SunPos := FSuns[P^.OrbitSunIndex].Position;
-      P^.Position := Vector3Add(SunPos, Vector3Create(Cos(P^.OrbitAngle) * P^.OrbitRadius, 0, Sin(P^.OrbitAngle) * P^.OrbitRadius));
+      P^.Position := Vector3Add(SunPos, Vector3Create(
+        Cos(P^.OrbitAngle) * P^.OrbitRadius, 0, Sin(P^.OrbitAngle) * P^.OrbitRadius));
     end;
   end;
 end;
@@ -923,7 +875,7 @@ begin
       begin
         var Theta := Random * 2.0 * PI;
         var Phi := ArcCos(Random * 2.0 - 1.0);
-        var SurfDir := Vector3Create(Sin(Phi) * Cos(Theta), Sin(Phi) * Sin(Theta), Cos(Phi));
+        var SurfDir := Vector3Create(Sin(Phi)*Cos(Theta), Sin(Phi)*Sin(Theta), Cos(Phi));
         var PPos := Vector3Add(FSuns[i].Position, Vector3Scale(SurfDir, FSuns[i].Radius));
         SpawnCometParticle(PPos, Vector3Scale(SurfDir, 15.0), 4.0);
       end;
@@ -947,21 +899,21 @@ begin
   rlDisableBackfaceCulling;
   rlSetBlendMode(BLEND_ADDITIVE);
   rlBegin(RL_TRIANGLES);
-
-  for i := 0 to High(FDistantStars) do
-  begin
-    St := @FDistantStars[i];
-    Pos := Vector3Add(CameraPos, Vector3Scale(St^.Dir, DISTANT_SHELL_RADIUS));
-    Twinkle := 0.6 + 0.4 * Sin(FTime * St^.TwinkleSpeed + St^.TwinklePhase);
-    AlphaF := St^.Brightness * Twinkle;
-    AlphaB := Trunc(EnsureRange(AlphaF * 255, 0, 255));
-    Col := GetStarColor(St^.ColorTint, 255);
-    DrawStarSprite(Pos, CamRight, CamUp, St^.Size * 2.5, Col, Trunc(AlphaB * 0.15));
-    DrawStarSprite(Pos, CamRight, CamUp, St^.Size, Col, AlphaB);
+  try
+    for i := 0 to High(FDistantStars) do
+    begin
+      St := @FDistantStars[i];
+      Pos := Vector3Add(CameraPos, Vector3Scale(St^.Dir, DISTANT_SHELL_RADIUS));
+      Twinkle := 0.6 + 0.4 * Sin(FTime * St^.TwinkleSpeed + St^.TwinklePhase);
+      AlphaF := St^.Brightness * Twinkle;
+      AlphaB := Trunc(EnsureRange(AlphaF * 255, 0, 255));
+      Col := GetStarColor(St^.ColorTint, 255);
+      DrawStarSprite(Pos, CamRight, CamUp, St^.Size * 2.5, Col, Trunc(AlphaB * 0.15));
+      DrawStarSprite(Pos, CamRight, CamUp, St^.Size, Col, AlphaB);
+    end;
+  finally
+    rlEnd;
   end;
-
-  rlEnd;
-
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
@@ -980,25 +932,24 @@ begin
   rlDisableBackfaceCulling;
   rlSetBlendMode(BLEND_ADDITIVE);
   rlBegin(RL_TRIANGLES);
-  for i := 0 to High(FNearStars) do
-  begin
-    St := @FNearStars[i];
-    Pos := St^.Position;
-    Dist := Vector3Distance(Pos, CameraPos);
-    if Dist > FADE_END_DIST then
-      Continue;
-    if Dist > FADE_START_DIST then
-      FadeF := 1.0 - ((Dist - FADE_START_DIST) / (FADE_END_DIST - FADE_START_DIST))
-    else
-      FadeF := 1.0;
-    Twinkle := 0.6 + 0.4 * Sin(FTime * St^.TwinkleSpeed + St^.TwinklePhase);
-    AlphaF := St^.Brightness * Twinkle * FadeF;
-    AlphaB := Trunc(EnsureRange(AlphaF * 255, 0, 255));
-    Col := GetStarColor(St^.ColorTint, 255);
-    DrawStarSprite(Pos, CamRight, CamUp, St^.Size * 2.5, Col, Trunc(AlphaB * 0.15));
-    DrawStarSprite(Pos, CamRight, CamUp, St^.Size, Col, AlphaB);
+  try
+    for i := 0 to High(FNearStars) do
+    begin
+      St := @FNearStars[i];
+      Pos := St^.Position;
+      Dist := Vector3Distance(Pos, CameraPos);
+      if Dist > FADE_END_DIST then Continue;
+      if Dist > FADE_START_DIST then FadeF := 1.0 - ((Dist - FADE_START_DIST) / (FADE_END_DIST - FADE_START_DIST)) else FadeF := 1.0;
+      Twinkle := 0.6 + 0.4 * Sin(FTime * St^.TwinkleSpeed + St^.TwinklePhase);
+      AlphaF := St^.Brightness * Twinkle * FadeF;
+      AlphaB := Trunc(EnsureRange(AlphaF * 255, 0, 255));
+      Col := GetStarColor(St^.ColorTint, 255);
+      DrawStarSprite(Pos, CamRight, CamUp, St^.Size * 2.5, Col, Trunc(AlphaB * 0.15));
+      DrawStarSprite(Pos, CamRight, CamUp, St^.Size, Col, AlphaB);
+    end;
+  finally
+    rlEnd;
   end;
-  rlEnd;
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
@@ -1016,23 +967,21 @@ begin
   rlDisableBackfaceCulling;
   rlSetBlendMode(BLEND_ADDITIVE);
   rlBegin(RL_TRIANGLES);
-  for i := 0 to High(FNebulae) do
-  begin
-    Nb := @FNebulae[i];
-    Pos := Nb^.Position;
-    Dist := Vector3Distance(Pos, CameraPos);
-    if (Dist > FADE_END_DIST) or (Dist < 50.0) then
-      Continue;
-    if Dist > FADE_START_DIST then
-      FadeF := 1.0 - ((Dist - FADE_START_DIST) / (FADE_END_DIST - FADE_START_DIST))
-    else
-      FadeF := 1.0;
-    if Dist < 150.0 then
-      FadeF := FadeF * (Dist - 50.0) / 100.0;
-    AlphaB := Trunc(EnsureRange(Nb^.Color.a * FadeF, 0, 255));
-    DrawCircularBillboard(Pos, CamRight, CamUp, Nb^.Size, Nb^.Color, AlphaB);
+  try
+    for i := 0 to High(FNebulae) do
+    begin
+      Nb := @FNebulae[i];
+      Pos := Nb^.Position;
+      Dist := Vector3Distance(Pos, CameraPos);
+      if (Dist > FADE_END_DIST) or (Dist < 50.0) then Continue;
+      if Dist > FADE_START_DIST then FadeF := 1.0 - ((Dist - FADE_START_DIST) / (FADE_END_DIST - FADE_START_DIST)) else FadeF := 1.0;
+      if Dist < 150.0 then FadeF := FadeF * (Dist - 50.0) / 100.0;
+      AlphaB := Trunc(EnsureRange(Nb^.Color.a * FadeF, 0, 255));
+      DrawCircularBillboard(Pos, CamRight, CamUp, Nb^.Size, Nb^.Color, AlphaB);
+    end;
+  finally
+    rlEnd;
   end;
-  rlEnd;
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
@@ -1041,11 +990,30 @@ end;
 
 procedure TSpaceWorld.RenderSuns;
 var
-  i: Integer;
+  i, j: Integer;
   S: ^TSun;
   Pos: TVector3;
+  GlowCol: TColorB;
+  DistArr: array of Single;
+  TempDist: Single;
+  TempSun: TSun;
 begin
-  // PHASE 1: Render solid core (Perfect geometry, no lighting flash)
+  if Length(FSuns) = 0 then Exit;
+
+  // 1. Sort suns by distance (far to near) to prevent aura overlap bugs
+  SetLength(DistArr, Length(FSuns));
+  for i := 0 to High(FSuns) do
+    DistArr[i] := Vector3Distance(FSuns[i].Position, FCameraPos);
+
+  for i := 0 to High(FSuns) - 1 do
+    for j := 0 to High(FSuns) - i - 1 do
+      if DistArr[j] < DistArr[j+1] then
+      begin
+        TempDist := DistArr[j]; DistArr[j] := DistArr[j+1]; DistArr[j+1] := TempDist;
+        TempSun := FSuns[j]; FSuns[j] := FSuns[j+1]; FSuns[j+1] := TempSun;
+      end;
+
+  // PHASE 1: Render solid cores (Far to near)
   rlEnableDepthTest;
   rlEnableDepthMask;
   rlSetBlendMode(BLEND_ALPHA);
@@ -1055,7 +1023,6 @@ begin
     S := @FSuns[i];
     Pos := S^.Position;
 
-    // Draw the textured sun model. Tint is WHITE so the texture color is 1:1!
     if FSunModel.meshes <> nil then
       DrawModel(FSunModel, Pos, S^.Radius, WHITE)
     else
@@ -1064,8 +1031,11 @@ begin
 
   rlDrawRenderBatchActive;
 
-  // PHASE 2: Render additive Glow (NO depth write to avoid Z-fighting)
-  // We scale the sphere up (1.2x) so it doesn't intersect the core polygons!
+  // PHASE 2: Render additive Glow
+  // CRITICAL FIX: Keep Depth TEST enabled so the aura checks if it's closer
+  // than a background planet. We only disable Depth MASK so the aura doesn't
+  // write to the depth buffer (preventing Z-fighting with the sun's core).
+  rlEnableDepthTest;
   rlDisableDepthMask;
   rlSetBlendMode(BLEND_ADDITIVE);
 
@@ -1074,51 +1044,72 @@ begin
     S := @FSuns[i];
     Pos := S^.Position;
 
-    // Weicher, warmer Glow
-    DrawSphere(Pos, S^.Radius * 1.2, ColorAlpha(MakeCol(255, 200, 50), 30));
-    DrawSphere(Pos, S^.Radius * 1.4, ColorAlpha(MakeCol(255, 150, 0), 15));
+    GlowCol := MakeCol(255, 200, 50);
+    DrawSphere(Pos, S^.Radius * 1.2, ColorAlpha(GlowCol, 30));
+    DrawSphere(Pos, S^.Radius * 1.4, ColorAlpha(GlowCol, 15));
   end;
 
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
+  rlEnableDepthMask;
 end;
 
 procedure TSpaceWorld.RenderPlanets(const CameraPos, CamRight, CamUp: TVector3);
 var
-  i: Integer;
+  i, j: Integer;
   P: ^TSpacePlanet;
+  DistArr: array of Single;
+  TempDist: Single;
+  TempPlanet: TSpacePlanet;
 begin
+  if Length(FPlanets) = 0 then Exit;
+
+  // 1. Sort planets by distance (far to near)
+  SetLength(DistArr, Length(FPlanets));
+  for i := 0 to High(FPlanets) do
+    DistArr[i] := Vector3Distance(FPlanets[i].Position, CameraPos);
+
+  for i := 0 to High(FPlanets) - 1 do
+    for j := 0 to High(FPlanets) - i - 1 do
+      if DistArr[j] < DistArr[j+1] then
+      begin
+        TempDist := DistArr[j]; DistArr[j] := DistArr[j+1]; DistArr[j+1] := TempDist;
+        TempPlanet := FPlanets[j]; FPlanets[j] := FPlanets[j+1]; FPlanets[j+1] := TempPlanet;
+      end;
+
+  // PHASE 1: Atmosphere Glow (Far to near)
   rlDisableDepthTest;
   rlDisableBackfaceCulling;
   rlSetBlendMode(BLEND_ADDITIVE);
   rlBegin(RL_TRIANGLES);
-  for i := 0 to High(FPlanets) do
-  begin
-    P := @FPlanets[i];
-    if not P^.HasAtmosphere then
-      Continue;
-    DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 1.5, P^.AtmosphereColor, 55);
-    DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 2.5, P^.AtmosphereColor, 20);
+  try
+    for i := 0 to High(FPlanets) do
+    begin
+      P := @FPlanets[i];
+      if not P^.HasAtmosphere then Continue;
+      DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 1.5, P^.AtmosphereColor, 55);
+      DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 2.5, P^.AtmosphereColor, 20);
+    end;
+  finally
+    rlEnd;
   end;
-  rlEnd;
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
   rlEnableDepthTest;
 
-  // CRITICAL: Setup lighting right before drawing the planets
+  // Update lighting uniforms
   SetupPlanetLighting(CameraPos);
 
+  // PHASE 2: Planet Bodies (Far to near)
   rlDrawRenderBatchActive;
   rlEnableDepthMask;
   rlEnableDepthTest;
   for i := 0 to High(FPlanets) do
   begin
     P := @FPlanets[i];
-    if P^.PlanetType < 0 then
-      P^.PlanetType := 0;
-    if P^.PlanetType > 4 then
-      P^.PlanetType := 4;
+    if P^.PlanetType < 0 then P^.PlanetType := 0;
+    if P^.PlanetType > 4 then P^.PlanetType := 4;
     if FPlanetModels[P^.PlanetType].meshes <> nil then
       DrawModel(FPlanetModels[P^.PlanetType], P^.Position, P^.Radius, WHITE)
     else
@@ -1139,56 +1130,35 @@ var
   RX, RY, RZ, UX, UY, UZ: Single;
   Px, Py, Pz: Single;
 begin
-  RX := CamRight.x;
-  RY := CamRight.y;
-  RZ := CamRight.z;
-  UX := CamUp.x;
-  UY := CamUp.y;
-  UZ := CamUp.z;
+  RX := CamRight.x; RY := CamRight.y; RZ := CamRight.z;
+  UX := CamUp.x;   UY := CamUp.y;   UZ := CamUp.z;
   rlDisableBackfaceCulling;
   rlSetBlendMode(BLEND_ADDITIVE);
   rlBegin(RL_TRIANGLES);
-  for i := 0 to High(FCometParticles) do
-  begin
-    if not FCometParticles[i].Active then
-      Continue;
-    P := @FCometParticles[i];
-    Progress := 1.0 - (P^.Life / P^.MaxLife);
-    if Progress < 0.2 then
+  try
+    for i := 0 to High(FCometParticles) do
     begin
-      R := 255;
-      G := 255;
-      B := Round(Lerp(255, 180, Progress / 0.2));
-    end
-    else if Progress < 0.5 then
-    begin
-      var t := (Progress - 0.2) / 0.3;
-      R := 255;
-      G := Round(Lerp(255, 120, t));
-      B := Round(Lerp(180, 40, t));
-    end
-    else
-    begin
-      var t := (Progress - 0.5) / 0.5;
-      R := Round(Lerp(255, 60, t));
-      G := Round(Lerp(120, 10, t));
-      B := Round(Lerp(40, 5, t));
+      if not FCometParticles[i].Active then Continue;
+      P := @FCometParticles[i];
+      Progress := 1.0 - (P^.Life / P^.MaxLife);
+      if Progress < 0.2 then begin R := 255; G := 255; B := Round(Lerp(255, 180, Progress / 0.2)); end
+      else if Progress < 0.5 then begin var t := (Progress - 0.2) / 0.3; R := 255; G := Round(Lerp(255, 120, t)); B := Round(Lerp(180, 40, t)); end
+      else begin var t := (Progress - 0.5) / 0.5; R := Round(Lerp(255, 60, t)); G := Round(Lerp(120, 10, t)); B := Round(Lerp(40, 5, t)); end;
+      AlphaF := (1.0 - Progress) * 0.8;
+      AlphaB := Trunc(EnsureRange(AlphaF * 255, 0, 255));
+      HalfSize := (P^.Size * (1.0 - Progress * 0.6)) * 0.5;
+      Px := P^.Position.x; Py := P^.Position.y; Pz := P^.Position.z;
+      rlColor4ub(R, G, B, AlphaB);
+      rlVertex3f(Px - RX*HalfSize + UX*HalfSize, Py - RY*HalfSize + UY*HalfSize, Pz - RZ*HalfSize + UZ*HalfSize);
+      rlVertex3f(Px + RX*HalfSize + UX*HalfSize, Py + RY*HalfSize + UY*HalfSize, Pz + RZ*HalfSize + UZ*HalfSize);
+      rlVertex3f(Px + RX*HalfSize - UX*HalfSize, Py + RY*HalfSize - UY*HalfSize, Pz + RZ*HalfSize - UZ*HalfSize);
+      rlVertex3f(Px - RX*HalfSize + UX*HalfSize, Py - RY*HalfSize + UY*HalfSize, Pz - RZ*HalfSize + UZ*HalfSize);
+      rlVertex3f(Px + RX*HalfSize - UX*HalfSize, Py + RY*HalfSize - UY*HalfSize, Pz + RZ*HalfSize - UZ*HalfSize);
+      rlVertex3f(Px - RX*HalfSize - UX*HalfSize, Py - RY*HalfSize - UY*HalfSize, Pz - RZ*HalfSize - UZ*HalfSize);
     end;
-    AlphaF := (1.0 - Progress) * 0.8;
-    AlphaB := Trunc(EnsureRange(AlphaF * 255, 0, 255));
-    HalfSize := (P^.Size * (1.0 - Progress * 0.6)) * 0.5;
-    Px := P^.Position.x;
-    Py := P^.Position.y;
-    Pz := P^.Position.z;
-    rlColor4ub(R, G, B, AlphaB);
-    rlVertex3f(Px - RX * HalfSize + UX * HalfSize, Py - RY * HalfSize + UY * HalfSize, Pz - RZ * HalfSize + UZ * HalfSize);
-    rlVertex3f(Px + RX * HalfSize + UX * HalfSize, Py + RY * HalfSize + UY * HalfSize, Pz + RZ * HalfSize + UZ * HalfSize);
-    rlVertex3f(Px + RX * HalfSize - UX * HalfSize, Py + RY * HalfSize - UY * HalfSize, Pz + RZ * HalfSize - UZ * HalfSize);
-    rlVertex3f(Px - RX * HalfSize + UX * HalfSize, Py - RY * HalfSize + UY * HalfSize, Pz - RZ * HalfSize + UZ * HalfSize);
-    rlVertex3f(Px + RX * HalfSize - UX * HalfSize, Py + RY * HalfSize - UY * HalfSize, Pz + RZ * HalfSize - UZ * HalfSize);
-    rlVertex3f(Px - RX * HalfSize - UX * HalfSize, Py - RY * HalfSize - UY * HalfSize, Pz - RZ * HalfSize - UZ * HalfSize);
+  finally
+    rlEnd;
   end;
-  rlEnd;
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
@@ -1223,10 +1193,8 @@ begin
   for i := 0 to High(FPlanets) do
   begin
     P := @FPlanets[i];
-    if P^.PlanetType < 0 then
-      P^.PlanetType := 0;
-    if P^.PlanetType > 4 then
-      P^.PlanetType := 4;
+    if P^.PlanetType < 0 then P^.PlanetType := 0;
+    if P^.PlanetType > 4 then P^.PlanetType := 4;
     if FPlanetModels[P^.PlanetType].meshes <> nil then
       DrawModel(FPlanetModels[P^.PlanetType], P^.Position, P^.Radius, BLACK)
     else
@@ -1246,20 +1214,33 @@ var
   SpaceProj, NormalProj: TMatrix;
 begin
   CamForward := Vector3Normalize(Vector3Subtract(Camera.target, Camera.position));
-  CamRight := Vector3Normalize(Vector3CrossProduct(CamForward, Camera.up));
-  CamUp := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
+  CamRight   := Vector3Normalize(Vector3CrossProduct(CamForward, Camera.up));
+  CamUp      := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
 
   SpaceProj := MatrixPerspective(Camera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 10000.0);
   rlSetMatrixProjection(SpaceProj);
 
+  // 1. Background (Stars + Nebulae)
   RenderDistantStars(FCameraPos, CamRight, CamUp);
   RenderNebulae(FCameraPos, CamRight, CamUp);
   RenderNearStars(FCameraPos, CamRight, CamUp);
-  RenderSuns;
+
+  // 2. Planets! MUST be rendered first so they write to the depth buffer
+  // without being blocked by the sun's additive aura.
   RenderPlanets(FCameraPos, CamRight, CamUp);
+
+  // 3. Comets AND their Particles
   RenderCometParticles(CamRight, CamUp);
   RenderComets;
 
+  // 4. Suns AND their Corona Particles!
+  // MUST be rendered LAST so the sun and its aura correctly overlap
+  // the planets that are behind them!
+  RenderSuns;
+  // Optional: Render sun particles again here if you want them on top
+  // RenderCometParticles(CamRight, CamUp);
+
+  // Restore normal far plane
   NormalProj := MatrixPerspective(Camera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
   rlSetMatrixProjection(NormalProj);
 
@@ -1275,6 +1256,7 @@ var
   Dist, Nearest: Single;
   P: ^TSpacePlanet;
 begin
+  Result := False;
   OutIndex := -1;
   Nearest := 1e9;
 
@@ -1298,23 +1280,17 @@ var
   TargetPos, Shift: TVector3;
   i: Integer;
 begin
-  if FIsLanded or (TargetIndex < 0) or (TargetIndex > High(FPlanets)) then
-    Exit;
+  if FIsLanded or (TargetIndex < 0) or (TargetIndex > High(FPlanets)) then Exit;
 
   TargetPos := FPlanets[TargetIndex].Position;
   Shift := Vector3Subtract(Vector3Create(0, 0, 0), TargetPos);
   FOriginOffset := Vector3Add(FOriginOffset, Shift);
 
-  for i := 0 to High(FPlanets) do
-    FPlanets[i].Position := Vector3Add(FPlanets[i].Position, Shift);
-  for i := 0 to High(FSuns) do
-    FSuns[i].Position := Vector3Add(FSuns[i].Position, Shift);
-  for i := 0 to High(FNebulae) do
-    FNebulae[i].Position := Vector3Add(FNebulae[i].Position, Shift);
-  for i := 0 to High(FNearStars) do
-    FNearStars[i].Position := Vector3Add(FNearStars[i].Position, Shift);
-  for i := 0 to High(FComets) do
-    FComets[i].Position := Vector3Add(FComets[i].Position, Shift);
+  for i := 0 to High(FPlanets) do FPlanets[i].Position := Vector3Add(FPlanets[i].Position, Shift);
+  for i := 0 to High(FSuns) do FSuns[i].Position := Vector3Add(FSuns[i].Position, Shift);
+  for i := 0 to High(FNebulae) do FNebulae[i].Position := Vector3Add(FNebulae[i].Position, Shift);
+  for i := 0 to High(FNearStars) do FNearStars[i].Position := Vector3Add(FNearStars[i].Position, Shift);
+  for i := 0 to High(FComets) do FComets[i].Position := Vector3Add(FComets[i].Position, Shift);
   for i := 0 to High(FCometParticles) do
     if FCometParticles[i].Active then
       FCometParticles[i].Position := Vector3Add(FCometParticles[i].Position, Shift);
@@ -1333,8 +1309,7 @@ end;
 
 procedure TSpaceWorld.ReleaseLanding;
 begin
-  if not FIsLanded then
-    Exit;
+  if not FIsLanded then Exit;
   if FLandingTargetIndex >= 0 then
     FPlanets[FLandingTargetIndex].IsLocked := False;
   FIsLanded := False;
@@ -1381,13 +1356,16 @@ end;
  *==============================================================================}
 procedure TSpaceWorld.InitializeDistantStars;
 var
-  i, j: Integer;
+  i, c, j: Integer;
   St: ^TSpaceStar;
-  StarsInCluster: Integer;
+  ClusterCount, StarsInCluster: Integer;
   BaseDir: TVector3;
   theta, phi: Single;
 begin
   SeedRand(98765);
+
+  // Determine number of clusters
+  ClusterCount := 60 + Trunc(NextRand * 40); // 60-100 clusters
 
   i := 0;
   while i < DISTANT_STAR_COUNT do
@@ -1397,22 +1375,21 @@ begin
       // Create a cluster
       theta := NextRand * 2.0 * PI;
       phi := ArcCos(NextRand * 2.0 - 1.0);
-      BaseDir := Vector3Create(Sin(phi) * Cos(theta), Sin(phi) * Sin(theta), Cos(phi));
+      BaseDir := Vector3Create(Sin(phi)*Cos(theta), Sin(phi)*Sin(theta), Cos(phi));
 
       StarsInCluster := 10 + Trunc(NextRand * 30);
       for j := 0 to StarsInCluster - 1 do
       begin
-        if i >= DISTANT_STAR_COUNT then
-          Break;
+        if i >= DISTANT_STAR_COUNT then Break;
         St := @FDistantStars[i];
 
         // Scatter around base direction
         var Scatter: Single := 0.05 + NextRand * 0.15; // Tight cluster
-        var Offset: TVector3 := Vector3Create((NextRand - 0.5), (NextRand - 0.5), (NextRand - 0.5));
+        var Offset: TVector3 := Vector3Create((NextRand-0.5), (NextRand-0.5), (NextRand-0.5));
         St^.Dir := Vector3Normalize(Vector3Add(BaseDir, Vector3Scale(Offset, Scatter)));
 
-        // Cluster stars are hot and bright (blue/white)
-        St^.ColorTint := Trunc(NextRand * 2);
+        // Cluster stars: Randomly pick from all 7 colors (0-6)
+        St^.ColorTint := Trunc(NextRand * 7);
         St^.Size := 8.0 + NextRand * NextRand * 25.0;
         St^.Brightness := 0.5 + NextRand * 0.5;
         St^.TwinklePhase := NextRand * 2.0 * PI;
@@ -1427,10 +1404,10 @@ begin
       St := @FDistantStars[i];
       theta := NextRand * 2.0 * PI;
       phi := ArcCos(NextRand * 2.0 - 1.0);
-      St^.Dir := Vector3Create(Sin(phi) * Cos(theta), Sin(phi) * Sin(theta), Cos(phi));
+      St^.Dir := Vector3Create(Sin(phi)*Cos(theta), Sin(phi)*Sin(theta), Cos(phi));
 
-      // Halo stars are dimmer and older (red/orange)
-      St^.ColorTint := 2 + Trunc(NextRand * 2);
+      // Halo stars: Also randomly pick from all 7 colors (0-6)
+      St^.ColorTint := Trunc(NextRand * 7);
       St^.Size := 5.0 + NextRand * NextRand * 15.0;
       St^.Brightness := 0.3 + NextRand * 0.4;
       St^.TwinklePhase := NextRand * 2.0 * PI;
@@ -1442,4 +1419,3 @@ begin
 end;
 
 end.
-
