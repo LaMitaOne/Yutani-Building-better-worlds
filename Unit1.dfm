@@ -11577,6 +11577,7 @@ object Form1: TForm1
     FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF}
   Position = poScreenCenter
+  WindowState = wsMaximized
   OnCreate = FormCreate
   OnShow = FormShow
   TextHeight = 15
@@ -11749,7 +11750,7 @@ object Form1: TForm1
       ExplicitLeft = 801
     end
   end
-  object Panel2: TPanel
+  object pnlRight: TPanel
     Left = 900
     Top = 0
     Width = 200
@@ -12168,6 +12169,7 @@ object Form1: TForm1
           Top = 29
           Width = 145
           Height = 23
+          Style = csDropDownList
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clBlack
           Font.Height = -12
@@ -12287,7 +12289,7 @@ object Form1: TForm1
           MaxValue = 5000
           MinValue = 10
           TabOrder = 6
-          Value = 160
+          Value = 300
           OnChange = SpDistanceChange
         end
         object seDayNightspeed: TSpinEdit
@@ -12333,6 +12335,7 @@ object Form1: TForm1
           Top = 349
           Width = 145
           Height = 23
+          Style = csDropDownList
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clBlack
           Font.Height = -12
@@ -12354,6 +12357,7 @@ object Form1: TForm1
           Top = 405
           Width = 145
           Height = 23
+          Style = csDropDownList
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clBlack
           Font.Height = -12
@@ -12493,5 +12497,12 @@ object Form1: TForm1
     DefaultExt = 'd3dfm'
     Left = 440
     Top = 24
+  end
+  object tmrShowControls: TTimer
+    Enabled = False
+    Interval = 9000
+    OnTimer = tmrShowControlsTimer
+    Left = 248
+    Top = 112
   end
 end

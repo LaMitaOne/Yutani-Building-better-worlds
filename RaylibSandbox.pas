@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.646 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.647 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -76,6 +76,22 @@
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
  * Apache-2.0 license
+
+ Latest Changes:
+
+v0.647
+- Added a skia4delphi rendered sci-fi particle stream intro from the logo to form the "YUTANI" text.
+- Implemented floating origin system to eliminate physics jitter on planet surfaces
+- Added Solar System generation with suns, orbiting planets, moons, and proper lighting (Darksides)
+- Implemented dynamic sun lighting with Shader integration for planet models
+- Added comet collisions triggering surface impact particle bursts
+- Added slow-motion compatibility (TimeScale) for space simulation
+- Refined star distribution with cluster-based generation and galaxy-style coloring
+- Added Landing Autopilot System (F9): Smooth cinematic approach to planetary surfaces
+- Added Planetary Surface Camera Mode: Walk on Mario-Galaxy style little planets with correct surface normals and straight horizons
+- Added Planetary Orbit Cam (F8) for construction and building mechanics
+
+
  *==============================================================================}
 {$POINTERMATH ON}
 {$Q-}
@@ -350,6 +366,17 @@ type
     FCurrentWorldBase: TWorldBaseType;
     FIslandWorld: TIslandWorld;
     FSpaceWorld: TSpaceWorld;
+
+    // Space Landing & Cam Modes
+    FSpaceLandingState: Integer; // 0 = Free Fly, 1 = Approach, 2 = Landed, 3 = Takeoff
+    FSpaceLandingTargetPos: TVector3;
+    FSpaceLandingTargetUp: TVector3;
+    FSpaceLandingProgress: Single;
+    FSpaceCamStartPos: TVector3;
+    FSpaceCamStartTarget: TVector3;
+    FSpacePlanetaryCam: Boolean;
+    FSpaceLandingCamTargetCenter: TVector3;
+    FSpaceLandingTargetIndex: Integer;
 
     // Spawn Effect System
     FSpawnEffectType: TSpawnEffectType;
@@ -647,7 +674,7 @@ begin
   FDefaultShader.id := 0;
 
   // Default render culling distance
-  FMaxRenderDistance := 160.0;
+  FMaxRenderDistance := 300.0;
 
   // Initialize Custom Spawn Queue
   FCustomSpawnQueue := nil;
@@ -1050,9 +1077,9 @@ begin
   if not Assigned(FIslandWorld) then
     FIslandWorld := TIslandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', FDefaultWhiteTex);
 
- // Create the Infinite Space World
+  // Create the Infinite Space World
   if not Assigned(FSpaceWorld) then
-    FSpaceWorld := TSpaceWorld.Create;
+    FSpaceWorld := TSpaceWorld.Create(FLightShader);
 end;
 
 procedure TRaylibSandbox.PlayTestSound;
@@ -1404,6 +1431,10 @@ var
   dt, panSpeed: Single;
   fwdX, fwdZ, rightX, rightZ: Single;
 begin
+  // If we are landed or in planetary cam, we handle the camera entirely in SpaceLandingCamUpdate.
+  if (FCurrentWorldBase = wbSpace) and ((FSpaceLandingState > 0) or FSpaceWorld.IsLanded) then
+    Exit;
+
   dt := GetFrameTime();
   if dt <= 0 then
     dt := 1 / 60;
@@ -1633,6 +1664,129 @@ begin
     FMouseLeftPressed := False;
     FDragging := False;
     Exit;
+  end;
+
+  // ==========================================
+  // SPACE LANDING & PLANETARY CAM (F8 / F9)
+  // ==========================================
+  if FCurrentWorldBase = wbSpace then
+  begin
+
+    // --- SPACE LANDING ANIMATION (Runs every frame) ---
+    if FSpaceLandingState > 0 then
+    begin
+      FSpaceLandingProgress := FSpaceLandingProgress + (GetFrameTime() * 0.8);
+      if FSpaceLandingProgress > 1.0 then FSpaceLandingProgress := 1.0;
+
+      T := FSpaceLandingProgress;
+      T := T * T * (3 - 2 * T); // Smooth Ease-In-Out
+
+      if FSpaceLandingState = 1 then // Approaching
+      begin
+        // Smoothly fly to the position 10 units above the surface
+        FCamera.position := Vector3Add(FSpaceCamStartPos, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartPos), T));
+
+        // Smoothly transition looking at the surface point in front of us
+        FCamera.target := Vector3Add(FSpaceCamStartTarget, Vector3Scale(Vector3Subtract(FSpaceLandingCamTargetCenter, FSpaceCamStartTarget), T));
+
+        // Smoothly align Up-Vector to surface normal (SurfDir)
+        FCamera.up := Vector3Add(Vector3Create(0, 1, 0), Vector3Scale(Vector3Subtract(FSpaceLandingTargetUp, Vector3Create(0, 1, 0)), T));
+
+        if FSpaceLandingProgress >= 1.0 then
+        begin
+          FSpaceLandingState := 2; // Landed
+          if FSpaceLandingTargetIndex >= 0 then
+            FSpaceWorld.InitiateLanding(FSpaceLandingTargetIndex, FCamera.target, FCamera.position);
+
+          // Snappen, damit die Kamera perfekt auf der Oberfläche ausgerichtet ist
+          FCamera.position := FSpaceLandingTargetPos;
+          FCamera.target := FSpaceLandingCamTargetCenter;
+          FCamera.up := FSpaceLandingTargetUp;
+        end;
+      end
+      else if FSpaceLandingState = 3 then // Taking off
+      begin
+        FCamera.position := Vector3Add(FSpaceCamStartPos, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartPos), T));
+        FCamera.target := Vector3Add(FSpaceCamStartTarget, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartTarget), T));
+        FCamera.up := Vector3Add(FSpaceLandingTargetUp, Vector3Scale(Vector3Subtract(Vector3Create(0, 1, 0), FSpaceLandingTargetUp), T));
+
+        if FSpaceLandingProgress >= 1.0 then
+        begin
+          FSpaceLandingState := 0; // Free Fly
+          FSpaceWorld.ReleaseLanding;
+        end;
+      end;
+    end;
+
+    // --- INPUT HANDLING ---
+    if (GetAsyncKeyState(VK_F8) and $1) <> 0 then
+    begin
+      if not FSpaceWorld.IsLanded then
+      begin
+        FSpacePlanetaryCam := not FSpacePlanetaryCam;
+        if FSpacePlanetaryCam then
+        begin
+          var Idx: Integer;
+          var Dist: Single;
+          if FSpaceWorld.FindNearestPlanet(FCamera.position, Idx, Dist) then
+            FSpaceWorld.InitiateLanding(Idx, FCamera.target, FCamera.position);
+        end
+        else
+          FSpaceWorld.ReleaseLanding;
+      end;
+    end;
+
+    if (GetAsyncKeyState(VK_F9) and $1) <> 0 then
+    begin
+      if FSpaceLandingState = 0 then
+      begin
+        // Start Approach
+        var Idx: Integer;
+        var Dist: Single;
+        if FSpaceWorld.FindNearestPlanet(FCamera.position, Idx, Dist) and (Dist < 5000.0) then
+        begin
+          FSpaceLandingTargetIndex := Idx;
+          FSpacePlanetaryCam := False;
+
+          var PlanetPos: TVector3;
+          var PlanetRadius: Single;
+          FSpaceWorld.GetPlanetInfo(Idx, PlanetPos, PlanetRadius);
+
+          // 1. SurfDir: Der Vektor vom Zentrum zu uns
+          var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
+          if (IsNan(SurfDir.x)) or (IsNan(SurfDir.y)) or (IsNan(SurfDir.z)) then
+            SurfDir := Vector3Create(0, 1, 0);
+
+          // 2. CamPos: 10 Einheiten über der Oberfläche
+          FSpaceLandingTargetPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 10.0));
+
+          // 3. CamTarget: Ein Punkt 15 Einheiten vor uns auf der Oberfläche (Schräg nach unten schauen)
+          // Wir bewegen uns ein Stück "vorwärts" auf der Kugel und setzten den Zielpunkt 2 Einheiten über dem Boden.
+          var LookAtPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 2.0));
+          FSpaceLandingCamTargetCenter := LookAtPos;
+
+          // Up-Vektor = SurfDir, damit der Horizont gerade ist
+          FSpaceLandingTargetUp := SurfDir;
+
+          FSpaceCamStartPos := FCamera.position;
+          FSpaceCamStartTarget := FCamera.target;
+          FSpaceLandingState := 1; // Approaching
+          FSpaceLandingProgress := 0.0;
+        end;
+      end
+      else if FSpaceLandingState = 2 then
+      begin
+        // Start Takeoff
+        FSpaceCamStartPos := FCamera.position;
+        FSpaceCamStartTarget := FCamera.target;
+        // Geradeaus nach vorne hochfliegen (in Blickrichtung)
+        var Forward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
+        FSpaceLandingTargetPos := Vector3Add(FCamera.position, Vector3Scale(Forward, 300.0));
+        FSpaceLandingTargetUp := Vector3Create(0, 1, 0);
+        FSpaceLandingState := 3; // Taking off
+        FSpaceLandingProgress := 0.0;
+      end;
+    end;
   end;
 
   // ==========================================
@@ -3207,6 +3361,195 @@ begin
     end;
   end;
 
+
+  // ==========================================
+  // SPACE LANDING & PLANETARY CAM (F8 / F9)
+  // ==========================================
+  if FCurrentWorldBase = wbSpace then
+  begin
+
+    // --- SPACE LANDING ANIMATION (Runs every frame) ---
+    if FSpaceLandingState > 0 then
+    begin
+      FSpaceLandingProgress := FSpaceLandingProgress + (GetFrameTime() * 0.8);
+      if FSpaceLandingProgress > 1.0 then FSpaceLandingProgress := 1.0;
+
+      var T: Single := FSpaceLandingProgress;
+      T := T * T * (3 - 2 * T); // Smooth Ease-In-Out
+
+      if FSpaceLandingState = 1 then // Approaching
+      begin
+        // Fly to the pre-calculated surface position
+        FCamera.position := Vector3Add(Vector3Scale(FSpaceCamStartPos, 1.0 - T), Vector3Scale(FSpaceLandingTargetPos, T));
+        FCamera.target := Vector3Add(Vector3Scale(FSpaceCamStartTarget, 1.0 - T), Vector3Scale(FSpaceLandingCamTargetCenter, T));
+        FCamera.up := Vector3Add(Vector3Scale(Vector3Create(0, 1, 0), 1.0 - T), Vector3Scale(FSpaceLandingTargetUp, T));
+
+        if FSpaceLandingProgress >= 1.0 then
+        begin
+          FSpaceLandingState := 2; // Landed
+          // NOW we freeze the universe! The camera is already at the target position.
+          if FSpaceLandingTargetIndex >= 0 then
+            FSpaceWorld.InitiateLanding(FSpaceLandingTargetIndex, FCamera.target, FCamera.position);
+        end;
+      end
+      else if FSpaceLandingState = 3 then // Taking off
+      begin
+        // We are already locked, so fly backwards from the current position
+        FCamera.position := Vector3Add(Vector3Scale(FSpaceCamStartPos, 1.0 - T), Vector3Scale(FSpaceLandingTargetPos, T));
+        FCamera.target := Vector3Add(Vector3Scale(FSpaceCamStartTarget, 1.0 - T), Vector3Scale(FCamera.position, T));
+        FCamera.up := Vector3Add(Vector3Scale(FSpaceLandingTargetUp, 1.0 - T), Vector3Scale(Vector3Create(0, 1, 0), T));
+
+        if FSpaceLandingProgress >= 1.0 then
+        begin
+          FSpaceLandingState := 0; // Free Fly
+          FSpaceWorld.ReleaseLanding; // Unlock the planet
+        end;
+      end;
+    end;
+
+    // --- INPUT HANDLING ---
+    // F8: Toggle Planetary Orbit Cam (instant orbit around planet)
+    if (GetAsyncKeyState(VK_F8) and $1) <> 0 then
+    begin
+      if not FSpaceWorld.IsLanded then
+      begin
+        FSpacePlanetaryCam := not FSpacePlanetaryCam;
+        if FSpacePlanetaryCam then
+        begin
+          var Idx: Integer;
+          if FSpaceWorld.FindNearestPlanet(FCamera.position, Idx, Dist) then
+            FSpaceWorld.InitiateLanding(Idx, FCamera.target, FCamera.position);
+        end
+        else
+          FSpaceWorld.ReleaseLanding;
+      end;
+    end;
+
+    // F9: Real Smooth Landing Approach / Takeoff
+    if (GetAsyncKeyState(VK_F9) and $1) <> 0 then
+    begin
+      if FSpaceLandingState = 0 then
+      begin
+        // Start Approach
+        var Idx: Integer;
+        if FSpaceWorld.FindNearestPlanet(FCamera.position, Idx, Dist) and (Dist < 5000.0) then
+        begin
+          // DO NOT shift the universe yet! We fly to the planet's current position first.
+          FSpaceLandingTargetIndex := Idx;
+          FSpacePlanetaryCam := False;
+
+          // Calculate target landing position (5 units above surface)
+          var PlanetPos: TVector3;
+          var PlanetRadius: Single;
+          FSpaceWorld.GetPlanetInfo(Idx, PlanetPos, PlanetRadius);
+
+          var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
+          if (IsNan(SurfDir.x)) or (IsNan(SurfDir.y)) or (IsNan(SurfDir.z)) then
+            SurfDir := Vector3Create(0, 1, 0);
+
+          FSpaceLandingTargetPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 5.0));
+          FSpaceLandingCamTargetCenter := PlanetPos; // Look at the center while flying there
+          FSpaceLandingTargetUp := SurfDir;
+
+          FSpaceCamStartPos := FCamera.position;
+          FSpaceCamStartTarget := FCamera.target;
+          FSpaceLandingState := 1; // Approaching
+          FSpaceLandingProgress := 0.0;
+        end;
+      end
+      else if FSpaceLandingState = 2 then
+      begin
+        // Start Takeoff
+        FSpaceCamStartPos := FCamera.position;
+        FSpaceCamStartTarget := FCamera.target;
+        FSpaceLandingTargetPos := Vector3Add(FCamera.position, Vector3Scale(FCamera.up, 300.0));
+        FSpaceLandingTargetUp := FCamera.up;
+        FSpaceLandingState := 3; // Taking off
+        FSpaceLandingProgress := 0.0;
+      end;
+    end;
+  end;
+
+
+  // ==========================================
+  // PLANETARY SURFACE CAMERA (Active while landed)
+  // ==========================================
+  if (FCurrentWorldBase = wbSpace) and (FSpaceLandingState = 2) then
+  begin
+    var p: TPoint;
+    GetCursorPos(p);
+    var PlanetPos := FSpaceWorld.GetLandedPlanetPos();
+    var PlanetRad: Single;
+    FSpaceWorld.GetPlanetInfo(FSpaceWorld.FLandingTargetIndex, PlanetPos, PlanetRad);
+    PlanetPos := FSpaceWorld.GetLandedPlanetPos(); //Frozen position
+
+    // 1. Orbit Rotation with Middle Mouse Button
+    if (GetAsyncKeyState(VK_MBUTTON) and $8000) <> 0 then
+    begin
+      if FDraggingRMB then
+      begin
+        var YawDelta := (p.x - FLastMouse.x) * 0.005;
+        var PitchDelta := (p.y - FLastMouse.y) * 0.005;
+
+        var ToCam := Vector3Subtract(FCamera.position, PlanetPos);
+        Dist := Vector3Length(ToCam);
+        Dir := Vector3Normalize(ToCam);
+
+        // Yaw rotation (around global Y axis)
+        var CosY := Cos(YawDelta);
+        var SinY := Sin(YawDelta);
+        Dir := Vector3Create(Dir.x * CosY - Dir.z * SinY, Dir.y, Dir.x * SinY + Dir.z * CosY);
+
+        // Pitch rotation (tilt up/down)
+        Dir.y := EnsureRange(Dir.y + PitchDelta, -0.95, 0.95);
+        Dir := Vector3Normalize(Dir);
+
+        FCamera.position := Vector3Add(PlanetPos, Vector3Scale(Dir, Dist));
+        FCamera.up := Dir; // UP is always the surface normal
+      end
+      else
+        FDraggingRMB := True;
+    end
+    else
+      FDraggingRMB := False;
+
+    FLastMouse := p;
+
+    // 2. Zoom with Mouse Wheel
+    var Wheel := GetMouseWheelMove();
+    if Wheel <> 0 then
+    begin
+      var ToCam := Vector3Subtract(FCamera.position, PlanetPos);
+      Dist := Vector3Length(ToCam);
+      var MinDist := FSpaceWorld.GetLandedPlanetRadius() + 2.0;
+      Dist := EnsureRange(Dist - Wheel * 10.0, MinDist, MinDist + 500.0);
+      FCamera.position := Vector3Add(PlanetPos, Vector3Scale(Vector3Normalize(ToCam), Dist));
+    end;
+
+    // 3. Force Camera Target: Schaut immer auf einen Punkt vor uns auf der Kugel
+    var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
+    if not IsNan(SurfDir.x) then
+    begin
+      FCamera.up := SurfDir;
+      // Berechne einen Vorwärts-Vektor basierend auf der aktuellen Blickrichtung
+      var CurrentForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
+      var DotP := Vector3DotProduct(CurrentForward, SurfDir);
+      var ForwardOnTangent := Vector3Subtract(CurrentForward, Vector3Scale(SurfDir, DotP));
+
+      if Vector3Length(ForwardOnTangent) < 0.1 then
+      begin
+        var TempUp := Vector3Create(0, 1, 0);
+        if Abs(Vector3DotProduct(SurfDir, TempUp)) > 0.9 then TempUp := Vector3Create(1, 0, 0);
+        ForwardOnTangent := Vector3CrossProduct(SurfDir, TempUp);
+      end;
+
+      ForwardOnTangent := Vector3Normalize(ForwardOnTangent);
+      var TargetSurfDir := Vector3Normalize(Vector3Add(SurfDir, Vector3Scale(ForwardOnTangent, 0.3)));
+      FCamera.target := Vector3Add(PlanetPos, Vector3Scale(TargetSurfDir, FSpaceWorld.GetLandedPlanetRadius() + 1.0));
+    end;
+  end;
+
+
   HandleCameraInput;
   HandleDesktopInput;
   ProcessSpawnQueue(dt);
@@ -3607,6 +3950,8 @@ begin
       rlPopMatrix();
     end;
   end;
+   if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) then
+    FSpaceWorld.RenderShadows;
 end;
 
 procedure TRaylibSandbox.Render3DScene;

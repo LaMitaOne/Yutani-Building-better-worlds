@@ -32,7 +32,7 @@ type
     Panel1: TPanel;
     StringGrid1: TStringGrid;
     btnToolDragThrow: TButton;
-    Panel2: TPanel;
+    pnlRight: TPanel;
     PageControl1: TPageControl;
     tsScene: TTabSheet;
     tsEngine: TTabSheet;
@@ -96,6 +96,7 @@ type
     btnDemat: TButton;
     btnNanoFog: TButton;
     btnEndNanoFog: TButton;
+    tmrShowControls: TTimer;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -150,6 +151,7 @@ type
     procedure btnDematClick(Sender: TObject);
     procedure btnNanoFogClick(Sender: TObject);
     procedure btnEndNanoFogClick(Sender: TObject);
+    procedure tmrShowControlsTimer(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -202,25 +204,17 @@ begin
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
-var
-  LastTick, NowTick: Cardinal;
-  DeltaSec: Double;
 const
   clrBackground = clBlack;
   clrFontSilver = clSilver;
 begin
+  pnlRight.Hide;
+  pnlLeft.Hide;
+  pnlBottom.Hide;
+  tmrShowControls.Enabled := True;
+
   FYutaniIntro := TYutaniSkiaIntro.Create;
   FYutaniIntro.Start;
-  LastTick := GetTickCount;
-  while not FYutaniIntro.IntroFinished do
-  begin
-    NowTick := GetTickCount;
-    DeltaSec := (NowTick - LastTick) / 1000.0;
-    LastTick := NowTick;
-    FYutaniIntro.UpdateAndRender(DeltaSec);
-    Application.ProcessMessages;
-    Sleep(15);
-  end;
 
   Width := 1200;
   Height := 800;
@@ -918,6 +912,15 @@ begin
   lblInfo.Caption := Format('ERR [%s]: %s', [Args.Context, Args.Message]);
 end;
 
+procedure TForm1.tmrShowControlsTimer(Sender: TObject);
+begin
+  tmrShowControls.Enabled := False;
+  Freeandnil(tmrShowControls);
+  pnlRight.Show;
+  pnlLeft.Show;
+  pnlBottom.Show;
+end;
+
 procedure TForm1.tmrStatsUpdaterTimer(Sender: TObject);
 var
   TotalObjects: Integer;
@@ -925,6 +928,8 @@ var
   SelectedInfo: string;
   i: Integer;
 begin
+   if (not pnlRight.Visible) or (PageControl1.ActivePageIndex <> 0) then Exit;
+
   if not Assigned(FSandbox) then
     Exit;
   TotalObjects := FSandbox.ItemCount;
