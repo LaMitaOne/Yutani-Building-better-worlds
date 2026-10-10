@@ -114,7 +114,7 @@ v0.647:
   - Added Planetary Surface Camera Mode: Walk on Mario-Galaxy style little planets with correct surface normals and straight horizons
   - Added Planetary Orbit Cam (F8) for construction and building mechanics
   - Added Second Life style ALT+Click focus camera system
-  - Added vehicle flight control system (F11): Possess any object and fly it with WASD/Numpad+/- physics thrust with a rigid Third-Person camera
+  - Added vehicle flight control system (F11): Possess any object and fly it with WASD/QERF physics thrust with a rigid Third-Person camera
   - Refactored startup intro to form the logo and text entirely from a dynamic Skia4Delphi particle stream.
               
 v0.646:        
