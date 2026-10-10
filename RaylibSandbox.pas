@@ -80,7 +80,6 @@
  Latest Changes:
 
 v0.647
-- Refactored startup intro to form the logo and text entirely from a dynamic Skia4Delphi particle stream.
 - Added a skia4delphi rendered, threaded, transparent holographic loading screen overlay for world transitions.
 - Moved heavy procedural planet texture generation to on-demand loading to fix startup freezes.
 - Made the loading screen trigger its own asynchronous fade-out and self-destruct without blocking the render loop.
@@ -96,6 +95,7 @@ v0.647
 - Added Planetary Orbit Cam (F8) for construction and building mechanics
 - Added Second Life style ALT+Click focus camera system
 - Added vehicle flight control system (F11): Possess any object and fly it with WASD/QE/RF physics thrust with a rigid Third-Person camera
+- Refactored startup intro to form the logo and text entirely from a dynamic Skia4Delphi particle stream.
 
  *==============================================================================}
 {$POINTERMATH ON}
