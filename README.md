@@ -82,9 +82,12 @@ My first spaceship 🤤
 * **Mouse Wheel:** Zoom In / Out    
 * **CTRL + Q / E:** Select previous / next Actor in Hierarchy    
 * **F10** on selected send alive highlighter
-* **F11** posess whatever selectedr as vehicle    
-* **Q/E** up and down while flying     
-* **R/F** speed +- while flying    
+* **ALT + Left Click** — Change focus target of the Third-Person camera to the clicked surface point
+* ---Flying---
+* **F11** posess whatever selected as vehicle    
+* **W / S** — Pitch (Tilt Up / Down)
+* **A / D** — Yaw (Turn Left / Right)
+* **R / F** — Throttle / Speed Up / Speed Down
     
 ---    
     
