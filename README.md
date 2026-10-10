@@ -238,6 +238,7 @@ This project is licensed under the **Apache License 2.0** - see the LICENSE file
       
 ### 🛸 Trivia / Easter Egg      
 **Fun Fact:** The very first custom 3D `.glb` model successfully loaded and simulated into this engine's pipeline was the iconic **M577 Alien APC**. So choosing the name **Yutani** wasn't just a random sci-fi choice—it was practically hardcoded by fate! 🪐     
+and btw... yes, my little asus ux305ca with fanless intel m3 does even this still, space scene running 100fps         
 Cultural Note: In Japanese, Yutani (由谷) translates to "Valley of Origin"...     
 
 <img height="500" alt="Unbenannt" src="https://github.com/user-attachments/assets/389ab4f3-4822-4042-b2c3-96f65ec53335" />   
