@@ -25,7 +25,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.646)    
+Status: Work in Progress (Alpha v0.647)    
          
 <img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
        
@@ -87,8 +87,27 @@ My first spaceship 🤤
     
   Exe and sample project included    
       
-Latest Changes:  
+Latest Changes:    
       
+v0.647:        
+     
+  - Refactored startup intro to form the logo and text entirely from a dynamic Skia4Delphi particle stream.
+  - Added a skia4delphi rendered, threaded, transparent holographic loading screen overlay for world transitions.
+  - Moved heavy procedural planet texture generation to on-demand loading to fix startup freezes.
+  - Made the loading screen trigger its own asynchronous fade-out and self-destruct without blocking the render loop.
+  - Added a skia4delphi rendered sci-fi particle stream intro from the logo to form the "YUTANI" text.
+  - Implemented floating origin system to eliminate physics jitter on planet surfaces
+  - Added Solar System generation with suns, orbiting planets, moons, and proper lighting (Darksides)
+  - Implemented dynamic sun lighting with Shader integration for planet models
+  - Added comet collisions triggering surface impact particle bursts
+  - Added slow-motion compatibility (TimeScale) for space simulation
+  - Refined star distribution with cluster-based generation and galaxy-style coloring
+  - Added Landing Autopilot System (F9): Smooth cinematic approach to planetary surfaces
+  - Added Planetary Surface Camera Mode: Walk on Mario-Galaxy style little planets with correct surface normals and straight horizons
+  - Added Planetary Orbit Cam (F8) for construction and building mechanics
+  - Added Second Life style ALT+Click focus camera system
+  - Added vehicle flight control system (F11): Possess any object and fly it with WASD/Numpad+/- physics thrust with a rigid Third-Person camera
+              
 v0.646:        
 
   - Added space skybox 
