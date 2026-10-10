@@ -81,7 +81,10 @@ My first spaceship 🤤
 * **WASD:** Move Editor Camera    
 * **Mouse Wheel:** Zoom In / Out    
 * **CTRL + Q / E:** Select previous / next Actor in Hierarchy    
-* **F10 on selected send alive highlighter     
+* **F10** on selected send alive highlighter
+* **F11** posess whatever selectedr as vehicle    
+* **Q/E** up and down while flying     
+* **R/F** speed +- while flying    
     
 ---    
     
