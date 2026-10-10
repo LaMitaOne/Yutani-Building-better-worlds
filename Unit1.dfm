@@ -12089,6 +12089,15 @@ object Form1: TForm1
           TabOrder = 23
           OnClick = btnEndNanoFogClick
         end
+        object Button1: TButton
+          Left = 128
+          Top = 197
+          Width = 47
+          Height = 25
+          Caption = 'Intro'
+          TabOrder = 24
+          OnClick = Button1Click
+        end
       end
       object tsEngine: TTabSheet
         Caption = 'Engine'
@@ -12498,11 +12507,11 @@ object Form1: TForm1
     Left = 440
     Top = 24
   end
-  object tmrShowControls: TTimer
+  object tmrStartEngine: TTimer
     Enabled = False
-    Interval = 9000
-    OnTimer = tmrShowControlsTimer
-    Left = 248
-    Top = 112
+    Interval = 2000
+    OnTimer = tmrStartEngineTimer
+    Left = 328
+    Top = 96
   end
 end

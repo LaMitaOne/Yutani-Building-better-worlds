@@ -193,15 +193,16 @@ begin
   SetLength(FCometParticles, MAX_COMET_PARTICLES);
   Randomize;
   InitializeDistantStars;
+
+  // The heavy generation is now triggered externally via GenerateAssetsAsync,
+  // but we keep a fallback in case it's called directly.
   GeneratePlanetAssets(ALightShader);
+
   // Generate Sun Texture
   FSunTexture := TSunTextureGen.Generate(Cardinal(Random(MaxInt)), 2048);
-  // Use EXACT same resolution as planets
   Mesh := GenMeshSphere(1.0, 48, 32);
   UploadMesh(@Mesh, False);
   FSunModel := LoadModelFromMesh(Mesh);
-  // CRITICAL FIX: DO NOT use ALightShader for the sun!
-  // Use the Default Shader to prevent lighting Z-fighting / flashing on poles!
   DefaultShader := LoadShader(nil, nil);
   if DefaultShader.id > 0 then
     FSunModel.materials[0].shader := DefaultShader;

@@ -306,18 +306,15 @@ begin
   FTerrainModel.materials[0].maps[0].texture := FTerrainGradient;
   FTerrainModel.materials[0].maps[2].texture := FHeightmapTex;
   FTerrainModel.materials[0].maps[3].texture := FRockNormalMap;
-
   FTerrainShader := LoadShader(PAnsiChar(AnsiString(ResourcesPath + 'shaders/terrain.vert')), PAnsiChar(AnsiString(ResourcesPath + 'shaders/terrain.frag')));
   FTerrainModel.materials[0].shader := FTerrainShader;
   BindSamplerUniforms(FTerrainShader, 3);
-
   // 2. WATER SETUP
   WaterMesh := GenMeshPlane(5120, 5120, 10, 10);
   FWaterModel := LoadModelFromMesh(WaterMesh);
   FWaterModel.transform := MatrixTranslate(0, 0, 0);
   FWaterModel.materials[0].maps[0].texture := LoadTexture(PAnsiChar(AnsiString(ResourcesPath + 'skyGradient.png')));
   FWaterModel.materials[0].maps[2].texture := FWaterDUDV;
-
   FWaterShader := LoadShader(PAnsiChar(AnsiString(ResourcesPath + 'shaders/water.vert')), PAnsiChar(AnsiString(ResourcesPath + 'shaders/water.frag')));
   FWaterModel.materials[0].shader := FWaterShader;
   FWaterMoveFactorLoc := GetShaderLocation(FWaterShader, 'moveFactor');

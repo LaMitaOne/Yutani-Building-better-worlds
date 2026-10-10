@@ -1,7 +1,7 @@
 ﻿unit ModelEngine;
 
 {==============================================================================*
- *  ModelEngine v0.642 - Actor Layer combining Raylib rendering with Jolt Physics
+ *  ModelEngine v0.647 - Actor Layer combining Raylib rendering with Jolt Physics
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -94,6 +94,7 @@ type
     FIsHovered: Boolean;
     FIsPressed: Boolean;
     FIsDestructable: Boolean;
+    FGravityFactor: Single; // Custom gravity factor
     FOnClick: TNotifyEvent;
     FBaseColor: TColorB;
     FHoverColor: TColorB;
@@ -109,7 +110,6 @@ type
     FPosition: TVector3;
     FScale: TVector3;
     FRotation: TVector3;
-    FQuaternion: TQuaternion;
     FUserData: Pointer;
     FOnCollision: TCollisionEvent;
     FCollisionHighlighting: Boolean;
@@ -135,6 +135,7 @@ type
     FVideoTexture: TTexture2D;
     MidiNote: Integer;
     IsPianoKey: Boolean;
+    FQuaternion: TQuaternion;
     constructor Create(AOwner: TComponent); overload; override;
     constructor Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean = False; IsDestructable: Boolean = False; APos: PJPH_RVec3 = nil; ARot: PJPH_Quat = nil); reintroduce; overload;
     destructor Destroy; override;
@@ -145,6 +146,7 @@ type
     procedure SetScale(const Value: TVector3);
     function GetLinearVelocity: TVector3;
     procedure SetAngularVelocity(AVelocity: TVector3);
+    procedure SetGravityFactor(AFactor: Single);
     function GetAngularVelocity: TVector3;
     procedure SetMotionType(AMotionType: JPH_MotionType);
     function GetMotionType: JPH_MotionType;
@@ -411,6 +413,9 @@ begin
   FModel.materials := nil;
   FModel.materialCount := 0;
   FMeshSize := Vector3Create(1, 1, 1);
+
+  // CRITICAL FIX: Initialize GravityFactor to 1.0 to prevent Jolt auto-launch!
+  FGravityFactor := 1.0;
 end;
 
 constructor TA3DComponent.Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean; IsDestructable: Boolean; APos: PJPH_RVec3; ARot: PJPH_Quat);
@@ -533,6 +538,8 @@ begin
   JPH_ShapeSettings_Destroy(ShapeSettings);
   JPH_BodyInterface_SetFriction(FEngine.BodyInterface, FBodyID, FFriction);
   JPH_BodyInterface_SetRestitution(FEngine.BodyInterface, FBodyID, FRestitution);
+  // Apply the initial gravity factor to Jolt
+  JPH_BodyInterface_SetGravityFactor(FEngine.BodyInterface, FBodyID, FGravityFactor);
   if Assigned(FEngine) then
     FEngine.Add(Self);
 end;
@@ -786,6 +793,9 @@ begin
     FBodyID := JPH_BodyInterface_CreateAndAddBody(FEngine.BodyInterface, CreationSettings, JPH_Activation_Activate);
     JPH_BodyInterface_SetFriction(FEngine.BodyInterface, FBodyID, FFriction);
     JPH_BodyInterface_SetRestitution(FEngine.BodyInterface, FBodyID, FRestitution);
+
+    // CRITICAL FIX: Restore GravityFactor on Reattach!
+    JPH_BodyInterface_SetGravityFactor(FEngine.BodyInterface, FBodyID, FGravityFactor);
   end;
 end;
 
@@ -878,6 +888,13 @@ begin
   UpdateModelTransform;
 end;
 
+procedure TA3DComponent.SetGravityFactor(AFactor: Single);
+begin
+  FGravityFactor := AFactor; // Cache it locally!
+  if FBodyID <> 0 then
+    JPH_BodyInterface_SetGravityFactor(FEngine.BodyInterface, FBodyID, AFactor);
+end;
+
 procedure TA3DComponent.ApplyImpulse(AImpulse: TVector3);
 var
   JImp: JPH_Vec3;
@@ -917,4 +934,3 @@ begin
 end;
 
 end.
-

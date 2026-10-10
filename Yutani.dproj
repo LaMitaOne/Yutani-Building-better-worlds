@@ -126,6 +126,9 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <Icon_MainIcon>Yutani_Icon.ico</Icon_MainIcon>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
@@ -155,6 +158,7 @@
         <DCCReference Include="Yutani.Render.NanoFog.pas"/>
         <DCCReference Include="Yutani.Worlds.Space.pas"/>
         <DCCReference Include="Yutani.Worlds.Space.Textures.pas"/>
+        <DCCReference Include="Yutani.Render.LoadingScreen.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

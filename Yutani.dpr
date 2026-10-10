@@ -19,7 +19,8 @@ uses
   Yutani.AliveHighlighter3D in 'Yutani.AliveHighlighter3D.pas',
   Yutani.Render.NanoFog in 'Yutani.Render.NanoFog.pas',
   Yutani.Worlds.Space in 'Yutani.Worlds.Space.pas',
-  Yutani.Worlds.Space.Textures in 'Yutani.Worlds.Space.Textures.pas';
+  Yutani.Worlds.Space.Textures in 'Yutani.Worlds.Space.Textures.pas',
+  Yutani.Render.LoadingScreen in 'Yutani.Render.LoadingScreen.pas';
 
 {$R *.res}
 

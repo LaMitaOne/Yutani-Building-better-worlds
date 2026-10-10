@@ -80,6 +80,10 @@
  Latest Changes:
 
 v0.647
+- Refactored startup intro to form the logo and text entirely from a dynamic Skia4Delphi particle stream.
+- Added a skia4delphi rendered, threaded, transparent holographic loading screen overlay for world transitions.
+- Moved heavy procedural planet texture generation to on-demand loading to fix startup freezes.
+- Made the loading screen trigger its own asynchronous fade-out and self-destruct without blocking the render loop.
 - Added a skia4delphi rendered sci-fi particle stream intro from the logo to form the "YUTANI" text.
 - Implemented floating origin system to eliminate physics jitter on planet surfaces
 - Added Solar System generation with suns, orbiting planets, moons, and proper lighting (Darksides)
@@ -90,7 +94,8 @@ v0.647
 - Added Landing Autopilot System (F9): Smooth cinematic approach to planetary surfaces
 - Added Planetary Surface Camera Mode: Walk on Mario-Galaxy style little planets with correct surface normals and straight horizons
 - Added Planetary Orbit Cam (F8) for construction and building mechanics
-
+- Added Second Life style ALT+Click focus camera system
+- Added vehicle flight control system (F11): Possess any object and fly it with WASD/QE/RF physics thrust with a rigid Third-Person camera
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -106,7 +111,7 @@ uses
   MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
   Yutani.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
   Yutani.Worlds.Space, Yutani.Render.Shaders, Yutani.Render.Particles,
-  Yutani.Render.NanoFog;
+  Yutani.Render.NanoFog, Yutani.Render.LoadingScreen;
 
 type
   PItemData = ^TItemData;
@@ -395,6 +400,22 @@ type
     FAliveHighlighter3D: TAliveHighlighter3D;
     FMouseWorldPos: TVector3;
 
+    // Async Loading State
+    FIsLoadingWorld: Boolean;
+    FPendingWorldBase: TWorldBaseType;
+    FPendingSpaceShader: TShader;
+    FLoadWorldQueued: Boolean;
+    FLoadingScreen: TYutaniLoadingScreen;
+
+    // Second Life style Camera Focus tracking variables
+    FFocusTrackingActor: TA3DComponent;
+    FAltWasPressed: Boolean;
+
+    // Vehicle Flight Control (F11 + Enter system)
+    FPlayerVehicle: TA3DComponent;
+    FIsDriving: Boolean;
+    FVehicleSpeedMul: Single;
+
     // Dematerialize Queue
     FDematerializeQueue: TArray<TDematerializeRequest>;
     procedure ExecuteDematerializeActor(Actor: TA3DComponent);
@@ -669,6 +690,8 @@ begin
   FDayNightRhythmActive := True; // Enable automatic cycle by default
   FNavIndex := -1;
   SetLength(FParticleSpawnQueue, 0);
+  FFocusTrackingActor := nil;
+  FAltWasPressed := False;
 
   // Optimization: Initialize default shader ID to 0
   FDefaultShader.id := 0;
@@ -702,6 +725,11 @@ begin
 
   // Piano Component init
   FPiano := nil;
+
+    // Init Vehicle Flight Control
+  FPlayerVehicle := nil;
+  FIsDriving := False;
+  FVehicleSpeedMul := 1.0;
 
   //init audio engines
   FYutaniAudio := TYutaniAudioEngine.Create;
@@ -821,45 +849,18 @@ end;
 
 procedure TRaylibSandbox.SetWorldBase(const Value: TWorldBaseType);
 begin
-  // Prevent cross-thread exceptions by queueing the state change
-  // safely into the Raylib render thread.
-  if FCurrentWorldBase <> Value then
-  begin
-    TThread.Queue(nil,
-      procedure
-      begin
-        FCurrentWorldBase := Value;
+  if FCurrentWorldBase = Value then
+    Exit;
+  if FIsLoadingWorld then
+    Exit;
 
-        // BASE WORLD LOGIC: Apply specific settings per world
-        case FCurrentWorldBase of
-          wbLand:
-            begin
-              // Standard environment: Day/night active, clouds visible
-              FDayNightRhythmActive := True;
-            end;
-          wbSpace:
-            begin
-              // Space environment: Freeze time to night, disable clouds
-              FDayNightRhythmActive := False;
-              FDayTime := 0.0; // 0.0 represents midnight/deep space
-            end;
-          wbHolodeck:
-            begin
-              // Holodeck environment: Freeze time to midday for bright light
-              FDayNightRhythmActive := False;
-              FDayTime := 0.5; // 0.5 represents midday
-            end;
-          wbIsland:
-            begin
-              // Placeholder for later island environment setup
-              FDayNightRhythmActive := True;
-            end;
-        end;
-
-        // Force shadow map to update immediately after a world change
-        FShadowMapDirty := True;
-      end);
-  end;
+  FIsLoadingWorld := True;
+  FPendingWorldBase := Value;
+  FPendingSpaceShader := FLightShader;
+  FLoadWorldQueued := True;
+  if not Assigned(FLoadingScreen) then
+    FLoadingScreen := TYutaniLoadingScreen.Create;
+  FLoadingScreen.Start;
 end;
 
 procedure TRaylibSandbox.SetAntiAliasing(const Value: Boolean);
@@ -1072,14 +1073,6 @@ begin
     FAmbientGradientTex := LoadTexture(PAnsiChar(AnsiString(FilePath + 'ambientGradient.png')));
     SetTextureFilter(FAmbientGradientTex, TEXTURE_FILTER_TRILINEAR);
   end;
-
-  // Create the Island World
-  if not Assigned(FIslandWorld) then
-    FIslandWorld := TIslandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', FDefaultWhiteTex);
-
-  // Create the Infinite Space World
-  if not Assigned(FSpaceWorld) then
-    FSpaceWorld := TSpaceWorld.Create(FLightShader);
 end;
 
 procedure TRaylibSandbox.PlayTestSound;
@@ -1192,8 +1185,79 @@ begin
               QueryPerformanceCounter(FrameStart);
               if WindowShouldClose() then
                 Break;
-              UpdateGame;
-              RenderGame;
+
+              // ==========================================
+              // WORLD LOADING (RAYLIB STAYS VISIBLE BUT BLACK)
+              // ==========================================
+                  if FLoadWorldQueued then
+              begin
+                FLoadWorldQueued := False;
+                FIsLoadingWorld := True;
+
+                // 1. Start the loading screen
+                if not Assigned(FLoadingScreen) then
+                  FLoadingScreen := TYutaniLoadingScreen.Create;
+                FLoadingScreen.Start;
+
+                // 2. Render one frame to Raylib so it immediately switches to black
+                RenderGame;
+
+                // 3. Perform the heavy lifting (this blocks the thread)
+                try
+                  if FPendingWorldBase = wbSpace then
+                  begin
+                    if not Assigned(FSpaceWorld) then
+                      FSpaceWorld := TSpaceWorld.Create(FPendingSpaceShader);
+                  end
+                  else if FPendingWorldBase = wbIsland then
+                  begin
+                    if not Assigned(FIslandWorld) then
+                      FIslandWorld := TIslandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', FDefaultWhiteTex);
+                  end;
+                except
+                  on E: Exception do
+                    DoEngineException(E.Message, 'AsyncWorldLoad');
+                end;
+
+                // 4. Apply world settings
+                FCurrentWorldBase := FPendingWorldBase;
+                case FCurrentWorldBase of
+                  wbLand:
+                    begin
+                      FDayNightRhythmActive := True;
+                      FDayTime := 0.5;
+                    end;
+                  wbSpace:
+                    begin
+                      FDayNightRhythmActive := False;
+                      FDayTime := 0.0;
+                    end;
+                  wbHolodeck:
+                    begin
+                      FDayNightRhythmActive := False;
+                      FDayTime := 0.5;
+                    end;
+                  wbIsland:
+                    FDayNightRhythmActive := True;
+                end;
+                FShadowMapDirty := True;
+
+                // 5. Tell the loading screen to stop.
+                // It will gracefully fade out itself!
+                if Assigned(FLoadingScreen) then
+                begin
+                  FLoadingScreen.AsyncStop;
+                  FLoadingScreen := nil;
+                end;
+
+                FIsLoadingWorld := False;
+              end
+              else
+              begin
+                UpdateGame;
+                RenderGame;
+              end;
+
               if FTargetFPS > 0 then
               begin
                 FrameTicks := Freq div FTargetFPS;
@@ -1332,6 +1396,7 @@ begin
     SetBrush(TShapeType(-1));
     FActiveSpawnEffects := nil;
     FreeAndNil(FPiano); // Free independent Piano component
+    FFocusTrackingActor := nil; // Clear focus tracking on scene clear
   finally
     FLock.Leave;
   end;
@@ -1432,8 +1497,18 @@ var
   fwdX, fwdZ, rightX, rightZ: Single;
 begin
   // If we are landed or in planetary cam, we handle the camera entirely in SpaceLandingCamUpdate.
-  if (FCurrentWorldBase = wbSpace) and ((FSpaceLandingState > 0) or FSpaceWorld.IsLanded) then
+  // CRITICAL: Skip ALL of this if we are driving our own vehicle!
+  if FIsDriving and Assigned(FPlayerVehicle) then
     Exit;
+
+  if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) and ((FSpaceLandingState > 0) or FSpaceWorld.IsLanded) then
+    Exit;
+
+  // CRITICAL: Skip normal camera logic entirely while driving a vehicle!
+  if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
+  begin
+    Exit;
+  end;
 
   dt := GetFrameTime();
   if dt <= 0 then
@@ -1573,6 +1648,12 @@ var
   CurrVel: TVector3;
   SpeedSq: Single;
 begin
+  // FREEZE ENGINE WHILE LOADING
+  if FIsLoadingWorld then
+  begin
+    Exit; // Do absolutely nothing until the background thread is done
+  end;
+
   for i := High(FProjectiles) downto 0 do
   begin
     if FProjectiles[i] = nil then
@@ -1654,6 +1735,10 @@ var
   bLeftMouseDown: Boolean;
   bLeftMouseClicked: Boolean;
   R: TRect;
+  bAltIsDown: Boolean;
+  ClosestFocusActor: TA3DComponent;
+  ClosestFocusDist: Single;
+  TempHit: TRayCollision;
 begin
   // PREVENT BACKGROUND CLICKS: Only process input if the mouse cursor
   // is actually hovering over the Raylib window area!
@@ -1671,33 +1756,27 @@ begin
   // ==========================================
   if FCurrentWorldBase = wbSpace then
   begin
-
     // --- SPACE LANDING ANIMATION (Runs every frame) ---
     if FSpaceLandingState > 0 then
     begin
       FSpaceLandingProgress := FSpaceLandingProgress + (GetFrameTime() * 0.8);
-      if FSpaceLandingProgress > 1.0 then FSpaceLandingProgress := 1.0;
-
-      T := FSpaceLandingProgress;
-      T := T * T * (3 - 2 * T); // Smooth Ease-In-Out
-
+      if FSpaceLandingProgress > 1.0 then
+        FSpaceLandingProgress := 1.0;
+      t := FSpaceLandingProgress;
+      t := t * t * (3 - 2 * t); // Smooth Ease-In-Out
       if FSpaceLandingState = 1 then // Approaching
       begin
         // Smoothly fly to the position 10 units above the surface
-        FCamera.position := Vector3Add(FSpaceCamStartPos, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartPos), T));
-
+        FCamera.position := Vector3Add(FSpaceCamStartPos, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartPos), t));
         // Smoothly transition looking at the surface point in front of us
-        FCamera.target := Vector3Add(FSpaceCamStartTarget, Vector3Scale(Vector3Subtract(FSpaceLandingCamTargetCenter, FSpaceCamStartTarget), T));
-
+        FCamera.target := Vector3Add(FSpaceCamStartTarget, Vector3Scale(Vector3Subtract(FSpaceLandingCamTargetCenter, FSpaceCamStartTarget), t));
         // Smoothly align Up-Vector to surface normal (SurfDir)
-        FCamera.up := Vector3Add(Vector3Create(0, 1, 0), Vector3Scale(Vector3Subtract(FSpaceLandingTargetUp, Vector3Create(0, 1, 0)), T));
-
+        FCamera.up := Vector3Add(Vector3Create(0, 1, 0), Vector3Scale(Vector3Subtract(FSpaceLandingTargetUp, Vector3Create(0, 1, 0)), t));
         if FSpaceLandingProgress >= 1.0 then
         begin
           FSpaceLandingState := 2; // Landed
           if FSpaceLandingTargetIndex >= 0 then
             FSpaceWorld.InitiateLanding(FSpaceLandingTargetIndex, FCamera.target, FCamera.position);
-
           // Snappen, damit die Kamera perfekt auf der Oberfläche ausgerichtet ist
           FCamera.position := FSpaceLandingTargetPos;
           FCamera.target := FSpaceLandingCamTargetCenter;
@@ -1706,10 +1785,9 @@ begin
       end
       else if FSpaceLandingState = 3 then // Taking off
       begin
-        FCamera.position := Vector3Add(FSpaceCamStartPos, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartPos), T));
-        FCamera.target := Vector3Add(FSpaceCamStartTarget, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartTarget), T));
-        FCamera.up := Vector3Add(FSpaceLandingTargetUp, Vector3Scale(Vector3Subtract(Vector3Create(0, 1, 0), FSpaceLandingTargetUp), T));
-
+        FCamera.position := Vector3Add(FSpaceCamStartPos, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartPos), t));
+        FCamera.target := Vector3Add(FSpaceCamStartTarget, Vector3Scale(Vector3Subtract(FSpaceLandingTargetPos, FSpaceCamStartTarget), t));
+        FCamera.up := Vector3Add(FSpaceLandingTargetUp, Vector3Scale(Vector3Subtract(Vector3Create(0, 1, 0), FSpaceLandingTargetUp), t));
         if FSpaceLandingProgress >= 1.0 then
         begin
           FSpaceLandingState := 0; // Free Fly
@@ -1717,7 +1795,6 @@ begin
         end;
       end;
     end;
-
     // --- INPUT HANDLING ---
     if (GetAsyncKeyState(VK_F8) and $1) <> 0 then
     begin
@@ -1735,7 +1812,6 @@ begin
           FSpaceWorld.ReleaseLanding;
       end;
     end;
-
     if (GetAsyncKeyState(VK_F9) and $1) <> 0 then
     begin
       if FSpaceLandingState = 0 then
@@ -1747,27 +1823,21 @@ begin
         begin
           FSpaceLandingTargetIndex := Idx;
           FSpacePlanetaryCam := False;
-
           var PlanetPos: TVector3;
           var PlanetRadius: Single;
           FSpaceWorld.GetPlanetInfo(Idx, PlanetPos, PlanetRadius);
-
           // 1. SurfDir: Der Vektor vom Zentrum zu uns
           var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
           if (IsNan(SurfDir.x)) or (IsNan(SurfDir.y)) or (IsNan(SurfDir.z)) then
             SurfDir := Vector3Create(0, 1, 0);
-
           // 2. CamPos: 10 Einheiten über der Oberfläche
           FSpaceLandingTargetPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 10.0));
-
           // 3. CamTarget: Ein Punkt 15 Einheiten vor uns auf der Oberfläche (Schräg nach unten schauen)
           // Wir bewegen uns ein Stück "vorwärts" auf der Kugel und setzten den Zielpunkt 2 Einheiten über dem Boden.
           var LookAtPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 2.0));
           FSpaceLandingCamTargetCenter := LookAtPos;
-
           // Up-Vektor = SurfDir, damit der Horizont gerade ist
           FSpaceLandingTargetUp := SurfDir;
-
           FSpaceCamStartPos := FCamera.position;
           FSpaceCamStartTarget := FCamera.target;
           FSpaceLandingState := 1; // Approaching
@@ -1780,8 +1850,8 @@ begin
         FSpaceCamStartPos := FCamera.position;
         FSpaceCamStartTarget := FCamera.target;
         // Geradeaus nach vorne hochfliegen (in Blickrichtung)
-        var Forward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
-        FSpaceLandingTargetPos := Vector3Add(FCamera.position, Vector3Scale(Forward, 300.0));
+        var forward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
+        FSpaceLandingTargetPos := Vector3Add(FCamera.position, Vector3Scale(forward, 300.0));
         FSpaceLandingTargetUp := Vector3Create(0, 1, 0);
         FSpaceLandingState := 3; // Taking off
         FSpaceLandingProgress := 0.0;
@@ -1954,7 +2024,97 @@ begin
   else
     FCtrlWasPressed := False;
 
+  // ====================================================================
+  // VEHICLE FLIGHT CONTROL (F11)
+  // ====================================================================
+  if (GetAsyncKeyState(VK_F11) and $1) <> 0 then
+  begin
+    if Assigned(FItemSelected) then
+    begin
+      FIsDriving := not FIsDriving;
+      if FIsDriving then
+      begin
+        FPlayerVehicle := FItemSelected;
+
+        // CRITICAL FIX: Hard-Reset ALL movement and speed!
+        FPlayerVehicle.ActivateBody;
+        FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
+        FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
+        FVehicleSpeedMul := 1.0;
+      end
+      else
+        FPlayerVehicle := nil;
+      FMouseLeftHandled := True;
+    end
+    else
+    begin
+      FIsDriving := False;
+      FPlayerVehicle := nil;
+    end;
+  end;
+
+
   ray := GetScreenToWorldRay(FMousePos, FCamera);
+
+
+  // ====================================================================
+  // SECOND LIFE STYLE CAMERA FOCUS (ALT + Left Click)
+  // Holding ALT and clicking an object sets the camera target to it.
+  // If the object is dynamic, the camera target keeps following it.
+  // ====================================================================
+  bAltIsDown := (GetAsyncKeyState(VK_MENU) and $8000) <> 0;
+  if bAltIsDown then
+  begin
+    if not FAltWasPressed then
+      FAltWasPressed := True;
+
+    if bLeftMouseClicked then
+    begin
+      // Find the closest object under the mouse to focus on
+      ClosestFocusActor := nil;
+      ClosestFocusDist := 1e9;
+      for i := 0 to High(FItems) do
+      begin
+        if FItems[i] = nil then
+          Continue;
+        HalfX := FItems[i].Scale.x * 0.5;
+        HalfY := FItems[i].Scale.y * 0.5;
+        HalfZ := FItems[i].Scale.z * 0.5;
+        itemBox.min := Vector3Create(FItems[i].Position.x - HalfX, FItems[i].Position.y - HalfY, FItems[i].Position.z - HalfZ);
+        itemBox.max := Vector3Create(FItems[i].Position.x + HalfX, FItems[i].Position.y + HalfY, FItems[i].Position.z + HalfZ);
+        TempHit := GetRayCollisionBox(ray, itemBox);
+        if TempHit.hit and (TempHit.distance < ClosestFocusDist) then
+        begin
+          ClosestFocusDist := TempHit.distance;
+          ClosestFocusActor := FItems[i];
+        end;
+      end;
+
+      if Assigned(ClosestFocusActor) then
+        FFocusTrackingActor := ClosestFocusActor
+      else
+      begin
+        // Clicked empty space -> Focus on the ground point
+        FFocusTrackingActor := nil;
+        groundBox.min := Vector3Create(-10000, -0.1, -10000);
+        groundBox.max := Vector3Create(10000, 0.1, 10000);
+        hitInfo := GetRayCollisionBox(ray, groundBox);
+        if hitInfo.hit then
+          FCamera.target := hitInfo.point;
+      end;
+      FMouseLeftHandled := True;
+    end;
+    Exit; // Prevent other interactions while focusing
+  end
+  else
+  begin
+    if FAltWasPressed then
+    begin
+      FAltWasPressed := False;
+      // Stop tracking the actor when ALT is released
+      FFocusTrackingActor := nil;
+    end;
+  end;
 
   // AliveHighlighter3d
   var GroundRayBox: TBoundingBox;
@@ -2313,7 +2473,6 @@ begin
       // Find the CLOSEST object to the camera under the mouse cursor
       var ClosestActor: TA3DComponent := nil;
       var ClosestDist: Single := 1e9;
-      var TempHit: TRayCollision;
 
       for i := 0 to High(FItems) do
       begin
@@ -3336,7 +3495,7 @@ begin
     FNanoFog.Update(PhysDt);
 
   // Update the infinite procedural cosmos when in space world
- if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
+  if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
     FSpaceWorld.Update(dt, FCamera.position, FTimeScale);
 
   if Assigned(FParticleEngine) then
@@ -3367,23 +3526,20 @@ begin
   // ==========================================
   if FCurrentWorldBase = wbSpace then
   begin
-
     // --- SPACE LANDING ANIMATION (Runs every frame) ---
     if FSpaceLandingState > 0 then
     begin
       FSpaceLandingProgress := FSpaceLandingProgress + (GetFrameTime() * 0.8);
-      if FSpaceLandingProgress > 1.0 then FSpaceLandingProgress := 1.0;
-
+      if FSpaceLandingProgress > 1.0 then
+        FSpaceLandingProgress := 1.0;
       var T: Single := FSpaceLandingProgress;
       T := T * T * (3 - 2 * T); // Smooth Ease-In-Out
-
       if FSpaceLandingState = 1 then // Approaching
       begin
         // Fly to the pre-calculated surface position
         FCamera.position := Vector3Add(Vector3Scale(FSpaceCamStartPos, 1.0 - T), Vector3Scale(FSpaceLandingTargetPos, T));
         FCamera.target := Vector3Add(Vector3Scale(FSpaceCamStartTarget, 1.0 - T), Vector3Scale(FSpaceLandingCamTargetCenter, T));
         FCamera.up := Vector3Add(Vector3Scale(Vector3Create(0, 1, 0), 1.0 - T), Vector3Scale(FSpaceLandingTargetUp, T));
-
         if FSpaceLandingProgress >= 1.0 then
         begin
           FSpaceLandingState := 2; // Landed
@@ -3398,7 +3554,6 @@ begin
         FCamera.position := Vector3Add(Vector3Scale(FSpaceCamStartPos, 1.0 - T), Vector3Scale(FSpaceLandingTargetPos, T));
         FCamera.target := Vector3Add(Vector3Scale(FSpaceCamStartTarget, 1.0 - T), Vector3Scale(FCamera.position, T));
         FCamera.up := Vector3Add(Vector3Scale(FSpaceLandingTargetUp, 1.0 - T), Vector3Scale(Vector3Create(0, 1, 0), T));
-
         if FSpaceLandingProgress >= 1.0 then
         begin
           FSpaceLandingState := 0; // Free Fly
@@ -3406,7 +3561,6 @@ begin
         end;
       end;
     end;
-
     // --- INPUT HANDLING ---
     // F8: Toggle Planetary Orbit Cam (instant orbit around planet)
     if (GetAsyncKeyState(VK_F8) and $1) <> 0 then
@@ -3424,7 +3578,6 @@ begin
           FSpaceWorld.ReleaseLanding;
       end;
     end;
-
     // F9: Real Smooth Landing Approach / Takeoff
     if (GetAsyncKeyState(VK_F9) and $1) <> 0 then
     begin
@@ -3437,20 +3590,16 @@ begin
           // DO NOT shift the universe yet! We fly to the planet's current position first.
           FSpaceLandingTargetIndex := Idx;
           FSpacePlanetaryCam := False;
-
           // Calculate target landing position (5 units above surface)
           var PlanetPos: TVector3;
           var PlanetRadius: Single;
           FSpaceWorld.GetPlanetInfo(Idx, PlanetPos, PlanetRadius);
-
           var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
           if (IsNan(SurfDir.x)) or (IsNan(SurfDir.y)) or (IsNan(SurfDir.z)) then
             SurfDir := Vector3Create(0, 1, 0);
-
           FSpaceLandingTargetPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 5.0));
           FSpaceLandingCamTargetCenter := PlanetPos; // Look at the center while flying there
           FSpaceLandingTargetUp := SurfDir;
-
           FSpaceCamStartPos := FCamera.position;
           FSpaceCamStartTarget := FCamera.target;
           FSpaceLandingState := 1; // Approaching
@@ -3482,7 +3631,6 @@ begin
     var PlanetRad: Single;
     FSpaceWorld.GetPlanetInfo(FSpaceWorld.FLandingTargetIndex, PlanetPos, PlanetRad);
     PlanetPos := FSpaceWorld.GetLandedPlanetPos(); //Frozen position
-
     // 1. Orbit Rotation with Middle Mouse Button
     if (GetAsyncKeyState(VK_MBUTTON) and $8000) <> 0 then
     begin
@@ -3490,20 +3638,16 @@ begin
       begin
         var YawDelta := (p.x - FLastMouse.x) * 0.005;
         var PitchDelta := (p.y - FLastMouse.y) * 0.005;
-
         var ToCam := Vector3Subtract(FCamera.position, PlanetPos);
         Dist := Vector3Length(ToCam);
         Dir := Vector3Normalize(ToCam);
-
         // Yaw rotation (around global Y axis)
         var CosY := Cos(YawDelta);
         var SinY := Sin(YawDelta);
         Dir := Vector3Create(Dir.x * CosY - Dir.z * SinY, Dir.y, Dir.x * SinY + Dir.z * CosY);
-
         // Pitch rotation (tilt up/down)
         Dir.y := EnsureRange(Dir.y + PitchDelta, -0.95, 0.95);
         Dir := Vector3Normalize(Dir);
-
         FCamera.position := Vector3Add(PlanetPos, Vector3Scale(Dir, Dist));
         FCamera.up := Dir; // UP is always the surface normal
       end
@@ -3512,9 +3656,7 @@ begin
     end
     else
       FDraggingRMB := False;
-
     FLastMouse := p;
-
     // 2. Zoom with Mouse Wheel
     var Wheel := GetMouseWheelMove();
     if Wheel <> 0 then
@@ -3525,7 +3667,6 @@ begin
       Dist := EnsureRange(Dist - Wheel * 10.0, MinDist, MinDist + 500.0);
       FCamera.position := Vector3Add(PlanetPos, Vector3Scale(Vector3Normalize(ToCam), Dist));
     end;
-
     // 3. Force Camera Target: Schaut immer auf einen Punkt vor uns auf der Kugel
     var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
     if not IsNan(SurfDir.x) then
@@ -3535,18 +3676,106 @@ begin
       var CurrentForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
       var DotP := Vector3DotProduct(CurrentForward, SurfDir);
       var ForwardOnTangent := Vector3Subtract(CurrentForward, Vector3Scale(SurfDir, DotP));
-
       if Vector3Length(ForwardOnTangent) < 0.1 then
       begin
         var TempUp := Vector3Create(0, 1, 0);
-        if Abs(Vector3DotProduct(SurfDir, TempUp)) > 0.9 then TempUp := Vector3Create(1, 0, 0);
+        if Abs(Vector3DotProduct(SurfDir, TempUp)) > 0.9 then
+          TempUp := Vector3Create(1, 0, 0);
         ForwardOnTangent := Vector3CrossProduct(SurfDir, TempUp);
       end;
-
       ForwardOnTangent := Vector3Normalize(ForwardOnTangent);
       var TargetSurfDir := Vector3Normalize(Vector3Add(SurfDir, Vector3Scale(ForwardOnTangent, 0.3)));
       FCamera.target := Vector3Add(PlanetPos, Vector3Scale(TargetSurfDir, FSpaceWorld.GetLandedPlanetRadius() + 1.0));
     end;
+  end;
+
+  // Update Camera Target if we are tracking an actor (Second Life ALT focus)
+  if Assigned(FFocusTrackingActor) then
+  begin
+    if not FFocusTrackingActor.FIsDead then
+      FCamera.target := FFocusTrackingActor.Position
+    else
+      FFocusTrackingActor := nil;
+    FCameraMoved := True;
+  end;
+
+  // ====================================================================
+  // VEHICLE FLIGHT CONTROL LOGIC & THIRD-PERSON CAMERA OVERRIDE
+  // ====================================================================
+  if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
+  begin
+    FPlayerVehicle.ActivateBody;
+
+    // R / F: Speed control (Hold to change speed)
+    if (GetAsyncKeyState(Ord('R')) and $8000) <> 0 then
+      FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul + (0.5 * dt), 0.2, 10.0);
+    if (GetAsyncKeyState(Ord('F')) and $8000) <> 0 then
+      FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul - (0.5 * dt), 0.2, 10.0);
+
+    // Prevent Space Landing logic from interfering while driving
+    if FCurrentWorldBase = wbSpace then
+      FSpaceLandingState := 0;
+
+    // 1. get rotation from jolt
+    var JRot: JPH_Quat;
+    JPH_BodyInterface_GetRotation(FPlayerVehicle.FEngine.BodyInterface, FPlayerVehicle.FBodyID, @JRot);
+    FPlayerVehicle.FQuaternion.x := JRot.x;
+    FPlayerVehicle.FQuaternion.y := JRot.y;
+    FPlayerVehicle.FQuaternion.z := JRot.z;
+    FPlayerVehicle.FQuaternion.w := JRot.w;
+
+    var Fwd := Vector3RotateByQuaternion(Vector3Create(0, 0, 1), FPlayerVehicle.FQuaternion);
+    var FlatFwd := Vector3Create(Fwd.x, 0, Fwd.z);
+    FlatFwd := Vector3Normalize(FlatFwd);
+
+    var Vel := Vector3Create(0, 0, 0);
+    var AngVel := Vector3Create(0, 0, 0);
+    var BaseThrust: Single := 10.0 * FVehicleSpeedMul;
+
+    // W / S: Forward / Backward
+    if (GetAsyncKeyState(Ord('W')) and $8000) <> 0 then
+    begin
+      Vel.x := FlatFwd.x * BaseThrust;
+      Vel.z := FlatFwd.z * BaseThrust;
+    end
+    else if (GetAsyncKeyState(Ord('S')) and $8000) <> 0 then
+    begin
+      Vel.x := -FlatFwd.x * BaseThrust;
+      Vel.z := -FlatFwd.z * BaseThrust;
+    end;
+
+    // Q / E: Up / Down Thrust
+    if (GetAsyncKeyState(Ord('Q')) and $8000) <> 0 then
+      Vel.y := BaseThrust
+    else if (GetAsyncKeyState(Ord('E')) and $8000) <> 0 then
+      Vel.y := -BaseThrust;
+
+    // A / D: Yaw Rotation
+    if (GetAsyncKeyState(Ord('A')) and $8000) <> 0 then
+      AngVel.y := 2.0
+    else if (GetAsyncKeyState(Ord('D')) and $8000) <> 0 then
+      AngVel.y := -2.0;
+
+    FPlayerVehicle.SetLinearVelocity(Vel);
+    FPlayerVehicle.SetAngularVelocity(AngVel);
+
+    // 2. Third-Person Camera: Cinematic chase cam!
+    var Back := Vector3Create(-FlatFwd.x, 0, -FlatFwd.z);
+
+    FCamera.position := Vector3Create(
+      FPlayerVehicle.Position.x + Back.x * 15.0,
+      FPlayerVehicle.Position.y + 6.0,
+      FPlayerVehicle.Position.z + Back.z * 15.0
+    );
+
+    FCamera.target := Vector3Create(
+      FPlayerVehicle.Position.x + FlatFwd.x * 10.0,
+      FPlayerVehicle.Position.y + 3.0,
+      FPlayerVehicle.Position.z + FlatFwd.z * 10.0
+    );
+
+    FCamera.up := Vector3Create(0, 1, 0);
+    FCameraMoved := True;
   end;
 
 
@@ -3561,9 +3790,25 @@ begin
   if FSimulationRunning then
   begin
     try
+   // CRITICAL: Disable gravity ONLY while driving. 0 = No gravity, 1 = Normal.
+      if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
+        FPlayerVehicle.SetGravityFactor(0.0)
+      else if Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
+        FPlayerVehicle.SetGravityFactor(1.0);
+
       QueryPerformanceCounter(StartTime);
       FEngine.Update(PhysDt); // Pass slowed down time to Jolt Physics
       QueryPerformanceCounter(EndTime);
+
+      // CRITICAL FIX: Cancel out gravity for the driven vehicle so it can fly properly!
+      if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
+      begin
+        var V := FPlayerVehicle.GetLinearVelocity;
+        V.y := V.y - (FGravity * PhysDt); // Counter the gravity that was just applied by Jolt
+        FPlayerVehicle.SetLinearVelocity(V);
+        FPlayerVehicle.SetRotation(FPlayerVehicle.Quaternion);
+      end;
+
       QueryPerformanceFrequency(Freq);
       FLastPhysicsTime := (EndTime - StartTime) * 1000.0 / Freq;
       FActiveBodies := 0;
@@ -3950,7 +4195,7 @@ begin
       rlPopMatrix();
     end;
   end;
-   if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) then
+  if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) then
     FSpaceWorld.RenderShadows;
 end;
 
@@ -4032,451 +4277,467 @@ begin
   ActorColorLoc := GetShaderLocation(FLightShader, 'diffuse');
   BeginMode3D(FCamera);
 
-  // 1. Draw Skybox (Infinite background)
-  if FSkyboxModel.meshes <> nil then
+  if FIsLoadingWorld then
   begin
-    rlDisableDepthMask();
-    ViewMat := GetCameraMatrix(FCamera);
-    ProjMat := MatrixPerspective(FCamera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
-    SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
-    SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
-
-    // SPACE WORLD: Render the infinite procedural cosmos instead of a static texture
-    if (FCurrentWorldBase = wbSpace) then
+    // Just render the skybox if it exists, so we don't see a void
+    if FSkyboxModel.meshes <> nil then
     begin
-      if Assigned(FSpaceWorld) then
-        FSpaceWorld.Render(FCamera);
-    end
-    // HOLODECK: Draw pure black skybox (no texture)
-    else if (FCurrentWorldBase = wbHolodeck) then
-    begin
+      rlDisableDepthMask();
       var BlackSkyColor: TColorB := BLACK;
       DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
-    end
-    // NORMAL WORLD (Land/Island): Draw standard skybox with day/night gradient shader
-    else
-    begin
-      if FSkyboxTex.id > 0 then
-        FSkyboxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSkyboxTex;
+      rlEnableDepthMask();
+    end;
+  end
+  else
+  begin
 
-      rlDisableBackfaceCulling();
-      DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
-      rlEnableBackfaceCulling();
+  // 1. Draw Skybox (Infinite background)
+    if FSkyboxModel.meshes <> nil then
+    begin
+      rlDisableDepthMask();
+      ViewMat := GetCameraMatrix(FCamera);
+      ProjMat := MatrixPerspective(FCamera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
+      SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
+      SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
+
+    // SPACE WORLD: Render the infinite procedural cosmos instead of a static texture
+      if (FCurrentWorldBase = wbSpace) then
+      begin
+        if Assigned(FSpaceWorld) then
+          FSpaceWorld.Render(FCamera);
+      end
+    // HOLODECK: Draw pure black skybox (no texture)
+      else if (FCurrentWorldBase = wbHolodeck) then
+      begin
+        var BlackSkyColor: TColorB := BLACK;
+        DrawModel(FSkyboxModel, FCamera.position, 1.0, BlackSkyColor);
+      end
+    // NORMAL WORLD (Land/Island): Draw standard skybox with day/night gradient shader
+      else
+      begin
+        if FSkyboxTex.id > 0 then
+          FSkyboxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSkyboxTex;
+
+        rlDisableBackfaceCulling();
+        DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
+        rlEnableBackfaceCulling();
+      end;
+
+      rlEnableDepthMask();
     end;
 
-    rlEnableDepthMask();
-  end;
-
   // 2. Draw Floor with Lighting Shader
-  if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
-    BeginShaderMode(FLightShader);
+    if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
+      BeginShaderMode(FLightShader);
 
-  if FCurrentWorldBase = wbLand then
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN)
-  else if FCurrentWorldBase = wbSpace then
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(20, 20), BLACK)
-  else if FCurrentWorldBase = wbHolodeck then
-    DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK)
-  else if FCurrentWorldBase = wbIsland then
-  begin
-    if Assigned(FIslandWorld) then
-      FIslandWorld.Draw(FCamera);
-  end;
+    if FCurrentWorldBase = wbLand then
+      DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN)
+    else if FCurrentWorldBase = wbSpace then
+      DrawPlane(Vector3Create(0, 0, 0), Vector2Create(20, 20), BLACK)
+    else if FCurrentWorldBase = wbHolodeck then
+      DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK)
+    else if FCurrentWorldBase = wbIsland then
+    begin
+      if Assigned(FIslandWorld) then
+        FIslandWorld.Draw(FCamera);
+    end;
 
-  if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
+    if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
+      EndShaderMode();
+
     EndShaderMode();
 
-  EndShaderMode();
-
-  if FCurrentWorldBase = wbHolodeck then
-  begin
-    var WarmOrange: TColorB;
-    WarmOrange.r := 255;
-    WarmOrange.g := 130;
-    WarmOrange.b := 0;
-    WarmOrange.a := 255;
-    DrawHolodeckGrid(200, 5.0, Fade(WarmOrange, 0.85));
-  end;
+    if FCurrentWorldBase = wbHolodeck then
+    begin
+      var WarmOrange: TColorB;
+      WarmOrange.r := 255;
+      WarmOrange.g := 130;
+      WarmOrange.b := 0;
+      WarmOrange.a := 255;
+      DrawHolodeckGrid(200, 5.0, Fade(WarmOrange, 0.85));
+    end;
 
   // 3. Draw Clouds
-  if (FCloudModel.meshes <> nil) and ((FCurrentWorldBase = wbLand) or (FCurrentWorldBase = wbIsland)) then
-  begin
-    BeginShaderMode(FCloudShader);
-    DrawModel(FCloudModel, Vector3Create(FCamera.position.x, 150, FCamera.position.z), 1.0, WHITE);
-    EndShaderMode();
-  end;
+    if (FCloudModel.meshes <> nil) and ((FCurrentWorldBase = wbLand) or (FCurrentWorldBase = wbIsland)) then
+    begin
+      BeginShaderMode(FCloudShader);
+      DrawModel(FCloudModel, Vector3Create(FCamera.position.x, 150, FCamera.position.z), 1.0, WHITE);
+      EndShaderMode();
+    end;
 
   // 4. Draw Actors (Your physics objects)
-  MaxDist := FMaxRenderDistance;
-  CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
-  ModelMatLoc := GetShaderLocation(FLightShader, 'matModel');
-  rlSetBlendMode(BLEND_ALPHA);
+    MaxDist := FMaxRenderDistance;
+    CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
+    ModelMatLoc := GetShaderLocation(FLightShader, 'matModel');
+    rlSetBlendMode(BLEND_ALPHA);
 
-  for i := 0 to FEngine.Count - 1 do
-  begin
-    Actor := FEngine.Items[i];
-    if Assigned(Actor) and Actor.Visible then
+    for i := 0 to FEngine.Count - 1 do
     begin
-      if (Actor.UserData <> nil) and PItemData(Actor.UserData)^.IsProjectile then
-        Continue;
-
-      Dist := Vector3Distance(Actor.Position, FCamera.position);
-      if FDistanceCulling and (Dist > MaxDist) then
-        Continue;
-
-      ToActor := Vector3Subtract(Actor.Position, FCamera.position);
-      ToActorNorm := Vector3Normalize(ToActor);
-      DotP := Vector3DotProduct(ToActorNorm, CamForward);
-      if FFrustumCulling and (DotP < 0.5) then
-        Continue;
-
-      rlPushMatrix();
-      Pos := Actor.Position;
-      rlTranslatef(Pos.x, Pos.y, Pos.z);
-
-      Axis := Vector3Create(1, 1, 1);
-      Angle := 0;
-      if Actor.Quaternion.w < 1.0 then
-        QuaternionToAxisAngle(Actor.Quaternion, @Axis, @Angle);
-      rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
-      rlDrawRenderBatchActive();
-      BeginShaderMode(FLightShader);
-      ModelMat := rlGetMatrixTransform();
-      SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
-      if Actor.ShapeType = stModel then
+      Actor := FEngine.Items[i];
+      if Assigned(Actor) and Actor.Visible then
       begin
-        // 1. Determine the exact mesh size using the original model matrix
-        var BBox := GetModelBoundingBox(Actor.FModel);
-        var MeshW := BBox.max.x - BBox.min.x;
-        var MeshH := BBox.max.y - BBox.min.y;
-        var MeshD := BBox.max.z - BBox.min.z;
-        var MaxDim := Max(MeshW, Max(MeshH, MeshD));
-        if MaxDim <= 0 then
-          MaxDim := 1.0;
+        if (Actor.UserData <> nil) and PItemData(Actor.UserData)^.IsProjectile then
+          Continue;
 
-        // 2. Calculate the base scale that the Ghost preview uses
-        var BaseDrawScale := 1.0 / MaxDim;
+        Dist := Vector3Distance(Actor.Position, FCamera.position);
+        if FDistanceCulling and (Dist > MaxDist) then
+          Continue;
 
-        // 3. Calculate the offset so it sits perfectly centered in the Jolt collider
-        var CenterX := ((BBox.max.x + BBox.min.x) / 2) * BaseDrawScale;
-        var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * BaseDrawScale;
-        var NormMinY := BBox.min.y * BaseDrawScale;
-        var OffsetY := -NormMinY - (MeshH * BaseDrawScale * 1.0) + 0.5;
+        ToActor := Vector3Subtract(Actor.Position, FCamera.position);
+        ToActorNorm := Vector3Normalize(ToActor);
+        DotP := Vector3DotProduct(ToActorNorm, CamForward);
+        if FFrustumCulling and (DotP < 0.5) then
+          Continue;
 
-        // 4. Apply translations
-        rlTranslatef(-CenterX, OffsetY, -CenterZ);
+        rlPushMatrix();
+        Pos := Actor.Position;
+        rlTranslatef(Pos.x, Pos.y, Pos.z);
 
-        // 5. Update shader matrix (required for correct shadow mapping)
+        Axis := Vector3Create(1, 1, 1);
+        Angle := 0;
+        if Actor.Quaternion.w < 1.0 then
+          QuaternionToAxisAngle(Actor.Quaternion, @Axis, @Angle);
+        rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
+
+        rlDrawRenderBatchActive();
+        BeginShaderMode(FLightShader);
         ModelMat := rlGetMatrixTransform();
         SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
 
+        if Actor.ShapeType = stModel then
+        begin
+        // 1. Determine the exact mesh size using the original model matrix
+          var BBox := GetModelBoundingBox(Actor.FModel);
+          var MeshW := BBox.max.x - BBox.min.x;
+          var MeshH := BBox.max.y - BBox.min.y;
+          var MeshD := BBox.max.z - BBox.min.z;
+          var MaxDim := Max(MeshW, Max(MeshH, MeshD));
+          if MaxDim <= 0 then
+            MaxDim := 1.0;
+
+        // 2. Calculate the base scale that the Ghost preview uses
+          var BaseDrawScale := 1.0 / MaxDim;
+
+        // 3. Calculate the offset so it sits perfectly centered in the Jolt collider
+          var CenterX := ((BBox.max.x + BBox.min.x) / 2) * BaseDrawScale;
+          var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * BaseDrawScale;
+          var NormMinY := BBox.min.y * BaseDrawScale;
+          var OffsetY := -NormMinY - (MeshH * BaseDrawScale * 1.0) + 0.5;
+
+        // 4. Apply translations
+          rlTranslatef(-CenterX, OffsetY, -CenterZ);
+
+        // 5. Update shader matrix (required for correct shadow mapping)
+          ModelMat := rlGetMatrixTransform();
+          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+
         // 6. Pass the diffuse color to the shader
-        var TintCol: TColorB := GetActorColor(Actor);
-        ColorShaderVec[0] := TintCol.r / 255.0;
-        ColorShaderVec[1] := TintCol.g / 255.0;
-        ColorShaderVec[2] := TintCol.b / 255.0;
-        ColorShaderVec[3] := Actor.ActAlpha;
-        SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+          var TintCol: TColorB := GetActorColor(Actor);
+          ColorShaderVec[0] := TintCol.r / 255.0;
+          ColorShaderVec[1] := TintCol.g / 255.0;
+          ColorShaderVec[2] := TintCol.b / 255.0;
+          ColorShaderVec[3] := Actor.ActAlpha;
+          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
 
         // 7. EXACT GHOST LOGIC: Save matrix, set to Identity, draw, restore!
-        var OldTransform: TMatrix := Actor.FModel.transform;
-        Actor.FModel.transform := MatrixIdentity();
+          var OldTransform: TMatrix := Actor.FModel.transform;
+          Actor.FModel.transform := MatrixIdentity();
 
         // 8. Draw the model with DrawModelEx.
-        var FinalScaleX := (BaseDrawScale * Actor.Scale.x) + 1;
-        var FinalScaleY := (BaseDrawScale * Actor.Scale.y) + 1;
-        var FinalScaleZ := (BaseDrawScale * Actor.Scale.z) + 1;
-        DrawModelEx(Actor.FModel, Vector3Create(0, 0, 0), Vector3Create(0, 0, 0), 0, Vector3Create(FinalScaleX, FinalScaleY, FinalScaleZ), Fade(TintCol, Actor.ActAlpha));
+          var FinalScaleX := (BaseDrawScale * Actor.Scale.x) + 1;
+          var FinalScaleY := (BaseDrawScale * Actor.Scale.y) + 1;
+          var FinalScaleZ := (BaseDrawScale * Actor.Scale.z) + 1;
+          DrawModelEx(Actor.FModel, Vector3Create(0, 0, 0), Vector3Create(0, 0, 0), 0, Vector3Create(FinalScaleX, FinalScaleY, FinalScaleZ), Fade(TintCol, Actor.ActAlpha));
 
         // 9. Restore original matrix so the model keeps its internal scale for the next frame
-        Actor.FModel.transform := OldTransform;
-      end
-      else
-      begin
-        var C: TColorB := GetActorColor(Actor);
-        ColorShaderVec[0] := C.r / 255.0;
-        ColorShaderVec[1] := C.g / 255.0;
-        ColorShaderVec[2] := C.b / 255.0;
-        ColorShaderVec[3] := Actor.ActAlpha;
-        SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+          Actor.FModel.transform := OldTransform;
+        end
+        else
+        begin
+          var C: TColorB := GetActorColor(Actor);
+          ColorShaderVec[0] := C.r / 255.0;
+          ColorShaderVec[1] := C.g / 255.0;
+          ColorShaderVec[2] := C.b / 255.0;
+          ColorShaderVec[3] := Actor.ActAlpha;
+          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
 
         // ====================================================================
         // PIANO KEY LOGIC: CHECK THIS FIRST SO IT NEVER GETS OVERRIDDEN!
         // ====================================================================
-        if Actor.IsPianoKey then
-        begin
-          if Actor.IsPressed then
-            rlTranslatef(0, -0.08, 0);
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          C := Actor.ActColor;
-          ColorShaderVec[0] := C.r / 255.0;
-          ColorShaderVec[1] := C.g / 255.0;
-          ColorShaderVec[2] := C.b / 255.0;
-          ColorShaderVec[3] := 1.0;
-          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
-          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
-        end
-        else if Actor.ShapeType = stSphere then
-        begin
-          var SphereScale: Single := Max(Actor.Scale.x, Max(Actor.Scale.y, Actor.Scale.z)) * 0.5;
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawModel(FSphereModel, Vector3Create(0, 0, 0), SphereScale, GetActorColor(Actor));
-        end
-        else if Actor.ShapeType = stBox then
-        begin
-          if Actor.FVideoTexture.id > 0 then
+          if Actor.IsPianoKey then
           begin
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture;
-            ColorShaderVec[0] := 1.0;
-            ColorShaderVec[1] := 1.0;
-            ColorShaderVec[2] := 1.0;
-            ColorShaderVec[3] := 1.0;
-            SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-          end
-          else
-          begin
+            if Actor.IsPressed then
+              rlTranslatef(0, -0.08, 0);
+            rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-            C := GetActorColor(Actor);
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            C := Actor.ActColor;
             ColorShaderVec[0] := C.r / 255.0;
             ColorShaderVec[1] := C.g / 255.0;
             ColorShaderVec[2] := C.b / 255.0;
-            ColorShaderVec[3] := C.A / 255.0;
+            ColorShaderVec[3] := 1.0;
             SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-          end;
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          if Actor.FVideoTexture.id > 0 then
-            DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, WHITE)
-          else
-            DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
-          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
-        end
-        else if Actor.ShapeType = stBomb then
-        begin
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawModel(FSphereModel, Vector3Create(0, 0, 0), 0.5, GetActorColor(Actor));
-        end
-        else if Actor.ShapeType = stCapsule then
-        begin
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          rlPushMatrix();
-          rlTranslatef(0.0, -0.5, 0.0);
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawModel(FCapsuleModel, Vector3Create(0, -0.5, 0), 1.0, GetActorColor(Actor));
-          DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, BLACK);
-          rlPopMatrix();
-        end
-        else if Actor.ShapeType = stPyramid then
-        begin
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          rlTranslatef(0.0, -0.25, 0.0);
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawModel(FPyramidModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
-          rlPushMatrix();
-          rlRotatef(45.0, 0.0, 1.0, 0.0);
-          DrawCylinderWiresEx(Vector3Create(0, 1, 0), Vector3Create(0, 0, 0), 0.0, 0.5, 4, BLACK);
-          rlPopMatrix();
-        end
-        else if Actor.ShapeType = stPrism then
-        begin
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          rlPushMatrix();
-          rlTranslatef(0.0, -0.5, 0.0);
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawModel(FPrismModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
-          rlPopMatrix;
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          rlPushMatrix;
-          rlRotatef(90.0, 0.0, 1.0, 0.0);
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 3, BLACK);
-          rlPopMatrix;
-        end
+            DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
+            DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+          end
+          else if Actor.ShapeType = stSphere then
+          begin
+            var SphereScale: Single := Max(Actor.Scale.x, Max(Actor.Scale.y, Actor.Scale.z)) * 0.5;
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawModel(FSphereModel, Vector3Create(0, 0, 0), SphereScale, GetActorColor(Actor));
+          end
+          else if Actor.ShapeType = stBox then
+          begin
+            if Actor.FVideoTexture.id > 0 then
+            begin
+              FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture;
+              ColorShaderVec[0] := 1.0;
+              ColorShaderVec[1] := 1.0;
+              ColorShaderVec[2] := 1.0;
+              ColorShaderVec[3] := 1.0;
+              SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+            end
+            else
+            begin
+              FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
+              C := GetActorColor(Actor);
+              ColorShaderVec[0] := C.r / 255.0;
+              ColorShaderVec[1] := C.g / 255.0;
+              ColorShaderVec[2] := C.b / 255.0;
+              ColorShaderVec[3] := C.A / 255.0;
+              SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+            end;
+            rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            if Actor.FVideoTexture.id > 0 then
+              DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, WHITE)
+            else
+              DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
+            DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+          end
+          else if Actor.ShapeType = stBomb then
+          begin
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawModel(FSphereModel, Vector3Create(0, 0, 0), 0.5, GetActorColor(Actor));
+          end
+          else if Actor.ShapeType = stCapsule then
+          begin
+            rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+            rlPushMatrix();
+            rlTranslatef(0.0, -0.5, 0.0);
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawModel(FCapsuleModel, Vector3Create(0, -0.5, 0), 1.0, GetActorColor(Actor));
+            DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, BLACK);
+            rlPopMatrix();
+          end
+          else if Actor.ShapeType = stPyramid then
+          begin
+            rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+            rlTranslatef(0.0, -0.25, 0.0);
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawModel(FPyramidModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
+            rlPushMatrix();
+            rlRotatef(45.0, 0.0, 1.0, 0.0);
+            DrawCylinderWiresEx(Vector3Create(0, 1, 0), Vector3Create(0, 0, 0), 0.0, 0.5, 4, BLACK);
+            rlPopMatrix();
+          end
+          else if Actor.ShapeType = stPrism then
+          begin
+            rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+            rlPushMatrix();
+            rlTranslatef(0.0, -0.5, 0.0);
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawModel(FPrismModel, Vector3Create(0, 0, 0), 1.0, GetActorColor(Actor));
+            rlPopMatrix;
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            rlPushMatrix;
+            rlRotatef(90.0, 0.0, 1.0, 0.0);
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 3, BLACK);
+            rlPopMatrix;
+          end
         // ====================================================================
         // 3D UI BUTTON (100% RESTORED AND UNTOUCHED)
         // ====================================================================
-        else if Actor.ShapeType = stButton then
-        begin
-          var BtnOffset: Single := 0.0;
-          if Actor.IsPressed then
-            BtnOffset := -0.03;
-          rlPushMatrix();
-          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-          var FrameCol: TColorB;
-          FrameCol.r := Max(0, Round(Actor.BaseColor.r * 0.5));
-          FrameCol.g := Max(0, Round(Actor.BaseColor.g * 0.5));
-          FrameCol.b := Max(0, Round(Actor.BaseColor.b * 0.5));
-          FrameCol.a := 255;
-          DrawCube(Vector3Create(0, 0, -0.1), 1.0, 1.0, 1.0, FrameCol);
-          rlPopMatrix();
-          rlPushMatrix();
-          rlTranslatef(0, 0, BtnOffset);
-          rlScalef(Actor.Scale.x * 0.85, Actor.Scale.y * 0.85, Actor.Scale.z);
-          if Actor.FVideoTexture.id > 0 then
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture
-          else if Actor.FButtonTexture.id > 0 then
-            FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FButtonTexture
-          else
+          else if Actor.ShapeType = stButton then
+          begin
+            var BtnOffset: Single := 0.0;
+            if Actor.IsPressed then
+              BtnOffset := -0.03;
+            rlPushMatrix();
+            rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+            var FrameCol: TColorB;
+            FrameCol.r := Max(0, Round(Actor.BaseColor.r * 0.5));
+            FrameCol.g := Max(0, Round(Actor.BaseColor.g * 0.5));
+            FrameCol.b := Max(0, Round(Actor.BaseColor.b * 0.5));
+            FrameCol.a := 255;
+            DrawCube(Vector3Create(0, 0, -0.1), 1.0, 1.0, 1.0, FrameCol);
+            rlPopMatrix();
+            rlPushMatrix();
+            rlTranslatef(0, 0, BtnOffset);
+            rlScalef(Actor.Scale.x * 0.85, Actor.Scale.y * 0.85, Actor.Scale.z);
+            if Actor.FVideoTexture.id > 0 then
+              FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FVideoTexture
+            else if Actor.FButtonTexture.id > 0 then
+              FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := Actor.FButtonTexture
+            else
+              FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
+            rlEnableBackfaceCulling();
+            ModelMat := rlGetMatrixTransform();
+            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+            DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
+            rlDisableBackfaceCulling();
             FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-          rlEnableBackfaceCulling();
-          ModelMat := rlGetMatrixTransform();
-          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
-          rlDisableBackfaceCulling();
-          FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
-          rlPopMatrix();
+            DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+            rlPopMatrix();
+          end;
+          EndShaderMode();
         end;
         EndShaderMode();
+        rlPopMatrix();
       end;
-      EndShaderMode();
-      rlPopMatrix();
     end;
-  end;
 
-  rlSetBlendMode(BLEND_ALPHA);
+    rlSetBlendMode(BLEND_ALPHA);
 
   // --- GHOST PREVIEW ---
-  if FIsBrushActive and FGhostVisible then
-  begin
-    rlPushMatrix;
-    var SurfaceY: Single := FGhostPos.y;
-    if (FBrushShape = stCapsule) or (FBrushShape = stPyramid) or (FBrushShape = stPrism) then
+    if FIsBrushActive and FGhostVisible then
     begin
-      if (FBrushShape = stPyramid) or (FBrushShape = stPrism) then
-        SurfaceY := FGhostPos.y + (1.5 * 0.5)
-      else
-        SurfaceY := FGhostPos.y + (1.0 * 0.5);
-    end
-    else if FBrushShape = stModel then
-    begin
-      var GBBOX := GetModelBoundingBox(FCustomModel);
-      var GMeshH: Single := GBBOX.max.y - GBBOX.min.y;
-      var GMaxDim: Single := Max(GBBOX.max.x - GBBOX.min.x, Max(GMeshH, GBBOX.max.z - GBBOX.min.z));
-      if GMaxDim <= 0 then
-        GMaxDim := 1.0;
-      var GUniformScale: Single := 1.0 / GMaxDim;
-      SurfaceY := FGhostPos.y + ((GMeshH * GUniformScale) * 0.5) + 0.75;
-    end;
-
-    if FBrushShape = stBox then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      DrawCube(Vector3Create(0, 0.5, 0), 1, 1, 1, Fade(WHITE, 0.4));
-      DrawCubeWires(Vector3Create(0, 0.5, 0), 1, 1, 1, YELLOW);
-    end
-    else if FBrushShape = stSphere then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      DrawSphere(Vector3Create(0, 0.5, 0), 0.5, Fade(WHITE, 0.4));
-      DrawSphereWires(Vector3Create(0, 0.5, 0), 0.5, 16, 16, YELLOW);
-    end
-    else if FBrushShape = stCapsule then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      DrawCylinderEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, Fade(WHITE, 0.4));
-      DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, YELLOW);
-    end
-    else if FBrushShape = stPyramid then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      rlRotatef(45.0, 0.0, 1.0, 0.0);
-      DrawCylinderEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.0, 0.5, 4, Fade(WHITE, 0.4));
-      DrawCylinderWiresEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.0, 0.5, 4, YELLOW);
-    end
-    else if FBrushShape = stPrism then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      rlRotatef(90.0, 0.0, 1.0, 0.0);
-      DrawCylinderEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.5, 0.5, 3, Fade(WHITE, 0.4));
-      DrawCylinderWiresEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.5, 0.5, 3, YELLOW);
-    end
-    else if FBrushShape = stModel then
-    begin
-      rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
-      if FCustomModel.meshes <> nil then
+      rlPushMatrix;
+      var SurfaceY: Single := FGhostPos.y;
+      if (FBrushShape = stCapsule) or (FBrushShape = stPyramid) or (FBrushShape = stPrism) then
+      begin
+        if (FBrushShape = stPyramid) or (FBrushShape = stPrism) then
+          SurfaceY := FGhostPos.y + (1.5 * 0.5)
+        else
+          SurfaceY := FGhostPos.y + (1.0 * 0.5);
+      end
+      else if FBrushShape = stModel then
       begin
         var GBBOX := GetModelBoundingBox(FCustomModel);
-        var GMeshSize := Vector3Create(GBBOX.max.x - GBBOX.min.x, GBBOX.max.y - GBBOX.min.y, GBBOX.max.z - GBBOX.min.z);
-        var GMaxDim: Single := Max(GMeshSize.x, Max(GMeshSize.y, GMeshSize.z));
+        var GMeshH: Single := GBBOX.max.y - GBBOX.min.y;
+        var GMaxDim: Single := Max(GBBOX.max.x - GBBOX.min.x, Max(GMeshH, GBBOX.max.z - GBBOX.min.z));
         if GMaxDim <= 0 then
           GMaxDim := 1.0;
         var GUniformScale: Single := 1.0 / GMaxDim;
-        var GCenterX := ((GBBOX.max.x + GBBOX.min.x) / 2) * GUniformScale;
-        var GCenterZ := ((GBBOX.max.z + GBBOX.min.z) / 2) * GUniformScale + 0.1;
-        var GMeshH: Single := GMeshSize.y * GUniformScale;
-        rlTranslatef(-GCenterX, -GMeshH * 0.5, -GCenterZ);
-        var OldTransform: TMatrix := FCustomModel.transform;
-        FCustomModel.transform := MatrixIdentity();
-        DrawModel(FCustomModel, Vector3Create(0, 0, 0), 1.1, Fade(WHITE, 0.4));
-        FCustomModel.transform := OldTransform;
+        SurfaceY := FGhostPos.y + ((GMeshH * GUniformScale) * 0.5) + 0.75;
       end;
-      DrawCubeWires(Vector3Create(0, 0, 0), 1, 1, 1, YELLOW);
-    end
-    else if FBrushShape = stBomb then
-    begin
-      rlTranslatef(FGhostPos.x, FGhostPos.y + 0.5, FGhostPos.z);
-      DrawSphere(Vector3Create(0, 0, 0), 0.5, Fade(RED, 0.5));
-      DrawSphereWires(Vector3Create(0, 0, 0), 0.5, 16, 16, YELLOW);
-    end;
-    rlPopMatrix;
-  end;
 
-  if Assigned(FItemSelected) and not FIsBrushActive and (FGizmoMode <> gmNone) then
-    DrawGizmo;
+      if FBrushShape = stBox then
+      begin
+        rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
+        DrawCube(Vector3Create(0, 0.5, 0), 1, 1, 1, Fade(WHITE, 0.4));
+        DrawCubeWires(Vector3Create(0, 0.5, 0), 1, 1, 1, YELLOW);
+      end
+      else if FBrushShape = stSphere then
+      begin
+        rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
+        DrawSphere(Vector3Create(0, 0.5, 0), 0.5, Fade(WHITE, 0.4));
+        DrawSphereWires(Vector3Create(0, 0.5, 0), 0.5, 16, 16, YELLOW);
+      end
+      else if FBrushShape = stCapsule then
+      begin
+        rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
+        DrawCylinderEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, Fade(WHITE, 0.4));
+        DrawCylinderWiresEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), 0.5, 0.5, 24, YELLOW);
+      end
+      else if FBrushShape = stPyramid then
+      begin
+        rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
+        rlRotatef(45.0, 0.0, 1.0, 0.0);
+        DrawCylinderEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.0, 0.5, 4, Fade(WHITE, 0.4));
+        DrawCylinderWiresEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.0, 0.5, 4, YELLOW);
+      end
+      else if FBrushShape = stPrism then
+      begin
+        rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
+        rlRotatef(90.0, 0.0, 1.0, 0.0);
+        DrawCylinderEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.5, 0.5, 3, Fade(WHITE, 0.4));
+        DrawCylinderWiresEx(Vector3Create(0, 0.75, 0), Vector3Create(0, -0.75, 0), 0.5, 0.5, 3, YELLOW);
+      end
+      else if FBrushShape = stModel then
+      begin
+        rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
+        if FCustomModel.meshes <> nil then
+        begin
+          var GBBOX := GetModelBoundingBox(FCustomModel);
+          var GMeshSize := Vector3Create(GBBOX.max.x - GBBOX.min.x, GBBOX.max.y - GBBOX.min.y, GBBOX.max.z - GBBOX.min.z);
+          var GMaxDim: Single := Max(GMeshSize.x, Max(GMeshSize.y, GMeshSize.z));
+          if GMaxDim <= 0 then
+            GMaxDim := 1.0;
+          var GUniformScale: Single := 1.0 / GMaxDim;
+          var GCenterX := ((GBBOX.max.x + GBBOX.min.x) / 2) * GUniformScale;
+          var GCenterZ := ((GBBOX.max.z + GBBOX.min.z) / 2) * GUniformScale + 0.1;
+          var GMeshH: Single := GMeshSize.y * GUniformScale;
+          rlTranslatef(-GCenterX, -GMeshH * 0.5, -GCenterZ);
+          var OldTransform: TMatrix := FCustomModel.transform;
+          FCustomModel.transform := MatrixIdentity();
+          DrawModel(FCustomModel, Vector3Create(0, 0, 0), 1.1, Fade(WHITE, 0.4));
+          FCustomModel.transform := OldTransform;
+        end;
+        DrawCubeWires(Vector3Create(0, 0, 0), 1, 1, 1, YELLOW);
+      end
+      else if FBrushShape = stBomb then
+      begin
+        rlTranslatef(FGhostPos.x, FGhostPos.y + 0.5, FGhostPos.z);
+        DrawSphere(Vector3Create(0, 0, 0), 0.5, Fade(RED, 0.5));
+        DrawSphereWires(Vector3Create(0, 0, 0), 0.5, 16, 16, YELLOW);
+      end;
+      rlPopMatrix;
+    end;
+
+    if Assigned(FItemSelected) and not FIsBrushActive and (FGizmoMode <> gmNone) then
+      DrawGizmo;
 
   // Draw projectiles
-  for i := 0 to High(FProjectiles) do
-  begin
-    if FProjectiles[i] = nil then
-      Continue;
-    BeginShaderMode(FLightShader);
-    rlPushMatrix;
-    Pos := FProjectiles[i].Position;
-    rlTranslatef(Pos.x, Pos.y + 0.3, Pos.z);
-    var Quat := FProjectiles[i].Quaternion;
-    Axis := Vector3Create(1, 1, 1);
-    Angle := 0;
-    if Quat.w < 1.0 then
-      QuaternionToAxisAngle(Quat, @Axis, @Angle);
-    rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-    rlScalef(0.3, 0.3, 0.3);
-    ModelMat := rlGetMatrixTransform();
-    SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-    DrawModel(FSphereModel, Vector3Create(0, 0, 0), 1.0, SKYBLUE);
-    rlPopMatrix;
-    EndShaderMode();
-  end;
+    for i := 0 to High(FProjectiles) do
+    begin
+      if FProjectiles[i] = nil then
+        Continue;
+      BeginShaderMode(FLightShader);
+      rlPushMatrix;
+      Pos := FProjectiles[i].Position;
+      rlTranslatef(Pos.x, Pos.y + 0.3, Pos.z);
+      var Quat := FProjectiles[i].Quaternion;
+      Axis := Vector3Create(1, 1, 1);
+      Angle := 0;
+      if Quat.w < 1.0 then
+        QuaternionToAxisAngle(Quat, @Axis, @Angle);
+      rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
+      rlScalef(0.3, 0.3, 0.3);
+      ModelMat := rlGetMatrixTransform();
+      SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+      DrawModel(FSphereModel, Vector3Create(0, 0, 0), 1.0, SKYBLUE);
+      rlPopMatrix;
+      EndShaderMode();
+    end;
 
-  if Assigned(FParticleEngine) then
-  begin
-    FParticleEngine.Render;
-  end;
+    if Assigned(FParticleEngine) then
+    begin
+      FParticleEngine.Render;
+    end;
 
-  if Assigned(FNanoFog) then
-  begin
-    FNanoFog.Render;
-  end;
+    if Assigned(FNanoFog) then
+    begin
+      FNanoFog.Render;
+    end;
 
-  dt := GetFrameTime();
-  UpdateProjectiles(dt * FTimeScale);
-  DrawSpawnEffects;
-  if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active then
-    FAliveHighlighter3D.Draw;
+    dt := GetFrameTime();
+    UpdateProjectiles(dt * FTimeScale);
+    DrawSpawnEffects;
+    if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active then
+      FAliveHighlighter3D.Draw;
+
+  end;
 
   EndMode3D();
 end;
@@ -4721,68 +4982,76 @@ var
   IconRect: TRectangle;
   I: Integer;
 begin
-  YOffset := Trunc(FHUDAnimY);
-  DrawRectangle(10, 10 + YOffset, 214, 50, Fade(BLACK, 0.8));
-  DrawRectangleLines(10, 10 + YOffset, 214, 50, RAYWHITE);
-  for I := 0 to 4 do
+  // --- LOADING SCREEN OVERLAY ---
+  if FIsLoadingWorld then
   begin
-    IconRect.x := 15 + (I * 40);
-    IconRect.y := 15 + YOffset;
-    IconRect.width := 30;
-    IconRect.height := 30;
-    DrawRectangleLines(Round(IconRect.x), Round(IconRect.y), 30, 30, RAYWHITE);
-    if I = 0 then
-      DrawRectangle(Round(IconRect.x + 8), Round(IconRect.y + 8), 14, 14, Fade(BLUE, 0.8))
-    else if I = 1 then
-      DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 15), 10, Fade(GREEN, 0.8))
-    else if I = 2 then
-    begin
-      DrawRectangle(Round(IconRect.x + 11), Round(IconRect.y + 6), 8, 18, Fade(GREEN, 0.8));
-      DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 6), 4, Fade(GREEN, 0.8));
-      DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 24), 4, Fade(GREEN, 0.8));
-    end
-    else if I = 3 then
-    begin
-      DrawRectangle(Round(IconRect.x + 5), Round(IconRect.y + 5), 20, 20, Fade(PURPLE, 0.8));
-      DrawLine(Round(IconRect.x + 5), Round(IconRect.y + 5), Round(IconRect.x + 25), Round(IconRect.y + 25), RAYWHITE);
-      DrawLine(Round(IconRect.x + 25), Round(IconRect.y + 5), Round(IconRect.x + 5), Round(IconRect.y + 25), RAYWHITE);
-    end
-    else if I = 4 then
-    begin
-      DrawTriangle(Vector2Create(IconRect.x + 5, IconRect.y + 25), Vector2Create(IconRect.x + 25, IconRect.y + 25), Vector2Create(IconRect.x + 15, IconRect.y + 5), Fade(COL_PRISM, 0.8));
-    end;
-  end;
-  fpsBuf := AnsiString(Format('FPS: %d', [GetFPS()]));
-  DrawText(PAnsiChar(fpsBuf), 10, GetScreenHeight() - 30, 20, GREEN);
-
-  // --- PARTICLE COUNTER ---
-  if Assigned(FParticleEngine) then
-  begin
-    var PartBuf := AnsiString(Format('PARTICLES: %d', [FParticleEngine.ParticleCount]));
-    DrawText(PAnsiChar(PartBuf), 10, GetScreenHeight() - 60, 20, YELLOW);
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.9));
   end
   else
-    DrawText('PARTICLES: 0', 10, GetScreenHeight() - 60, 20, YELLOW);
+  begin
+    YOffset := Trunc(FHUDAnimY);
+    DrawRectangle(10, 10 + YOffset, 214, 50, Fade(BLACK, 0.8));
+    DrawRectangleLines(10, 10 + YOffset, 214, 50, RAYWHITE);
+    for I := 0 to 4 do
+    begin
+      IconRect.x := 15 + (I * 40);
+      IconRect.y := 15 + YOffset;
+      IconRect.width := 30;
+      IconRect.height := 30;
+      DrawRectangleLines(Round(IconRect.x), Round(IconRect.y), 30, 30, RAYWHITE);
+      if I = 0 then
+        DrawRectangle(Round(IconRect.x + 8), Round(IconRect.y + 8), 14, 14, Fade(BLUE, 0.8))
+      else if I = 1 then
+        DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 15), 10, Fade(GREEN, 0.8))
+      else if I = 2 then
+      begin
+        DrawRectangle(Round(IconRect.x + 11), Round(IconRect.y + 6), 8, 18, Fade(GREEN, 0.8));
+        DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 6), 4, Fade(GREEN, 0.8));
+        DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 24), 4, Fade(GREEN, 0.8));
+      end
+      else if I = 3 then
+      begin
+        DrawRectangle(Round(IconRect.x + 5), Round(IconRect.y + 5), 20, 20, Fade(PURPLE, 0.8));
+        DrawLine(Round(IconRect.x + 5), Round(IconRect.y + 5), Round(IconRect.x + 25), Round(IconRect.y + 25), RAYWHITE);
+        DrawLine(Round(IconRect.x + 25), Round(IconRect.y + 5), Round(IconRect.x + 5), Round(IconRect.y + 25), RAYWHITE);
+      end
+      else if I = 4 then
+      begin
+        DrawTriangle(Vector2Create(IconRect.x + 5, IconRect.y + 25), Vector2Create(IconRect.x + 25, IconRect.y + 25), Vector2Create(IconRect.x + 15, IconRect.y + 5), Fade(COL_PRISM, 0.8));
+      end;
+    end;
+    fpsBuf := AnsiString(Format('FPS: %d', [GetFPS()]));
+    DrawText(PAnsiChar(fpsBuf), 10, GetScreenHeight() - 30, 20, GREEN);
+
+  // --- PARTICLE COUNTER ---
+    if Assigned(FParticleEngine) then
+    begin
+      var PartBuf := AnsiString(Format('PARTICLES: %d', [FParticleEngine.ParticleCount]));
+      DrawText(PAnsiChar(PartBuf), 10, GetScreenHeight() - 60, 20, YELLOW);
+    end
+    else
+      DrawText('PARTICLES: 0', 10, GetScreenHeight() - 60, 20, YELLOW);
   // -----------------------------
-  if FSimulationRunning then
-    DrawText('SIMULATION RUNNING', 10, GetScreenHeight() - 90, 20, GREEN)
-  else
-    DrawText('SIMULATION PAUSED', 10, GetScreenHeight() - 90, 20, YELLOW);
-  case FGizmoMode of
-    gmTranslate:
-      ModeStr := 'Mode: Translate (Move)';
-    gmRotate:
-      ModeStr := 'Mode: Rotate (Turn)';
-    gmScale:
-      ModeStr := 'Mode: Scale (Resize)';
-    gmDragAndThrow:
-      ModeStr := 'Mode: Drag & Throw';
-    gmUniformScale:
-      ModeStr := 'Mode: Uniform Scale (Corner Resize)';
-  else
-    ModeStr := 'Mode: None (UI Interaction)';
+    if FSimulationRunning then
+      DrawText('SIMULATION RUNNING', 10, GetScreenHeight() - 90, 20, GREEN)
+    else
+      DrawText('SIMULATION PAUSED', 10, GetScreenHeight() - 90, 20, YELLOW);
+    case FGizmoMode of
+      gmTranslate:
+        ModeStr := 'Mode: Translate (Move)';
+      gmRotate:
+        ModeStr := 'Mode: Rotate (Turn)';
+      gmScale:
+        ModeStr := 'Mode: Scale (Resize)';
+      gmDragAndThrow:
+        ModeStr := 'Mode: Drag & Throw';
+      gmUniformScale:
+        ModeStr := 'Mode: Uniform Scale (Corner Resize)';
+    else
+      ModeStr := 'Mode: None (UI Interaction)';
+    end;
+    DrawText(PAnsiChar(ModeStr), 10, GetScreenHeight() - 120, 20, RAYWHITE);
   end;
-  DrawText(PAnsiChar(ModeStr), 10, GetScreenHeight() - 120, 20, RAYWHITE);
 end;
 
 procedure TRaylibSandbox.DoViewportReady;
@@ -5527,6 +5796,7 @@ begin
     FBombActor := nil;
     FBombExploded := False;
     FActiveSpawnEffects := nil;
+    FFocusTrackingActor := nil;
   finally
     FLock.Leave;
   end;

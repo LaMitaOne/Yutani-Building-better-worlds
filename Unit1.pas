@@ -96,7 +96,8 @@ type
     btnDemat: TButton;
     btnNanoFog: TButton;
     btnEndNanoFog: TButton;
-    tmrShowControls: TTimer;
+    Button1: TButton;
+    tmrStartEngine: TTimer;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -151,7 +152,8 @@ type
     procedure btnDematClick(Sender: TObject);
     procedure btnNanoFogClick(Sender: TObject);
     procedure btnEndNanoFogClick(Sender: TObject);
-    procedure tmrShowControlsTimer(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure tmrStartEngineTimer(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -208,12 +210,6 @@ const
   clrBackground = clBlack;
   clrFontSilver = clSilver;
 begin
-  pnlRight.Hide;
-  pnlLeft.Hide;
-  pnlBottom.Hide;
-  Splitter3.Hide;
-  Splitter1.Hide;
-  tmrShowControls.Enabled := True;
 
   FYutaniIntro := TYutaniSkiaIntro.Create;
   FYutaniIntro.Start;
@@ -244,7 +240,6 @@ begin
   FSandbox := TRaylibSandbox.Create(Self);
   FSandbox.Parent := Self;
   FSandbox.Align := alClient;
-  FSandbox.Active := True;
   FSandbox.OnViewportReady := HandleViewportReady;
   FSandbox.OnActorSpawned := HandleActorSpawned;
   FSandbox.OnActorDestroyed := HandleActorDestroyed;
@@ -256,7 +251,7 @@ end;
 
 procedure TForm1.FormShow(Sender: TObject);
 begin
-  tmrStatsUpdater.Enabled := True;
+  tmrStartEngine.Enabled := True;
 end;
 // --- DARK MODE DRAWING METHODS ---
 
@@ -319,6 +314,11 @@ begin
   lblInfo.Caption := 'Tool: Drag & Throw Active.';
 end;
 
+
+procedure TForm1.Button1Click(Sender: TObject);
+begin
+  FYutaniIntro.Start;
+end;
 
 procedure TForm1.btnNanoFogClick(Sender: TObject);
 begin
@@ -791,6 +791,13 @@ begin
   FSandbox.DayNightTime := TImepicker1.Time;
 end;
 
+procedure TForm1.tmrStartEngineTimer(Sender: TObject);
+begin
+  tmrStartEngine.Enabled := False;
+  FSandbox.Active := True;
+  tmrStatsUpdater.Enabled := True;
+end;
+
 procedure TForm1.HandleObjectSelected(Sender: TObject; Actor: TA3DComponent);
 begin
   TThread.Queue(nil,
@@ -912,18 +919,6 @@ end;
 procedure TForm1.HandleEngineException(Sender: TObject; const Args: TEngineExceptionEventArgs);
 begin
   lblInfo.Caption := Format('ERR [%s]: %s', [Args.Context, Args.Message]);
-end;
-
-procedure TForm1.tmrShowControlsTimer(Sender: TObject);
-begin
-  tmrShowControls.Enabled := False;
-  pnlRight.Show;
-  Splitter3.Show;
-  Splitter1.Show;
-  Splitter3.Align := alRIght;
-  pnlRight.left := Splitter3.Left +2;
-  pnlLeft.Show;
-  pnlBottom.Show;
 end;
 
 procedure TForm1.tmrStatsUpdaterTimer(Sender: TObject);

@@ -1,13 +1,24 @@
 unit Yutani.SkiaIntro;
 
+{==============================================================================*
+ *  Yutani Skia Intro - Holographic Particle Stream Startup
+ *------------------------------------------------------------------------------
+ *  Author : Lara Miriam Tamy Reschke / LamitaOne
+ *
+ *  Description:
+ *    Renders a sci-fi startup intro using Skia4delphi. Spawns a stream of
+ *    particles that rain down from the top to seamlessly form the Yutani logo
+ *    and text. Features aggressive micro-hovering, holographic flicker, and
+ *    a final glowing pulse before fading out smoothly.
+ *==============================================================================}
+
 interface
 
 uses
-  Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Types, System.UITypes,
-  System.Math, System.SyncObjs, System.Diagnostics,
-  System.Generics.Collections, System.Generics.Defaults,
-  Vcl.Forms, Vcl.Graphics, Vcl.Imaging.pngimage,
-  Skia;
+  Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Types,
+  System.UITypes, System.Math, System.SyncObjs, System.Diagnostics,
+  System.Generics.Collections, System.Generics.Defaults, Vcl.Forms, Vcl.Graphics,
+  Vcl.Imaging.pngimage, Skia;
 
 type
   { Defines the current phase of the intro animation }
@@ -41,16 +52,17 @@ type
     FStateTimer: Double;
     FAlpha: Single;
     FGlowStrength: Single;
-
     FThread: TThread;
     FLock: TCriticalSection;
     FThreadActive: Boolean;
-
     FParticles: array of TParticle;
     FTargetPoints: array of TPointF;
     FSpawnTimer: Double;
     FNextTargetIdx: Integer;
-
+    FGlobalTime: Double; // Tracks continuous time for organic animations
+    FScanY: Single;      // Tracks the Y position of the top-to-bottom scanline
+    FMinY: Single;       // Minimum Y of all targets
+    FMaxY: Single;       // Maximum Y of all targets
     procedure MakeClickThroughFullScreen;
     procedure UpdateIntroWindow;
     procedure GenerateParticleTargets;
@@ -97,16 +109,17 @@ procedure THighResTimer.HybridWaitUntil(const ATargetTicks, ASpinNanoseconds: In
 var
   SpinTicks, Remaining: Int64;
 begin
-  if Frequency = 0 then Exit;
+  if Frequency = 0 then
+    Exit;
   SpinTicks := (ASpinNanoseconds * Frequency) div 1000000000;
-
   Remaining := ATargetTicks - GetTicks;
   while Remaining > SpinTicks do
   begin
     Sleep(1);
     Remaining := ATargetTicks - GetTicks;
   end;
-  while GetTicks < ATargetTicks do ;
+  while GetTicks < ATargetTicks do
+    ;
 end;
 
 {==============================================================================
@@ -119,7 +132,6 @@ var
   LogoSize: Integer;
 begin
   LogoSize := 350;
-
   { Setup the transparent, click-through overlay form }
   FForm := TForm.Create(nil);
   FForm.FormStyle := fsStayOnTop;
@@ -165,66 +177,117 @@ end;
 
 procedure TYutaniSkiaIntro.GenerateParticleTargets;
 var
-  TempBmp: TBitmap;
+  TempBmp, TempLogoBmp: TBitmap;
   x, y: Integer;
   TxtWidth, TxtHeight: Integer;
   TextStr: string;
   FTextBounds: TRectF;
-  PtCount: Integer;
+  LogoFile: string;
+  PngImage: TPngImage;
+  LogoSize: Integer;
+  TmpTargetList: TList<TPointF>;
+  PixelColor: TColor;
+  R, G, B: Byte;
 begin
   TextStr := 'YUTANI';
+  TmpTargetList := TList<TPointF>.Create;
   TempBmp := TBitmap.Create;
+  TempLogoBmp := TBitmap.Create;
+  PngImage := TPngImage.Create;
   try
-    TempBmp.SetSize(300, 100);
-    TempBmp.Canvas.Brush.Color := clBlack;
-    TempBmp.Canvas.FillRect(Rect(0, 0, TempBmp.Width, TempBmp.Height));
-
-    { Configure font for the hologram text }
-    TempBmp.Canvas.Font.Name := 'Impact';
-    TempBmp.Canvas.Font.Size := 40;
-    TempBmp.Canvas.Font.Style := [fsBold];
-    TempBmp.Canvas.Font.Color := clWhite;
-
-    TxtWidth := TempBmp.Canvas.TextWidth(TextStr);
-    TxtHeight := TempBmp.Canvas.TextHeight(TextStr);
-
-    { Calculate the target area for the text at the bottom of the window }
-    FTextBounds := TRectF.Create(
-      (FBuffer.Width - TxtWidth) / 2,
-      FBuffer.Height - TxtHeight - 30,
-      (FBuffer.Width + TxtWidth) / 2,
-      FBuffer.Height - 30
-    );
-
-    TempBmp.Canvas.TextOut((TempBmp.Width - TxtWidth) div 2, 0, TextStr);
-
-    SetLength(FTargetPoints, 500);
-    PtCount := 0;
-
-    { Rasterize the text into points. Using modulo 3 creates gaps,
-      giving it a dotted hologram appearance. }
-    for y := 0 to TempBmp.Height - 1 do
+    // --- Rasterize the logo image into particle targets ---
+    LogoSize := 250;
+    LogoFile := ExtractFilePath(ParamStr(0)) + 'ressources\yutani_logo.png';
+    if FileExists(LogoFile) then
     begin
-      for x := 0 to TempBmp.Width - 1 do
+      PngImage.LoadFromFile(LogoFile);
+      TempLogoBmp.PixelFormat := pf24bit;
+      TempLogoBmp.SetSize(LogoSize, LogoSize);
+      TempLogoBmp.Canvas.Brush.Color := clBlack;
+      TempLogoBmp.Canvas.FillRect(Rect(0, 0, LogoSize, LogoSize));
+      TempLogoBmp.Canvas.StretchDraw(Rect(0, 0, LogoSize, LogoSize), PngImage);
+
+      for y := 0 to TempLogoBmp.Height - 1 do
       begin
-        if (TempBmp.Canvas.Pixels[x, y] = clWhite) and ((x mod 3 = 0) and (y mod 3 = 0)) then
+        for x := 0 to TempLogoBmp.Width - 1 do
         begin
-          if PtCount < Length(FTargetPoints) then
+          PixelColor := TempLogoBmp.Canvas.Pixels[x, y];
+          R := GetRValue(PixelColor);
+          G := GetGValue(PixelColor);
+          B := GetBValue(PixelColor);
+          // Check for non-black pixels to form the logo, using modulo for dotted gaps
+          if ((R > 20) or (G > 20) or (B > 20)) and ((x mod 6 = 0) and (y mod 6 = 0)) then
           begin
-            FTargetPoints[PtCount] := TPointF.Create(
-              FTextBounds.Left + x - ((TempBmp.Width - TxtWidth) / 2),
-              FTextBounds.Top + y
-            );
-            Inc(PtCount);
+            // Offset to position the logo at the top center
+            TmpTargetList.Add(TPointF.Create(((FBuffer.Width - LogoSize) / 2) + x, 20 + y));
           end;
         end;
       end;
     end;
 
-    SetLength(FTargetPoints, PtCount);
-    SetLength(FParticles, PtCount);
+    // --- Rasterize the text into particle targets ---
+    TempBmp.SetSize(350, 120); // Increased size to accommodate larger font
+    TempBmp.Canvas.Brush.Color := clBlack;
+    TempBmp.Canvas.FillRect(Rect(0, 0, TempBmp.Width, TempBmp.Height));
+    { Configure font for the hologram text }
+    TempBmp.Canvas.Font.Name := 'Impact';
+    TempBmp.Canvas.Font.Size := 56; // Increased font size
+    TempBmp.Canvas.Font.Style := [fsBold];
+    TempBmp.Canvas.Font.Color := clWhite;
+    TxtWidth := TempBmp.Canvas.TextWidth(TextStr);
+    TxtHeight := TempBmp.Canvas.TextHeight(TextStr);
+    { Calculate the target area for the text at the bottom of the window }
+    FTextBounds := TRectF.Create((FBuffer.Width - TxtWidth) / 2, FBuffer.Height - TxtHeight - 30, (FBuffer.Width + TxtWidth) / 2, FBuffer.Height - 30);
+    TempBmp.Canvas.TextOut((TempBmp.Width - TxtWidth) div 2, 0, TextStr);
+
+    { Rasterize the text into points. Using modulo 4 creates gaps,
+      giving it a dotted hologram appearance. }
+    for y := 0 to TempBmp.Height - 1 do
+    begin
+      for x := 0 to TempBmp.Width - 1 do
+      begin
+        if (TempBmp.Canvas.Pixels[x, y] = clWhite) and ((x mod 4 = 0) and (y mod 4 = 0)) then
+        begin
+          TmpTargetList.Add(TPointF.Create(FTextBounds.Left + x - ((TempBmp.Width - TxtWidth) / 2), FTextBounds.Top + y));
+        end;
+      end;
+    end;
+
+    // Sort targets strictly by Y, then X to ensure a uniform top-to-bottom build
+    // Wrap the anonymous function in TComparer<TPointF>.Construct for Delphi 11 compatibility
+    TmpTargetList.Sort(TComparer<TPointF>.Construct(
+      function(const Left, Right: TPointF): Integer
+      begin
+        if Abs(Left.Y - Right.Y) < 0.1 then
+          Result := Round(Left.X - Right.X)
+        else if Left.Y < Right.Y then
+          Result := -1
+        else
+          Result := 1;
+      end));
+
+    // Find vertical bounds for the scanline logic
+    FMinY := 10000;
+    FMaxY := 0;
+    for x := 0 to TmpTargetList.Count - 1 do
+    begin
+      if TmpTargetList[x].y < FMinY then
+        FMinY := TmpTargetList[x].y;
+      if TmpTargetList[x].y > FMaxY then
+        FMaxY := TmpTargetList[x].y;
+    end;
+
+    // --- Assign targets and particles arrays ---
+    SetLength(FTargetPoints, TmpTargetList.Count);
+    SetLength(FParticles, TmpTargetList.Count);
+    for x := 0 to TmpTargetList.Count - 1 do
+      FTargetPoints[x] := TmpTargetList[x];
+
   finally
+    TmpTargetList.Free;
     TempBmp.Free;
+    TempLogoBmp.Free;
+    PngImage.Free;
   end;
 end;
 
@@ -241,53 +304,61 @@ begin
   FSpawnTimer := 0;
   FNextTargetIdx := 0;
   FGlowStrength := 0;
+  FGlobalTime := 0; // Reset global animation time
+  FScanY := FMinY;  // Initialize scanline at the top of the formation
 end;
 
 procedure TYutaniSkiaIntro.UpdateParticles(const DeltaTime: Double);
 const
-  SPAWN_INTERVAL = 0.005; // Spawn a new particle every 5ms
+  BUILD_TIME = 2.0; // Time to sweep the scanline from top to bottom
 var
   I: Integer;
-  LogoCenter: TPointF;
+  ScanSpeed: Single;
   ToTarget, Dir, Tangent, Accel: TPointF;
   Dist, Force: Single;
 begin
-  LogoCenter := TPointF.Create(FBuffer.Width / 2, 145);
+  // Advance scanline to control the uniform top-to-bottom formation
+  ScanSpeed := (FMaxY - FMinY + 50) / BUILD_TIME;
+  FScanY := FScanY + ScanSpeed * DeltaTime;
 
-  { Spawn particles continuously from the center of the logo }
-  FSpawnTimer := FSpawnTimer + DeltaTime;
-  while (FSpawnTimer >= SPAWN_INTERVAL) and (FNextTargetIdx < Length(FParticles)) do
+  { Spawn particles continuously from the top }
+  while (FNextTargetIdx < Length(FParticles)) and (FTargetPoints[FNextTargetIdx].y <= FScanY) do
   begin
-    FSpawnTimer := FSpawnTimer - SPAWN_INTERVAL;
-
     FParticles[FNextTargetIdx].LifeTime := 0;
-    FParticles[FNextTargetIdx].Pos := LogoCenter + TPointF.Create(Random(10) - 5, Random(10) - 5);
-    FParticles[FNextTargetIdx].Vel := TPointF.Create(Random(20) - 10, Random(20) + 10);
+    // Spawn from the top of the screen for a strict top-to-bottom build
+    FParticles[FNextTargetIdx].Pos := TPointF.Create(FTargetPoints[FNextTargetIdx].x + Random(40) - 20, -20 + Random(20));
+    FParticles[FNextTargetIdx].Vel := TPointF.Create(Random(20) - 10, Random(40) + 20);
     FParticles[FNextTargetIdx].Target := FTargetPoints[FNextTargetIdx];
     FParticles[FNextTargetIdx].ReachedTarget := False;
-
     Inc(FNextTargetIdx);
   end;
 
   { Update active particles }
   for I := 0 to FNextTargetIdx - 1 do
   begin
-    if FParticles[I].ReachedTarget then Continue;
+    if FParticles[I].ReachedTarget then
+    begin
+      // Aggressive micro-hovering: Erratic spring and noise for an unstable "Mother" computer vibe
+      ToTarget := FParticles[I].Target - FParticles[I].Pos;
+      Accel := ToTarget * 2000.0; // Very strong spring to maintain formation
+      Accel := Accel + TPointF.Create((Random - 0.5) * 5000.0, (Random - 0.5) * 5000.0); // High erratic noise
+      FParticles[I].Vel := FParticles[I].Vel + Accel * DeltaTime;
+      FParticles[I].Vel := FParticles[I].Vel * (1.0 - (20.0 * DeltaTime)); // Strong friction
+      FParticles[I].Pos := FParticles[I].Pos + (FParticles[I].Vel * DeltaTime);
+      Continue;
+    end;
 
     FParticles[I].LifeTime := FParticles[I].LifeTime + DeltaTime;
-
-    { Safety mechanism: Force particles to their target after 2 seconds
+    { Safety mechanism: Force particles to their target after 3.5 seconds
       to guarantee the animation can proceed to the glow state. }
-    if FParticles[I].LifeTime > 2.0 then
+    if FParticles[I].LifeTime > 3.5 then
     begin
       FParticles[I].ReachedTarget := True;
       FParticles[I].Pos := FParticles[I].Target;
       Continue;
     end;
-
     ToTarget := FParticles[I].Target - FParticles[I].Pos;
     Dist := ToTarget.Length;
-
     if Dist < 2.0 then
     begin
       FParticles[I].ReachedTarget := True;
@@ -297,10 +368,8 @@ begin
     begin
       Dir := ToTarget.Normalize;
       Tangent := TPointF.Create(-Dir.Y, Dir.X); // Tangential force for a swirling motion
-
       Force := Min(2500, Dist * 10);
       Accel := Dir * Force + Tangent * (Force * 0.15);
-
       FParticles[I].Vel := FParticles[I].Vel + Accel * DeltaTime;
       FParticles[I].Vel := FParticles[I].Vel * (1.0 - (2.5 * DeltaTime)); // Friction
       FParticles[I].Pos := FParticles[I].Pos + (FParticles[I].Vel * DeltaTime);
@@ -314,9 +383,8 @@ var
   Paint, GlowPaint: ISkPaint;
   PAlpha, LifeFactor: Single;
   BaseColor, GlowColor: TAlphaColor;
-  BlurRadius: Single;
-  FinalAlpha: Integer;
-  Size: Single;
+  BlurRadius, FinalAlpha, Size: Single;
+  Flicker, PhaseOffset: Single;
 begin
   { Base Paint for the solid particle core }
   Paint := TSkPaint.Create;
@@ -333,37 +401,46 @@ begin
 
   for I := 0 to FNextTargetIdx - 1 do
   begin
-    if FParticles[I].LifeTime < 0 then Continue;
-
+    if FParticles[I].LifeTime < 0 then
+      Continue;
     LifeFactor := FParticles[I].LifeTime / 0.3;
-    if LifeFactor > 1.0 then LifeFactor := 1.0;
+    if LifeFactor > 1.0 then
+      LifeFactor := 1.0;
 
     if FParticles[I].ReachedTarget then
       PAlpha := 0.8
     else
       PAlpha := 0.4 * LifeFactor;
 
-    { Calculate dynamic glow and size }
-    BlurRadius := 4.0;
-    Size := 1.2;
+    // Calculate an individual phase offset for organic breathing
+    PhaseOffset := FGlobalTime * 4.0 + (I * 0.05);
+
+    // Simulate holographic interference and neon flicker
+    Flicker := 0.85 + (Sin(FGlobalTime * 15.0 + I * 1.3) * 0.1);
+    Flicker := Flicker + (Sin(FGlobalTime * 33.0 + I * 2.7) * 0.05); // Higher frequency noise
+    Flicker := EnsureRange(Flicker, 0.6, 1.1); // Clamp to avoid blackout
+
+    BlurRadius := (5.0 + (Sin(PhaseOffset) * 2.0)) * Flicker;
+    Size := 1.5 + (Sin(PhaseOffset) * 0.2);
 
     if (FState = isTextGlow) and FParticles[I].ReachedTarget then
     begin
-      BlurRadius := 4.0 + (8.0 * FGlowStrength);
-      Size := 1.2 + (1.0 * FGlowStrength);
+      BlurRadius := BlurRadius + (8.0 * FGlowStrength);
+      Size := Size + (1.5 * FGlowStrength);
       GlowPaint.Color := GlowColor;
       Paint.Color := $FFFFFFFF; // Core flashes white during glow
-      FinalAlpha := Round(255 * FAlpha * (PAlpha + (0.6 * FGlowStrength)));
-      GlowPaint.Alpha := EnsureRange(FinalAlpha, 0, 255);
-      Paint.Alpha := EnsureRange(FinalAlpha, 0, 255);
+      FinalAlpha := 255 * FAlpha * (PAlpha + (0.6 * FGlowStrength)) * Flicker;
+      GlowPaint.Alpha := EnsureRange(Round(FinalAlpha), 0, 255);
+      Paint.Alpha := EnsureRange(Round(FinalAlpha), 0, 255);
     end
     else
     begin
       GlowPaint.Color := GlowColor;
       Paint.Color := BaseColor;
-      FinalAlpha := Round(255 * FAlpha * PAlpha);
-      GlowPaint.Alpha := EnsureRange(Round(FinalAlpha * 0.6), 0, 255); // Glow is slightly more transparent
-      Paint.Alpha := EnsureRange(FinalAlpha, 0, 255);
+      FinalAlpha := 255 * FAlpha * PAlpha * Flicker;
+      // Strong always-on base glow with applied flicker
+      GlowPaint.Alpha := EnsureRange(Round(FinalAlpha * 0.9), 0, 255);
+      Paint.Alpha := EnsureRange(Round(FinalAlpha), 0, 255);
     end;
 
     { Draw the blurred glow aura first }
@@ -402,9 +479,9 @@ end;
 
 procedure TYutaniSkiaIntro.StartThread;
 begin
-  if FThreadActive then Exit;
+  if FThreadActive then
+    Exit;
   FThreadActive := True;
-
   FThread := TThread.CreateAnonymousThread(
     procedure
     var
@@ -420,20 +497,20 @@ begin
       try
         Timer.Init;
         Freq := Timer.Frequency;
-        if Freq <= 0 then Freq := 10000000;
-
+        if Freq <= 0 then
+          Freq := 10000000;
         NowTicks := Timer.GetTicks;
         LastFrameTicks := NowTicks;
         NextFrame := NowTicks;
-
         while not TThread.CheckTerminated and (FState <> isFinished) do
         begin
           NowTicks := Timer.GetTicks;
           DeltaSec := (NowTicks - LastFrameTicks) / Freq;
           LastFrameTicks := NowTicks;
-          if (DeltaSec <= 0) or (DeltaSec > 0.25) then DeltaSec := 1 / 60;
-
+          if (DeltaSec <= 0) or (DeltaSec > 0.25) then
+            DeltaSec := 1 / 60;
           FStateTimer := FStateTimer + DeltaSec;
+          FGlobalTime := FGlobalTime + DeltaSec; // Increment global continuous time
 
           { 1. LOGIC STATE MACHINE }
           case FState of
@@ -451,7 +528,6 @@ begin
             isParticlesForm:
               begin
                 UpdateParticles(DeltaSec);
-
                 { Proceed to glow only when all particles have reached their target }
                 AllReached := True;
                 if FNextTargetIdx < Length(FParticles) then
@@ -467,7 +543,6 @@ begin
                     end;
                   end;
                 end;
-
                 if AllReached then
                 begin
                   FState := isTextGlow;
@@ -476,10 +551,10 @@ begin
               end;
             isTextGlow:
               begin
-                { Execute the glow pulse over 0.8 seconds using a sine wave }
-                if FStateTimer <= 0.8 then
+                { Execute the glow pulse over 0.5 seconds using a sine wave }
+                if FStateTimer <= 0.5 then
                 begin
-                  FGlowStrength := Sin(FStateTimer / 0.8 * Pi);
+                  FGlowStrength := Sin(FStateTimer / 0.5 * Pi);
                 end
                 else
                 begin
@@ -510,10 +585,11 @@ begin
             end);
 
           { 3. FRAME PACING }
-          FrameTicks := Round(Freq / 60);
+              FrameTicks := Round(Freq / 60);
           NextFrame := NextFrame + FrameTicks;
           NowTicks := Timer.GetTicks;
-          if NextFrame <= NowTicks then NextFrame := NowTicks + FrameTicks;
+          if NextFrame <= NowTicks then
+            NextFrame := NowTicks + FrameTicks;
           Timer.HybridWaitUntil(NextFrame, SPIN_THRESHOLD_NS);
         end;
       finally
@@ -521,9 +597,9 @@ begin
         {$IFDEF MSWINDOWS}
         timeEndPeriod(1);
         {$ENDIF}
+        FForm.Hide;
       end;
     end);
-
   FThread.FreeOnTerminate := False;
   FThread.Start;
 end;
@@ -547,34 +623,20 @@ var
   MemStream: TMemoryStream;
   PngImage: TPngImage;
   Paint: ISkPaint;
-  SrcRect, DestRect: TRectF;
-  LogoSize: Single;
 begin
   { Create an offscreen Skia surface for drawing }
   ImgInfo := TSkImageInfo.Create(FBuffer.Width, FBuffer.Height);
   Surface := TSkSurface.MakeRaster(ImgInfo);
-  if not Assigned(Surface) then Exit;
-
+  if not Assigned(Surface) then
+    Exit;
   Canvas := Surface.Canvas;
   Canvas.Clear(TAlphaColorRec.Null);
-
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
   Paint.Alpha := Round(255 * FAlpha);
 
-  { Draw the logo unscaled and centered horizontally }
-  if Assigned(FLogoImage) then
-  begin
-    SrcRect := TRectF.Create(0, 0, FLogoImage.Width, FLogoImage.Height);
-    LogoSize := 250;
-    DestRect := TRectF.Create(
-      (FBuffer.Width - LogoSize) / 2,
-      20,
-      (FBuffer.Width + LogoSize) / 2,
-      20 + LogoSize
-    );
-    Canvas.DrawImageRect(FLogoImage, SrcRect, DestRect, Paint);
-  end;
+  { The logo is now formed by particles, so static drawing is skipped
+    to allow the particle formation effect to be fully visible. }
 
   { Draw the particle system }
   RenderParticles(Canvas);
@@ -653,3 +715,4 @@ begin
 end;
 
 end.
+
