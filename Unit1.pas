@@ -96,7 +96,6 @@ type
     btnDemat: TButton;
     btnNanoFog: TButton;
     btnEndNanoFog: TButton;
-    Button1: TButton;
     tmrStartEngine: TTimer;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
@@ -152,7 +151,6 @@ type
     procedure btnDematClick(Sender: TObject);
     procedure btnNanoFogClick(Sender: TObject);
     procedure btnEndNanoFogClick(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
     procedure tmrStartEngineTimer(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
@@ -212,6 +210,8 @@ const
 begin
 
   FYutaniIntro := TYutaniSkiaIntro.Create;
+  FYutaniIntro.LogoPath := ExtractFilePath(ParamStr(0)) + 'ressources\yutani_logo.png';
+  FYutaniIntro.TextString := 'YUTANI';
   FYutaniIntro.Start;
 
   Width := 1200;
@@ -314,11 +314,6 @@ begin
   lblInfo.Caption := 'Tool: Drag & Throw Active.';
 end;
 
-
-procedure TForm1.Button1Click(Sender: TObject);
-begin
-  FYutaniIntro.Start;
-end;
 
 procedure TForm1.btnNanoFogClick(Sender: TObject);
 begin

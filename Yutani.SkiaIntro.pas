@@ -1,7 +1,7 @@
 unit Yutani.SkiaIntro;
 
 {==============================================================================*
- *  Yutani Skia Intro - Holographic Particle Stream Startup
+ *  Yutani Skia Intro v0.1 - Holographic Particle Stream Startup (Universal)
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -10,6 +10,9 @@ unit Yutani.SkiaIntro;
  *    particles that rain down from the top to seamlessly form the Yutani logo
  *    and text. Features aggressive micro-hovering, holographic flicker, and
  *    a final glowing pulse before fading out smoothly.
+ *
+ *  Usage:
+ *    var Intro := TYutaniSkiaIntro.Create('C:\mylogo.png', 'MY APP', True);
  *==============================================================================}
 
 interface
@@ -22,8 +25,7 @@ uses
 
 type
   { Defines the current phase of the intro animation }
-  TIntroState = (isFadeIn, isParticlesForm, isTextGlow, isFadeOut, isFinished);
-
+  TIntroState = (isIdle, isFadeIn, isParticlesForm, isTextGlow, isFadeOut, isFinished);
   { High Precision Timer based on TStopwatch (QPC on Windows) }
   THighResTimer = record
     Frequency: Int64;
@@ -31,7 +33,6 @@ type
     function GetTicks: Int64; inline;
     procedure HybridWaitUntil(const ATargetTicks, ASpinNanoseconds: Int64);
   end;
-
   { Represents a single particle used to form the hologram text }
   TParticle = record
     Pos, Vel, Target: TPointF;
@@ -40,9 +41,7 @@ type
   end;
 
   { TYutaniSkiaIntro }
-  { A threaded, high-performance Skia-based intro renderer.
-    Displays an image, spawns a stream of particles to form text,
-    triggers a holographic glow, and fades out smoothly. }
+  { A threaded, high-performance Skia-based intro renderer. }
   TYutaniSkiaIntro = class
   private
     FForm: TForm;
@@ -59,10 +58,16 @@ type
     FTargetPoints: array of TPointF;
     FSpawnTimer: Double;
     FNextTargetIdx: Integer;
-    FGlobalTime: Double; // Tracks continuous time for organic animations
-    FScanY: Single;      // Tracks the Y position of the top-to-bottom scanline
-    FMinY: Single;       // Minimum Y of all targets
-    FMaxY: Single;       // Maximum Y of all targets
+    FGlobalTime: Double;
+    FScanY: Single;
+    FMinY: Single;
+    FMaxY: Single;
+
+    // Universal Properties
+    FLogoPath: string;
+    FTextString: string;
+    FAutoStart: Boolean;
+
     procedure MakeClickThroughFullScreen;
     procedure UpdateIntroWindow;
     procedure GenerateParticleTargets;
@@ -72,12 +77,17 @@ type
     procedure StartThread;
     procedure StopThread;
     procedure RenderFrame;
+    procedure SetTextString(const Value: string);
+    procedure SetLogoPath(const Value: string);
   public
-    constructor Create;
+    constructor Create(const ALogoPath: string = ''; const ATextString: string = ''; AAutoStart: Boolean = False); overload;
     destructor Destroy; override;
     procedure Start;
     procedure Stop;
     function IntroFinished: Boolean;
+
+    property LogoPath: string read FLogoPath write SetLogoPath;
+    property TextString: string read FTextString write SetTextString;
   end;
 
 implementation
@@ -101,10 +111,6 @@ begin
   Result := TStopwatch.GetTimestamp;
 end;
 
-{ HybridWaitUntil
-  Waits until the counter reaches ATargetTicks using a two-phase strategy:
-    Phase 1: Sleep(1) while far from the deadline.
-    Phase 2: Busy-spin the remaining microseconds for frame-exact timing. }
 procedure THighResTimer.HybridWaitUntil(const ATargetTicks, ASpinNanoseconds: Int64);
 var
   SpinTicks, Remaining: Int64;
@@ -126,7 +132,7 @@ end;
   TYutaniSkiaIntro Implementation
 ==============================================================================}
 
-constructor TYutaniSkiaIntro.Create;
+constructor TYutaniSkiaIntro.Create(const ALogoPath: string; const ATextString: string; AAutoStart: Boolean);
 var
   ExePath, LogoFile: string;
   LogoSize: Integer;
@@ -149,16 +155,29 @@ begin
   FBuffer.AlphaFormat := afDefined;
   FBuffer.SetSize(LogoSize, LogoSize);
 
-  { Load the main logo image directly into ISkImage }
+  // Default values if nothing is passed
   ExePath := ExtractFilePath(ParamStr(0));
-  LogoFile := ExePath + 'ressources\yutani_logo.png';
-  if FileExists(LogoFile) then
-    FLogoImage := TSkImage.MakeFromEncodedFile(LogoFile)
+  if ALogoPath <> '' then
+    FLogoPath := ALogoPath
+  else
+    FLogoPath := ExePath + 'ressources\yutani_logo.png';
+
+  if ATextString <> '' then
+    FTextString := ATextString
+  else
+    FTextString := 'YUTANI';
+
+  { Load the main logo image directly into ISkImage }
+  if FileExists(FLogoPath) then
+    FLogoImage := TSkImage.MakeFromEncodedFile(FLogoPath)
   else
     FLogoImage := nil;
 
   FLock := TCriticalSection.Create;
   GenerateParticleTargets;
+
+  if AAutoStart then
+    Start;
 end;
 
 destructor TYutaniSkiaIntro.Destroy;
@@ -168,6 +187,28 @@ begin
   FForm.Free;
   FLock.Free;
   inherited;
+end;
+
+procedure TYutaniSkiaIntro.SetLogoPath(const Value: string);
+begin
+  if FState = isIdle then
+  begin
+    FLogoPath := Value;
+    if FileExists(FLogoPath) then
+      FLogoImage := TSkImage.MakeFromEncodedFile(FLogoPath)
+    else
+      FLogoImage := nil;
+    GenerateParticleTargets;
+  end;
+end;
+
+procedure TYutaniSkiaIntro.SetTextString(const Value: string);
+begin
+  if FState = isIdle then
+  begin
+    FTextString := Value;
+    GenerateParticleTargets;
+  end;
 end;
 
 procedure TYutaniSkiaIntro.MakeClickThroughFullScreen;
@@ -180,7 +221,6 @@ var
   TempBmp, TempLogoBmp: TBitmap;
   x, y: Integer;
   TxtWidth, TxtHeight: Integer;
-  TextStr: string;
   FTextBounds: TRectF;
   LogoFile: string;
   PngImage: TPngImage;
@@ -189,7 +229,6 @@ var
   PixelColor: TColor;
   R, G, B: Byte;
 begin
-  TextStr := 'YUTANI';
   TmpTargetList := TList<TPointF>.Create;
   TempBmp := TBitmap.Create;
   TempLogoBmp := TBitmap.Create;
@@ -197,7 +236,7 @@ begin
   try
     // --- Rasterize the logo image into particle targets ---
     LogoSize := 250;
-    LogoFile := ExtractFilePath(ParamStr(0)) + 'ressources\yutani_logo.png';
+    LogoFile := FLogoPath;
     if FileExists(LogoFile) then
     begin
       PngImage.LoadFromFile(LogoFile);
@@ -226,19 +265,19 @@ begin
     end;
 
     // --- Rasterize the text into particle targets ---
-    TempBmp.SetSize(350, 120); // Increased size to accommodate larger font
+    TempBmp.SetSize(350, 120);
     TempBmp.Canvas.Brush.Color := clBlack;
     TempBmp.Canvas.FillRect(Rect(0, 0, TempBmp.Width, TempBmp.Height));
     { Configure font for the hologram text }
     TempBmp.Canvas.Font.Name := 'Impact';
-    TempBmp.Canvas.Font.Size := 56; // Increased font size
+    TempBmp.Canvas.Font.Size := 56;
     TempBmp.Canvas.Font.Style := [fsBold];
     TempBmp.Canvas.Font.Color := clWhite;
-    TxtWidth := TempBmp.Canvas.TextWidth(TextStr);
-    TxtHeight := TempBmp.Canvas.TextHeight(TextStr);
+    TxtWidth := TempBmp.Canvas.TextWidth(FTextString);
+    TxtHeight := TempBmp.Canvas.TextHeight(FTextString);
     { Calculate the target area for the text at the bottom of the window }
     FTextBounds := TRectF.Create((FBuffer.Width - TxtWidth) / 2, FBuffer.Height - TxtHeight - 30, (FBuffer.Width + TxtWidth) / 2, FBuffer.Height - 30);
-    TempBmp.Canvas.TextOut((TempBmp.Width - TxtWidth) div 2, 0, TextStr);
+    TempBmp.Canvas.TextOut((TempBmp.Width - TxtWidth) div 2, 0, FTextString);
 
     { Rasterize the text into points. Using modulo 4 creates gaps,
       giving it a dotted hologram appearance. }
@@ -254,7 +293,6 @@ begin
     end;
 
     // Sort targets strictly by Y, then X to ensure a uniform top-to-bottom build
-    // Wrap the anonymous function in TComparer<TPointF>.Construct for Delphi 11 compatibility
     TmpTargetList.Sort(TComparer<TPointF>.Construct(
       function(const Left, Right: TPointF): Integer
       begin
@@ -462,6 +500,8 @@ end;
 
 procedure TYutaniSkiaIntro.Start;
 begin
+  if FState <> isIdle then Exit;
+
   InitParticles;
   FState := isFadeIn;
   FStateTimer := 0;
@@ -475,6 +515,7 @@ begin
   StopThread;
   if Assigned(FForm) then
     FForm.Hide;
+  FState := isFinished;
 end;
 
 procedure TYutaniSkiaIntro.StartThread;
@@ -715,4 +756,3 @@ begin
 end;
 
 end.
-
