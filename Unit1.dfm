@@ -11583,19 +11583,20 @@ object Form1: TForm1
   TextHeight = 15
   object Splitter1: TSplitter
     Left = 200
-    Top = 0
+    Top = 34
     Width = 5
-    Height = 647
+    Height = 613
     Color = 3684408
     ParentColor = False
     ExplicitLeft = 201
+    ExplicitTop = 0
     ExplicitHeight = 441
   end
   object Splitter3: TSplitter
     Left = 895
-    Top = 0
+    Top = 34
     Width = 5
-    Height = 647
+    Height = 613
     Align = alRight
     Color = 3684408
     ParentColor = False
@@ -11605,15 +11606,15 @@ object Form1: TForm1
   end
   object pnlLeft: TPanel
     Left = 0
-    Top = 0
+    Top = 34
     Width = 200
-    Height = 647
+    Height = 613
     Align = alLeft
     BevelOuter = bvNone
     Color = clBlack
     ParentBackground = False
     TabOrder = 0
-    ExplicitHeight = 646
+    ExplicitHeight = 612
     object Splitter2: TSplitter
       Left = 0
       Top = 288
@@ -11653,18 +11654,18 @@ object Form1: TForm1
       Left = 0
       Top = 296
       Width = 200
-      Height = 351
+      Height = 317
       Align = alClient
       BevelOuter = bvNone
       Color = clBlack
       ParentBackground = False
       TabOrder = 1
-      ExplicitHeight = 350
+      ExplicitHeight = 316
       object StringGrid1: TStringGrid
         Left = 0
         Top = 0
         Width = 200
-        Height = 351
+        Height = 317
         Align = alClient
         BevelInner = bvNone
         BevelOuter = bvNone
@@ -11682,7 +11683,7 @@ object Form1: TForm1
         OnDrawCell = StringGrid1DrawCell
         OnSelectCell = StringGrid1SelectCell
         OnSetEditText = StringGrid1SetEditText
-        ExplicitHeight = 350
+        ExplicitHeight = 316
       end
     end
   end
@@ -11727,45 +11728,34 @@ object Form1: TForm1
       OnClick = btnToolDragThrowClick
       ExplicitLeft = 897
     end
-    object btnPlayPause: TButton
+    object btnShoot: TButton
       Left = 997
       Top = 6
       Width = 90
       Height = 25
       Anchors = [akTop, akRight]
-      Caption = 'play/pause'
-      TabOrder = 1
-      OnClick = btnPlayPauseClick
-      ExplicitLeft = 993
-    end
-    object btnShoot: TButton
-      Left = 805
-      Top = 6
-      Width = 90
-      Height = 25
-      Anchors = [akTop, akRight]
       Caption = 'Shoot'
-      TabOrder = 2
+      TabOrder = 1
       OnClick = btnShootClick
-      ExplicitLeft = 801
+      ExplicitLeft = 993
     end
   end
   object pnlRight: TPanel
     Left = 900
-    Top = 0
+    Top = 34
     Width = 200
-    Height = 647
+    Height = 613
     Align = alRight
     BevelOuter = bvNone
     Caption = 'pnlRight'
     TabOrder = 2
     ExplicitLeft = 896
-    ExplicitHeight = 646
+    ExplicitHeight = 612
     object PageControl1: TPageControl
       Left = 0
       Top = 0
       Width = 200
-      Height = 647
+      Height = 613
       Margins.Left = 0
       Margins.Top = 0
       Margins.Right = 0
@@ -11780,7 +11770,7 @@ object Form1: TForm1
       ParentFont = False
       TabOrder = 0
       StyleElements = [seFont, seClient]
-      ExplicitHeight = 646
+      ExplicitHeight = 612
       object tsScene: TTabSheet
         Caption = 'Scene'
         Font.Charset = DEFAULT_CHARSET
@@ -11791,16 +11781,17 @@ object Form1: TForm1
         ParentFont = False
         DesignSize = (
           192
-          617)
+          583)
         object Shape1: TShape
           Left = 0
           Top = 0
           Width = 192
-          Height = 617
+          Height = 583
           Align = alClient
           Brush.Color = clBlack
           ExplicitLeft = 2
           ExplicitTop = -2
+          ExplicitHeight = 617
         end
         object lblstatic: TLabel
           Left = 114
@@ -11830,24 +11821,13 @@ object Form1: TForm1
           ParentFont = False
           Transparent = True
         end
-        object btnClearScene: TButton
-          Left = 65
-          Top = 583
-          Width = 33
-          Height = 25
-          Anchors = [akLeft, akBottom]
-          Caption = 'Clear'
-          TabOrder = 0
-          OnClick = btnClearSceneClick
-          ExplicitTop = 582
-        end
         object btnSpawnCubes: TButton
           Left = 13
           Top = 17
           Width = 74
           Height = 25
           Caption = 'Cube'
-          TabOrder = 1
+          TabOrder = 0
           OnClick = btnSpawnCubesClick
         end
         object btnSpawnSpheres: TButton
@@ -11856,7 +11836,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Spheres'
-          TabOrder = 2
+          TabOrder = 1
           OnClick = btnSpawnSpheresClick
         end
         object btnSpawnPyramids: TButton
@@ -11865,7 +11845,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Pyramids'
-          TabOrder = 3
+          TabOrder = 2
           OnClick = btnSpawnPyramidsClick
         end
         object btnSpawnCapsules: TButton
@@ -11874,30 +11854,8 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Capsule'
-          TabOrder = 4
+          TabOrder = 3
           OnClick = btnSpawnCapsulesClick
-        end
-        object btnSceneSave: TButton
-          Left = 144
-          Top = 583
-          Width = 33
-          Height = 25
-          Anchors = [akLeft, akBottom]
-          Caption = 'Save'
-          TabOrder = 5
-          OnClick = btnSceneSaveClick
-          ExplicitTop = 582
-        end
-        object btnSceneLoad: TButton
-          Left = 105
-          Top = 583
-          Width = 33
-          Height = 25
-          Anchors = [akLeft, akBottom]
-          Caption = 'Load'
-          TabOrder = 6
-          OnClick = btnSceneLoadClick
-          ExplicitTop = 582
         end
         object btnSpawn3DModel: TButton
           Left = 13
@@ -11905,7 +11863,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = '3d model'
-          TabOrder = 7
+          TabOrder = 4
           OnClick = btnSpawn3DModelClick
         end
         object btnSpawnPrisms: TButton
@@ -11914,12 +11872,12 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Prism'
-          TabOrder = 8
+          TabOrder = 5
           OnClick = btnSpawnPrismsClick
         end
         object Memo1: TMemo
           Left = 13
-          Top = 354
+          Top = 358
           Width = 164
           Height = 222
           Anchors = [akLeft, akBottom]
@@ -11934,30 +11892,8 @@ object Form1: TForm1
           Font.Style = []
           ParentFont = False
           ReadOnly = True
-          TabOrder = 9
-          ExplicitTop = 353
-        end
-        object btnSelectPrev: TButton
-          Left = 13
-          Top = 583
-          Width = 20
-          Height = 25
-          Anchors = [akLeft, akBottom]
-          Caption = '<'
-          TabOrder = 10
-          OnClick = btnSelectPrevClick
-          ExplicitTop = 582
-        end
-        object btnSelectNext: TButton
-          Left = 39
-          Top = 583
-          Width = 20
-          Height = 25
-          Anchors = [akLeft, akBottom]
-          Caption = '>'
-          TabOrder = 11
-          OnClick = btnSelectNextClick
-          ExplicitTop = 582
+          TabOrder = 6
+          ExplicitTop = 357
         end
         object btnSpawnSandbox: TButton
           Left = 13
@@ -11965,7 +11901,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Sandbox'
-          TabOrder = 12
+          TabOrder = 7
           OnClick = btnSpawnSandboxClick
         end
         object btnSpawnWall: TButton
@@ -11974,7 +11910,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Wall'
-          TabOrder = 13
+          TabOrder = 8
           OnClick = btnSpawnWallClick
         end
         object btnSpawnBomb: TButton
@@ -11983,7 +11919,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Bomb'
-          TabOrder = 14
+          TabOrder = 9
           OnClick = btnSpawnBombClick
         end
         object btnSpawnButton: TButton
@@ -11992,7 +11928,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Button'
-          TabOrder = 15
+          TabOrder = 10
           OnClick = btnSpawnButtonClick
         end
         object chkStatic: TCheckBox
@@ -12011,7 +11947,7 @@ object Form1: TForm1
           ParentColor = False
           ParentCtl3D = False
           ParentFont = False
-          TabOrder = 16
+          TabOrder = 11
           StyleElements = [seClient, seBorder]
           OnClick = chkStaticClick
         end
@@ -12021,7 +11957,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Screens'
-          TabOrder = 17
+          TabOrder = 12
           OnClick = btnSpawnScreensClick
         end
         object chkDestructable: TCheckBox
@@ -12040,7 +11976,7 @@ object Form1: TForm1
           ParentColor = False
           ParentCtl3D = False
           ParentFont = False
-          TabOrder = 18
+          TabOrder = 13
           StyleElements = [seClient, seBorder]
           OnClick = chkDestructableClick
         end
@@ -12050,7 +11986,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Piano'
-          TabOrder = 19
+          TabOrder = 14
           OnClick = btnPianoClick
         end
         object btnFog: TButton
@@ -12059,16 +11995,16 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'Fog'
-          TabOrder = 20
+          TabOrder = 15
           OnClick = btnFogClick
         end
         object btnDemat: TButton
           Left = 101
-          Top = 84
+          Top = 64
           Width = 74
           Height = 25
           Caption = 'Dematerialize'
-          TabOrder = 21
+          TabOrder = 16
           OnClick = btnDematClick
         end
         object btnNanoFog: TButton
@@ -12077,7 +12013,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'NanoFog'
-          TabOrder = 22
+          TabOrder = 17
           OnClick = btnNanoFogClick
         end
         object btnEndNanoFog: TButton
@@ -12086,7 +12022,7 @@ object Form1: TForm1
           Width = 74
           Height = 25
           Caption = 'End NanoFog'
-          TabOrder = 23
+          TabOrder = 18
           OnClick = btnEndNanoFogClick
         end
       end
@@ -12125,22 +12061,9 @@ object Form1: TForm1
           Font.Style = []
           ParentFont = False
         end
-        object lblWorldBase: TLabel
-          Left = 16
-          Top = 328
-          Width = 59
-          Height = 15
-          Caption = 'WorldBase:'
-          Font.Charset = DEFAULT_CHARSET
-          Font.Color = clBlack
-          Font.Height = -12
-          Font.Name = 'Segoe UI'
-          Font.Style = []
-          ParentFont = False
-        end
         object lblSpanEffect: TLabel
           Left = 16
-          Top = 384
+          Top = 336
           Width = 71
           Height = 15
           Caption = 'Spawn effect:'
@@ -12321,40 +12244,9 @@ object Form1: TForm1
           StyleElements = [seClient, seBorder]
           OnClick = chkSlowMotionClick
         end
-        object btnFullscreen: TButton
-          Left = 13
-          Top = 470
-          Width = 98
-          Height = 25
-          Caption = 'Fullscreen'
-          TabOrder = 9
-          OnClick = btnFullscreenClick
-        end
-        object cbWorldBase: TComboBox
-          Left = 16
-          Top = 349
-          Width = 145
-          Height = 23
-          Style = csDropDownList
-          Font.Charset = DEFAULT_CHARSET
-          Font.Color = clBlack
-          Font.Height = -12
-          Font.Name = 'Segoe UI'
-          Font.Style = []
-          ItemIndex = 2
-          ParentFont = False
-          TabOrder = 10
-          Text = 'Holodeck'
-          OnChange = cbWorldBaseChange
-          Items.Strings = (
-            'Land'
-            'Space'
-            'Holodeck'
-            'Island')
-        end
         object cbSpawnEffects: TComboBox
           Left = 16
-          Top = 405
+          Top = 357
           Width = 145
           Height = 23
           Style = csDropDownList
@@ -12365,7 +12257,7 @@ object Form1: TForm1
           Font.Style = []
           ItemIndex = 1
           ParentFont = False
-          TabOrder = 11
+          TabOrder = 9
           Text = 'Beam'
           OnChange = cbSpawnEffectsChange
           Items.Strings = (
@@ -12389,7 +12281,7 @@ object Form1: TForm1
           ParentColor = False
           ParentFont = False
           State = cbChecked
-          TabOrder = 12
+          TabOrder = 10
           Visible = False
           StyleElements = [seClient, seBorder]
           OnClick = chkAntialiasClick
@@ -12401,7 +12293,7 @@ object Form1: TForm1
           Height = 24
           MaxValue = 50
           MinValue = -50
-          TabOrder = 13
+          TabOrder = 11
           Value = 1
           OnChange = seGravityChange
         end
@@ -12410,11 +12302,11 @@ object Form1: TForm1
           Top = 282
           Width = 161
           Height = 45
-          Max = 100
+          Max = 200
           Min = 5
           Position = 20
           ShowSelRange = False
-          TabOrder = 14
+          TabOrder = 12
           TickStyle = tsNone
           OnChange = tbSlowMotionChange
         end
@@ -12481,28 +12373,145 @@ object Form1: TForm1
       end
     end
   end
+  object pnlTop: TPanel
+    Left = 0
+    Top = 0
+    Width = 1100
+    Height = 34
+    Align = alTop
+    BevelOuter = bvNone
+    TabOrder = 3
+    ExplicitWidth = 1096
+    DesignSize = (
+      1100
+      34)
+    object Shape2: TShape
+      Left = 0
+      Top = 0
+      Width = 1100
+      Height = 34
+      Align = alClient
+      Brush.Color = clBlack
+      ExplicitLeft = 2
+      ExplicitTop = -2
+      ExplicitWidth = 192
+      ExplicitHeight = 617
+    end
+    object cbWorldBase: TComboBox
+      Left = 904
+      Top = 6
+      Width = 192
+      Height = 23
+      Style = csDropDownList
+      Anchors = [akTop, akRight]
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clBlack
+      Font.Height = -12
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ItemIndex = 2
+      ParentFont = False
+      TabOrder = 0
+      Text = 'Holodeck'
+      OnChange = cbWorldBaseChange
+      Items.Strings = (
+        'Land'
+        'Space'
+        'Holodeck'
+        'Island')
+      ExplicitLeft = 900
+    end
+    object btnSelectPrev: TButton
+      Left = 848
+      Top = 5
+      Width = 20
+      Height = 25
+      Anchors = [akTop, akRight]
+      Caption = '<'
+      TabOrder = 1
+      OnClick = btnSelectPrevClick
+      ExplicitLeft = 844
+    end
+    object btnSelectNext: TButton
+      Left = 874
+      Top = 5
+      Width = 20
+      Height = 25
+      Anchors = [akTop, akRight]
+      Caption = '>'
+      TabOrder = 2
+      OnClick = btnSelectNextClick
+      ExplicitLeft = 870
+    end
+    object btnClearScene: TButton
+      Left = 7
+      Top = 5
+      Width = 33
+      Height = 25
+      Caption = 'Clear'
+      TabOrder = 3
+      OnClick = btnClearSceneClick
+    end
+    object btnSceneLoad: TButton
+      Left = 47
+      Top = 5
+      Width = 33
+      Height = 25
+      Caption = 'Load'
+      TabOrder = 4
+      OnClick = btnSceneLoadClick
+    end
+    object btnSceneSave: TButton
+      Left = 86
+      Top = 5
+      Width = 33
+      Height = 25
+      Caption = 'Save'
+      TabOrder = 5
+      OnClick = btnSceneSaveClick
+    end
+    object btnPlayPause: TButton
+      Left = 125
+      Top = 5
+      Width = 90
+      Height = 25
+      Caption = 'play/pause'
+      ImageIndex = 0
+      TabOrder = 6
+      OnClick = btnPlayPauseClick
+    end
+    object btnFullscreen: TButton
+      Left = 221
+      Top = 5
+      Width = 66
+      Height = 25
+      Caption = 'Fullscreen'
+      TabOrder = 7
+      OnClick = btnFullscreenClick
+    end
+  end
   object tmrStatsUpdater: TTimer
     Enabled = False
     Interval = 500
     OnTimer = tmrStatsUpdaterTimer
-    Left = 241
-    Top = 19
+    Left = 257
+    Top = 99
   end
   object OpenDialog1: TOpenDialog
     DefaultExt = 'd3dfm'
-    Left = 352
-    Top = 24
+    Left = 432
+    Top = 104
   end
   object SaveDialog1: TSaveDialog
     DefaultExt = 'd3dfm'
-    Left = 440
-    Top = 24
+    Left = 504
+    Top = 88
   end
   object tmrStartEngine: TTimer
     Enabled = False
     Interval = 2000
     OnTimer = tmrStartEngineTimer
-    Left = 328
-    Top = 96
+    Left = 248
+    Top = 176
   end
 end

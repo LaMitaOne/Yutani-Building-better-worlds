@@ -858,9 +858,10 @@ begin
   FPendingWorldBase := Value;
   FPendingSpaceShader := FLightShader;
   FLoadWorldQueued := True;
-  if (Value = wbSpace) and (not Assigned(FSpaceWorld)) then begin
+  if (Value = wbSpace) and (not Assigned(FSpaceWorld)) then
+  begin
     if not Assigned(FLoadingScreen) then
-    FLoadingScreen := TYutaniLoadingScreen.Create;
+      FLoadingScreen := TYutaniLoadingScreen.Create;
     FLoadingScreen.Start;
   end;
 end;
@@ -1197,12 +1198,12 @@ begin
                 FIsLoadingWorld := True;
 
                 // 1. Start the loading screen
-                  if (FPendingWorldBase = wbSpace) and (not Assigned(FSpaceWorld)) then
-                  begin
-                    if (not Assigned(FLoadingScreen)) then
-                      FLoadingScreen := TYutaniLoadingScreen.Create;
-                    FLoadingScreen.Start;
-                  end;
+                if (FPendingWorldBase = wbSpace) and (not Assigned(FSpaceWorld)) then
+                begin
+                  if (not Assigned(FLoadingScreen)) then
+                    FLoadingScreen := TYutaniLoadingScreen.Create;
+                  FLoadingScreen.Start;
+                end;
 
                 // 2. Render one frame to Raylib so it immediately switches to black
                 RenderGame;
@@ -1297,6 +1298,11 @@ begin
           timeEndPeriod(1);
           FInitialized := False;
           ClearItems;
+          if Assigned(FLoadingScreen) then
+          begin
+            FLoadingScreen.StopThread;
+            FLoadingScreen := nil;
+          end;
           FreeAndNil(FParticleEngine);
           FreeAndNil(FFloorActor);
           FreeAndNil(FNanoFog);
@@ -2056,7 +2062,6 @@ begin
       FPlayerVehicle := nil;
     end;
   end;
-
 
   ray := GetScreenToWorldRay(FMousePos, FCamera);
 
@@ -3755,20 +3760,11 @@ begin
     FPlayerVehicle.SetAngularVelocity(AngVel);
     // 2. Third-Person Camera: Cinematic chase cam!
     var Back := Vector3Create(-FlatFwd.x, 0, -FlatFwd.z);
-    FCamera.position := Vector3Create(
-      FPlayerVehicle.Position.x + Back.x * 15.0,
-      FPlayerVehicle.Position.y + 6.0,
-      FPlayerVehicle.Position.z + Back.z * 15.0
-    );
-    FCamera.target := Vector3Create(
-      FPlayerVehicle.Position.x + FlatFwd.x * 10.0,
-      FPlayerVehicle.Position.y + 3.0,
-      FPlayerVehicle.Position.z + FlatFwd.z * 10.0
-    );
+    FCamera.position := Vector3Create(FPlayerVehicle.Position.x + Back.x * 15.0, FPlayerVehicle.Position.y + 6.0, FPlayerVehicle.Position.z + Back.z * 15.0);
+    FCamera.target := Vector3Create(FPlayerVehicle.Position.x + FlatFwd.x * 10.0, FPlayerVehicle.Position.y + 3.0, FPlayerVehicle.Position.z + FlatFwd.z * 10.0);
     FCamera.up := Vector3Create(0, 1, 0);
     FCameraMoved := True;
   end;
-
 
   HandleCameraInput;
   HandleDesktopInput;

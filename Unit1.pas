@@ -19,7 +19,7 @@ uses
   Winapi.UxTheme, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, RaylibSandbox,
   ModelEngine, TypInfo, JoltPhysics, Vcl.Grids, Raylib, Vcl.Menus,
   Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain,
-  Yutani.SkiaIntro, MiniAudio4Delphi;
+  Yutani.SkiaIntro, MiniAudio4Delphi, System.ImageList, Vcl.ImgList;
 
 type
   TForm1 = class(TForm)
@@ -37,16 +37,12 @@ type
     tsScene: TTabSheet;
     tsEngine: TTabSheet;
     Splitter3: TSplitter;
-    btnClearScene: TButton;
     btnSpawnCubes: TButton;
     btnSpawnSpheres: TButton;
     btnSpawnPyramids: TButton;
     btnSpawnCapsules: TButton;
-    btnSceneSave: TButton;
-    btnSceneLoad: TButton;
     cbFPS: TComboBox;
     Label1: TLabel;
-    btnPlayPause: TButton;
     Shape1: TShape;
     btnSpawn3DModel: TButton;
     chkDistanceCulling: TCheckBox;
@@ -59,8 +55,6 @@ type
     OpenDialog1: TOpenDialog;
     chkDayNightRythm: TCheckBox;
     TimePicker1: TTimePicker;
-    btnSelectPrev: TButton;
-    btnSelectNext: TButton;
     SpDistance: TSpinEdit;
     seDayNightspeed: TSpinEdit;
     lblDaynightspeed: TLabel;
@@ -76,12 +70,9 @@ type
     tsControls: TTabSheet;
     btnGamepadCore: TButton;
     tsAudio: TTabSheet;
-    btnFullscreen: TButton;
     tbMasterVolume: TTrackBar;
     lblMasterVolume: TLabel;
     btnTestSFX: TButton;
-    cbWorldBase: TComboBox;
-    lblWorldBase: TLabel;
     cbSpawnEffects: TComboBox;
     lblSpanEffect: TLabel;
     chkAntialias: TCheckBox;
@@ -97,6 +88,16 @@ type
     btnNanoFog: TButton;
     btnEndNanoFog: TButton;
     tmrStartEngine: TTimer;
+    pnlTop: TPanel;
+    cbWorldBase: TComboBox;
+    Shape2: TShape;
+    btnSelectPrev: TButton;
+    btnSelectNext: TButton;
+    btnClearScene: TButton;
+    btnSceneLoad: TButton;
+    btnSceneSave: TButton;
+    btnPlayPause: TButton;
+    btnFullscreen: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -539,6 +540,7 @@ begin
   end
   else
   begin
+    WindowState := wsNormal;
     BorderStyle := bsNone;
     WindowState := wsMaximized;
   end;

@@ -54,7 +54,6 @@ type
     procedure UpdateParticles(const DeltaTime: Double);
     procedure RenderParticles(const ACanvas: ISkCanvas);
     procedure StartThread;
-    procedure StopThread;
     procedure RenderFrame;
   public
     // Made public so RaylibSandbox can easily control the state externally
@@ -67,6 +66,7 @@ type
     procedure Start;
     procedure Stop; // This now handles the fade-out gracefully
     procedure AsyncStop;
+    procedure StopThread;
   end;
 
 implementation
