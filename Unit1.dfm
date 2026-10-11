@@ -11615,7 +11615,7 @@ object Form1: TForm1
     Color = clBlack
     ParentBackground = False
     TabOrder = 0
-    ExplicitHeight = 612
+    ExplicitHeight = 654
     object Splitter2: TSplitter
       Left = 0
       Top = 288
@@ -11661,7 +11661,7 @@ object Form1: TForm1
       Color = clBlack
       ParentBackground = False
       TabOrder = 1
-      ExplicitHeight = 316
+      ExplicitHeight = 358
       object StringGrid1: TStringGrid
         Left = 0
         Top = 0
@@ -11684,7 +11684,7 @@ object Form1: TForm1
         OnDrawCell = StringGrid1DrawCell
         OnSelectCell = StringGrid1SelectCell
         OnSetEditText = StringGrid1SetEditText
-        ExplicitHeight = 316
+        ExplicitHeight = 358
       end
     end
   end
@@ -11698,7 +11698,7 @@ object Form1: TForm1
     Caption = 'pnlRight'
     TabOrder = 1
     ExplicitLeft = 896
-    ExplicitHeight = 612
+    ExplicitHeight = 654
     object PageControl1: TPageControl
       Left = 0
       Top = 0
@@ -11718,7 +11718,7 @@ object Form1: TForm1
       ParentFont = False
       TabOrder = 0
       StyleElements = [seFont, seClient]
-      ExplicitHeight = 612
+      ExplicitHeight = 654
       object tsScene: TTabSheet
         Caption = 'Scene'
         Font.Charset = DEFAULT_CHARSET
@@ -11839,7 +11839,7 @@ object Form1: TForm1
           ParentFont = False
           ReadOnly = True
           TabOrder = 6
-          ExplicitTop = 357
+          ExplicitTop = 399
         end
         object btnSpawnSandbox: TButton
           Left = 13
@@ -12486,7 +12486,7 @@ object Form1: TForm1
   end
   object tmrStartEngine: TTimer
     Enabled = False
-    Interval = 2000
+    Interval = 500
     OnTimer = tmrStartEngineTimer
     Left = 248
     Top = 176

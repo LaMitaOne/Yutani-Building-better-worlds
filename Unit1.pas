@@ -793,9 +793,9 @@ end;
 
 procedure TForm1.tmrStartEngineTimer(Sender: TObject);
 begin
+  if not FSandbox.Active  then FSandbox.Active := True;
   if FYutaniIntro.IntroFinished then begin
      tmrStartEngine.Enabled := False;
-     FSandbox.Active := True;
      tmrStatsUpdater.Enabled := True;
       left := 0;
       Top := 0;

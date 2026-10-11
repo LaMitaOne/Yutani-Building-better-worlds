@@ -84,6 +84,7 @@ v0.648
  - Successfully defeated some Evil self replicating space thread-Bugs
  - Improved Terraforming Planetary Surface textures
  - Space now pauses on pause too
+ - Eliminated startup window flash by teleporting the Raylib window off-screen during creation before reparenting it into the VCL control.
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -1120,15 +1121,30 @@ begin
       try
         try
           if FAntiAliasing then
-            SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE)
+            SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE or FLAG_WINDOW_UNDECORATED)
           else
-            SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+            SetConfigFlags(FLAG_WINDOW_RESIZABLE or FLAG_WINDOW_UNDECORATED);
+
+          // 1. Initialize the Raylib window.
+          // FLAG_WINDOW_UNDECORATED removes the standard Windows border, preventing
+          // any border flicker during the reparenting process.
           InitWindow(1360, 768, 'Raylib Sandbox');
+
+          // 2. Grab the window handle immediately after creation
           FRaylibWnd := FindWindow(nil, 'Raylib Sandbox');
+
           if FRaylibWnd <> 0 then
           begin
+            // 3. Teleport the window instantly out of the visible screen area.
+            // This happens so fast that Windows doesn't even get a chance to draw
+            // a background frame on the screen, completely eliminating the startup flash.
+            Winapi.Windows.SetWindowPos(FRaylibWnd, 0, -10000, -10000, 0, 0, SWP_NOZORDER or SWP_NOSIZE);
+
+            // 4. Embed the window into our VCL control and adjust styles
             Winapi.Windows.SetParent(FRaylibWnd, Self.Handle);
             SetWindowLong(FRaylibWnd, GWL_STYLE, WS_CHILD or WS_VISIBLE);
+
+            // 5. Finally, position and size it perfectly inside our VCL parent
             SetWindowPos(FRaylibWnd, 0, 0, 0, Self.ClientWidth, Self.ClientHeight, SWP_NOZORDER);
           end;
           GetMem(FAudioEngine, ma_engine_sizeof());
@@ -3491,12 +3507,10 @@ begin
 
   if Assigned(FNanoFog) then
     FNanoFog.Update(PhysDt);
-
   if FSimulationRunning then
   begin
     if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
       FSpaceWorld.Update(dt, FCamera.position, FTimeScale);
-
     if Assigned(FParticleEngine) then
       FParticleEngine.Update(PhysDt);
   end;
@@ -4459,7 +4473,7 @@ begin
             DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
             DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
           end
-          else if Actor.ShapeType = stSphere then
+          else if (Actor.ShapeType = stSphere) then
           begin
             var SphereScale: Single := Max(Actor.Scale.x, Max(Actor.Scale.y, Actor.Scale.z)) * 0.5;
             ModelMat := rlGetMatrixTransform();
@@ -5651,7 +5665,7 @@ begin
   if Assigned(FParticleEngine) then
   begin
     FParticleEngine.EmitExplosion(FBombActor.Position, 2000, RED);
-    FParticleEngine.EmitSparks(FBombActor.Position, 2000, GOLD);
+   // FParticleEngine.EmitSparks(FBombActor.Position, 2000, GOLD);
    // FParticleEngine.EmitSmoke(FBombActor.Position, 1000, DARKGRAY);
   end;
 
