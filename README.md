@@ -247,4 +247,7 @@ and btw... yes, my little asus ux305ca with fanless intel m3 does even this stil
 Cultural Note: In Japanese, Yutani (由谷) translates to "Valley of Origin"...     
 
 <img height="500" alt="Unbenannt" src="https://github.com/user-attachments/assets/389ab4f3-4822-4042-b2c3-96f65ec53335" />   
+      
+<img width="895" height="351" alt="Unbenannt" src="https://github.com/user-attachments/assets/3ce70347-c55c-498f-a3dc-21806bd99e7a" />
     
+First 14 days ... not posted it anywhere... Delphi/Pascal is alive and kickin    
