@@ -224,6 +224,7 @@ VerySimpleLua https://github.com/Dennis1000/verysimplelua
 GameNetworkingSockets4delphi https://github.com/LaMitaOne/GameNetworkingSockets4delphi        
 Yutani Voronoi-Destruction-Engine https://github.com/LaMitaOne/Yutani-Voronoi-Destruction-Engine      
 Yutani Particle Engine https://github.com/LaMitaOne/Yutani-Particle-Engine    
+Yutani Skia Holographic Splash https://github.com/LaMitaOne/Yutani-Skia-Holographic-Splash       
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
