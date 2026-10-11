@@ -26,12 +26,9 @@ type
     pnlLeft: TPanel;
     tvSceneHierarchy: TTreeView;
     Splitter1: TSplitter;
-    pnlBottom: TPanel;
-    lblInfo: TLabel;
     Splitter2: TSplitter;
     Panel1: TPanel;
     StringGrid1: TStringGrid;
-    btnToolDragThrow: TButton;
     pnlRight: TPanel;
     PageControl1: TPageControl;
     tsScene: TTabSheet;
@@ -51,7 +48,6 @@ type
     chkHighlightCollision: TCheckBox;
     Memo1: TMemo;
     tmrStatsUpdater: TTimer;
-    btnShoot: TButton;
     OpenDialog1: TOpenDialog;
     chkDayNightRythm: TCheckBox;
     TimePicker1: TTimePicker;
@@ -98,6 +94,9 @@ type
     btnSceneSave: TButton;
     btnPlayPause: TButton;
     btnFullscreen: TButton;
+    btnShoot: TButton;
+    btnToolDragThrow: TButton;
+    lblInfo: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -217,6 +216,11 @@ begin
 
   Width := 1200;
   Height := 800;
+  Left := -10000;
+  Top := -10000;
+
+  AlphaBlendValue := 0;
+
   // --- DARK MODE INTEGRATION ---
   // StringGrid Setup
   StringGrid1.FixedCols := 1;
@@ -233,8 +237,7 @@ begin
   // TreeView Setup
   tvSceneHierarchy.Color := clrBackground;
   tvSceneHierarchy.Font.Color := clrFontSilver;
-  // Bottom Panel & Info Label
-  pnlBottom.Color := clrBackground;
+  // Info Label
   lblInfo.Color := clrBackground;
   lblInfo.Font.Color := clrFontSilver;
   // -----------------------------
@@ -790,9 +793,21 @@ end;
 
 procedure TForm1.tmrStartEngineTimer(Sender: TObject);
 begin
-  tmrStartEngine.Enabled := False;
-  FSandbox.Active := True;
-  tmrStatsUpdater.Enabled := True;
+  if FYutaniIntro.IntroFinished then begin
+     tmrStartEngine.Enabled := False;
+     FSandbox.Active := True;
+     tmrStatsUpdater.Enabled := True;
+      left := 0;
+      Top := 0;
+      Width := Screen.Width;
+      Height := SCreen.Height;
+      repeat
+         AlphaBlendValue := AlphaBlendValue+1;
+         sleep(2);
+         APplication.ProcessMessages;
+      until ( AlphaBlendValue > 250);
+      AlphaBlend := False;
+  end;
 end;
 
 procedure TForm1.HandleObjectSelected(Sender: TObject; Actor: TA3DComponent);
@@ -929,6 +944,10 @@ begin
 
   if not Assigned(FSandbox) then
     Exit;
+
+  if FSandbox.IsLoadingWorld then
+    Exit;
+
   TotalObjects := FSandbox.ItemCount;
   if FSandbox.GetSimulationRunning then
     SimStatus := 'Running'

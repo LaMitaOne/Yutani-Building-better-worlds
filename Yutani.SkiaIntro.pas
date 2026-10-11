@@ -549,7 +549,7 @@ begin
           DeltaSec := (NowTicks - LastFrameTicks) / Freq;
           LastFrameTicks := NowTicks;
           if (DeltaSec <= 0) or (DeltaSec > 0.25) then
-            DeltaSec := 1 / 60;
+            DeltaSec := 1 / 40;
           FStateTimer := FStateTimer + DeltaSec;
           FGlobalTime := FGlobalTime + DeltaSec; // Increment global continuous time
 

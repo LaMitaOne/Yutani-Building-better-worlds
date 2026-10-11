@@ -1,7 +1,7 @@
 ﻿unit RaylibSandbox;
 
 {==============================================================================*
- *  Yutani RaylibSandbox v0.647 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani RaylibSandbox v0.648 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -79,23 +79,11 @@
 
  Latest Changes:
 
-v0.647
-- Added a skia4delphi rendered, threaded, transparent holographic loading screen overlay for world transitions.
-- Moved heavy procedural planet texture generation to on-demand loading to fix startup freezes.
-- Made the loading screen trigger its own asynchronous fade-out and self-destruct without blocking the render loop.
-- Added a skia4delphi rendered sci-fi particle stream intro from the logo to form the "YUTANI" text.
-- Implemented floating origin system to eliminate physics jitter on planet surfaces
-- Added Solar System generation with suns, orbiting planets, moons, and proper lighting (Darksides)
-- Implemented dynamic sun lighting with Shader integration for planet models
-- Added comet collisions triggering surface impact particle bursts
-- Added slow-motion compatibility (TimeScale) for space simulation
-- Refined star distribution with cluster-based generation and galaxy-style coloring
-- Added Landing Autopilot System (F9): Smooth cinematic approach to planetary surfaces
-- Added Planetary Surface Camera Mode: Walk on Mario-Galaxy style little planets with correct surface normals and straight horizons
-- Added Planetary Orbit Cam (F8) for construction and building mechanics
-- Added Second Life style ALT+Click focus camera system
-- Added vehicle flight control system (F11): Possess any object and fly it with WASD/QE/RF physics thrust with a rigid Third-Person camera
-- Refactored startup intro to form the logo and text entirely from a dynamic Skia4Delphi particle stream.
+v0.648
+
+ - Successfully defeated some Evil self replicating space thread-Bugs
+ - Improved Terraforming Planetary Surface textures
+ - Space now pauses on pause too
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -585,6 +573,7 @@ type
     property AntiAliasing: Boolean read FAntiAliasing write SetAntiAliasing default True;
     property Gravity: Single read FGravity write SetGravity;
     property TimeScale: Single read FTimeScale write SetTimeScale;
+    property IsLoadingWorld: Boolean read FIsLoadingWorld write FIsLoadingWorld;
   end;
 
 implementation
@@ -3503,12 +3492,14 @@ begin
   if Assigned(FNanoFog) then
     FNanoFog.Update(PhysDt);
 
-  // Update the infinite procedural cosmos when in space world
-  if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
-    FSpaceWorld.Update(dt, FCamera.position, FTimeScale);
+  if FSimulationRunning then
+  begin
+    if Assigned(FSpaceWorld) and (FCurrentWorldBase = wbSpace) then
+      FSpaceWorld.Update(dt, FCamera.position, FTimeScale);
 
-  if Assigned(FParticleEngine) then
-    FParticleEngine.Update(PhysDt);
+    if Assigned(FParticleEngine) then
+      FParticleEngine.Update(PhysDt);
+  end;
 
   if Assigned(FParticleEngine) and (Length(FParticleSpawnQueue) > 0) then
   begin

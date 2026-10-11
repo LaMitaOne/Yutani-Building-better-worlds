@@ -1,6 +1,7 @@
 object Form1: TForm1
   Left = 0
   Top = 0
+  AlphaBlend = True
   Caption = 'Yutani - Building better worlds'
   ClientHeight = 689
   ClientWidth = 1100
@@ -11585,7 +11586,7 @@ object Form1: TForm1
     Left = 200
     Top = 34
     Width = 5
-    Height = 613
+    Height = 655
     Color = 3684408
     ParentColor = False
     ExplicitLeft = 201
@@ -11596,7 +11597,7 @@ object Form1: TForm1
     Left = 895
     Top = 34
     Width = 5
-    Height = 613
+    Height = 655
     Align = alRight
     Color = 3684408
     ParentColor = False
@@ -11608,7 +11609,7 @@ object Form1: TForm1
     Left = 0
     Top = 34
     Width = 200
-    Height = 613
+    Height = 655
     Align = alLeft
     BevelOuter = bvNone
     Color = clBlack
@@ -11654,7 +11655,7 @@ object Form1: TForm1
       Left = 0
       Top = 296
       Width = 200
-      Height = 317
+      Height = 359
       Align = alClient
       BevelOuter = bvNone
       Color = clBlack
@@ -11665,7 +11666,7 @@ object Form1: TForm1
         Left = 0
         Top = 0
         Width = 200
-        Height = 317
+        Height = 359
         Align = alClient
         BevelInner = bvNone
         BevelOuter = bvNone
@@ -11687,75 +11688,22 @@ object Form1: TForm1
       end
     end
   end
-  object pnlBottom: TPanel
-    Left = 0
-    Top = 647
-    Width = 1100
-    Height = 42
-    Align = alBottom
-    BevelOuter = bvNone
-    Color = clBlack
-    Font.Charset = DEFAULT_CHARSET
-    Font.Color = clSilver
-    Font.Height = -12
-    Font.Name = 'Segoe UI'
-    Font.Style = []
-    ParentBackground = False
-    ParentFont = False
-    TabOrder = 1
-    ExplicitTop = 646
-    ExplicitWidth = 1096
-    DesignSize = (
-      1100
-      42)
-    object lblInfo: TLabel
-      Left = 7
-      Top = 6
-      Width = 770
-      Height = 33
-      AutoSize = False
-      Caption = 'loading...'
-      WordWrap = True
-    end
-    object btnToolDragThrow: TButton
-      Left = 901
-      Top = 6
-      Width = 90
-      Height = 25
-      Anchors = [akTop, akRight]
-      Caption = 'Drag n Throw'
-      TabOrder = 0
-      OnClick = btnToolDragThrowClick
-      ExplicitLeft = 897
-    end
-    object btnShoot: TButton
-      Left = 997
-      Top = 6
-      Width = 90
-      Height = 25
-      Anchors = [akTop, akRight]
-      Caption = 'Shoot'
-      TabOrder = 1
-      OnClick = btnShootClick
-      ExplicitLeft = 993
-    end
-  end
   object pnlRight: TPanel
     Left = 900
     Top = 34
     Width = 200
-    Height = 613
+    Height = 655
     Align = alRight
     BevelOuter = bvNone
     Caption = 'pnlRight'
-    TabOrder = 2
+    TabOrder = 1
     ExplicitLeft = 896
     ExplicitHeight = 612
     object PageControl1: TPageControl
       Left = 0
       Top = 0
       Width = 200
-      Height = 613
+      Height = 655
       Margins.Left = 0
       Margins.Top = 0
       Margins.Right = 0
@@ -11781,17 +11729,15 @@ object Form1: TForm1
         ParentFont = False
         DesignSize = (
           192
-          583)
+          625)
         object Shape1: TShape
           Left = 0
           Top = 0
           Width = 192
-          Height = 583
+          Height = 625
           Align = alClient
           Brush.Color = clBlack
-          ExplicitLeft = 2
-          ExplicitTop = -2
-          ExplicitHeight = 617
+          ExplicitLeft = -3
         end
         object lblstatic: TLabel
           Left = 114
@@ -11859,7 +11805,7 @@ object Form1: TForm1
         end
         object btnSpawn3DModel: TButton
           Left = 13
-          Top = 166
+          Top = 162
           Width = 74
           Height = 25
           Caption = '3d model'
@@ -11868,7 +11814,7 @@ object Form1: TForm1
         end
         object btnSpawnPrisms: TButton
           Left = 13
-          Top = 135
+          Top = 133
           Width = 74
           Height = 25
           Caption = 'Prism'
@@ -11877,7 +11823,7 @@ object Form1: TForm1
         end
         object Memo1: TMemo
           Left = 13
-          Top = 358
+          Top = 400
           Width = 164
           Height = 222
           Anchors = [akLeft, akBottom]
@@ -11897,7 +11843,7 @@ object Form1: TForm1
         end
         object btnSpawnSandbox: TButton
           Left = 13
-          Top = 313
+          Top = 361
           Width = 74
           Height = 25
           Caption = 'Sandbox'
@@ -11906,7 +11852,7 @@ object Form1: TForm1
         end
         object btnSpawnWall: TButton
           Left = 101
-          Top = 282
+          Top = 330
           Width = 74
           Height = 25
           Caption = 'Wall'
@@ -11915,7 +11861,7 @@ object Form1: TForm1
         end
         object btnSpawnBomb: TButton
           Left = 13
-          Top = 197
+          Top = 191
           Width = 74
           Height = 25
           Caption = 'Bomb'
@@ -11924,7 +11870,7 @@ object Form1: TForm1
         end
         object btnSpawnButton: TButton
           Left = 13
-          Top = 282
+          Top = 330
           Width = 74
           Height = 25
           Caption = 'Button'
@@ -11953,7 +11899,7 @@ object Form1: TForm1
         end
         object btnSpawnScreens: TButton
           Left = 101
-          Top = 313
+          Top = 361
           Width = 74
           Height = 25
           Caption = 'Screens'
@@ -11982,7 +11928,7 @@ object Form1: TForm1
         end
         object btnPiano: TButton
           Left = 101
-          Top = 251
+          Top = 299
           Width = 74
           Height = 25
           Caption = 'Piano'
@@ -11991,7 +11937,7 @@ object Form1: TForm1
         end
         object btnFog: TButton
           Left = 13
-          Top = 251
+          Top = 299
           Width = 74
           Height = 25
           Caption = 'Fog'
@@ -12000,7 +11946,7 @@ object Form1: TForm1
         end
         object btnDemat: TButton
           Left = 101
-          Top = 64
+          Top = 75
           Width = 74
           Height = 25
           Caption = 'Dematerialize'
@@ -12009,7 +11955,7 @@ object Form1: TForm1
         end
         object btnNanoFog: TButton
           Left = 101
-          Top = 115
+          Top = 104
           Width = 74
           Height = 25
           Caption = 'NanoFog'
@@ -12018,12 +11964,32 @@ object Form1: TForm1
         end
         object btnEndNanoFog: TButton
           Left = 101
-          Top = 146
+          Top = 133
           Width = 74
           Height = 25
           Caption = 'End NanoFog'
           TabOrder = 18
           OnClick = btnEndNanoFogClick
+        end
+        object btnShoot: TButton
+          Left = 101
+          Top = 162
+          Width = 74
+          Height = 25
+          Anchors = [akTop, akRight]
+          Caption = 'Shoot'
+          TabOrder = 19
+          OnClick = btnShootClick
+        end
+        object btnToolDragThrow: TButton
+          Left = 101
+          Top = 191
+          Width = 74
+          Height = 25
+          Anchors = [akTop, akRight]
+          Caption = 'Drag n Throw'
+          TabOrder = 20
+          OnClick = btnToolDragThrowClick
         end
       end
       object tsEngine: TTabSheet
@@ -12380,7 +12346,7 @@ object Form1: TForm1
     Height = 34
     Align = alTop
     BevelOuter = bvNone
-    TabOrder = 3
+    TabOrder = 2
     ExplicitWidth = 1096
     DesignSize = (
       1100
@@ -12396,6 +12362,17 @@ object Form1: TForm1
       ExplicitTop = -2
       ExplicitWidth = 192
       ExplicitHeight = 617
+    end
+    object lblInfo: TLabel
+      Left = 293
+      Top = 7
+      Width = 549
+      Height = 22
+      Alignment = taCenter
+      Anchors = [akLeft, akTop, akRight]
+      AutoSize = False
+      Caption = 'loading...'
+      WordWrap = True
     end
     object cbWorldBase: TComboBox
       Left = 904
