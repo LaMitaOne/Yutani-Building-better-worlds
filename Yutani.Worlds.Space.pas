@@ -193,11 +193,9 @@ begin
   SetLength(FCometParticles, MAX_COMET_PARTICLES);
   Randomize;
   InitializeDistantStars;
-
   // The heavy generation is now triggered externally via GenerateAssetsAsync,
   // but we keep a fallback in case it's called directly.
   GeneratePlanetAssets(ALightShader);
-
   // Generate Sun Texture
   FSunTexture := TSunTextureGen.Generate(Cardinal(Random(MaxInt)), 2048);
   Mesh := GenMeshSphere(1.0, 48, 32);

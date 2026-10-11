@@ -108,7 +108,6 @@ begin
   while GetTicks < ATargetTicks do
     ;
 end;
-
 { TYutaniLoadingScreen }
 
 constructor TYutaniLoadingScreen.Create;
@@ -534,9 +533,16 @@ procedure TYutaniLoadingScreen.StopThread;
 begin
   if Assigned(FThread) then
   begin
-    FThread.Terminate;
-    FThread.WaitFor;
-    FreeAndNil(FThread);
+    if GetCurrentThreadID = FThread.ThreadID then
+    begin
+      FThread := nil;
+    end
+    else
+    begin
+      FThread.Terminate;
+      FThread.WaitFor;
+      FreeAndNil(FThread);
+    end;
   end;
 end;
 

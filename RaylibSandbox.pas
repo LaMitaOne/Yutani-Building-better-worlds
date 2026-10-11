@@ -858,9 +858,11 @@ begin
   FPendingWorldBase := Value;
   FPendingSpaceShader := FLightShader;
   FLoadWorldQueued := True;
-  if not Assigned(FLoadingScreen) then
+  if (Value = wbSpace) and (not Assigned(FSpaceWorld)) then begin
+    if not Assigned(FLoadingScreen) then
     FLoadingScreen := TYutaniLoadingScreen.Create;
-  FLoadingScreen.Start;
+    FLoadingScreen.Start;
+  end;
 end;
 
 procedure TRaylibSandbox.SetAntiAliasing(const Value: Boolean);
@@ -1195,9 +1197,12 @@ begin
                 FIsLoadingWorld := True;
 
                 // 1. Start the loading screen
-                if not Assigned(FLoadingScreen) then
-                  FLoadingScreen := TYutaniLoadingScreen.Create;
-                FLoadingScreen.Start;
+                  if (FPendingWorldBase = wbSpace) and (not Assigned(FSpaceWorld)) then
+                  begin
+                    if (not Assigned(FLoadingScreen)) then
+                      FLoadingScreen := TYutaniLoadingScreen.Create;
+                    FLoadingScreen.Start;
+                  end;
 
                 // 2. Render one frame to Raylib so it immediately switches to black
                 RenderGame;
@@ -2035,7 +2040,6 @@ begin
       if FIsDriving then
       begin
         FPlayerVehicle := FItemSelected;
-
         // CRITICAL FIX: Hard-Reset ALL movement and speed!
         FPlayerVehicle.ActivateBody;
         FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
@@ -3705,17 +3709,14 @@ begin
   if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
   begin
     FPlayerVehicle.ActivateBody;
-
     // R / F: Speed control (Hold to change speed)
     if (GetAsyncKeyState(Ord('R')) and $8000) <> 0 then
       FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul + (0.5 * dt), 0.2, 10.0);
     if (GetAsyncKeyState(Ord('F')) and $8000) <> 0 then
       FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul - (0.5 * dt), 0.2, 10.0);
-
     // Prevent Space Landing logic from interfering while driving
     if FCurrentWorldBase = wbSpace then
       FSpaceLandingState := 0;
-
     // 1. get rotation from jolt
     var JRot: JPH_Quat;
     JPH_BodyInterface_GetRotation(FPlayerVehicle.FEngine.BodyInterface, FPlayerVehicle.FBodyID, @JRot);
@@ -3723,15 +3724,12 @@ begin
     FPlayerVehicle.FQuaternion.y := JRot.y;
     FPlayerVehicle.FQuaternion.z := JRot.z;
     FPlayerVehicle.FQuaternion.w := JRot.w;
-
     var Fwd := Vector3RotateByQuaternion(Vector3Create(0, 0, 1), FPlayerVehicle.FQuaternion);
     var FlatFwd := Vector3Create(Fwd.x, 0, Fwd.z);
     FlatFwd := Vector3Normalize(FlatFwd);
-
     var Vel := Vector3Create(0, 0, 0);
     var AngVel := Vector3Create(0, 0, 0);
     var BaseThrust: Single := 10.0 * FVehicleSpeedMul;
-
     // W / S: Forward / Backward
     if (GetAsyncKeyState(Ord('W')) and $8000) <> 0 then
     begin
@@ -3743,37 +3741,30 @@ begin
       Vel.x := -FlatFwd.x * BaseThrust;
       Vel.z := -FlatFwd.z * BaseThrust;
     end;
-
     // Q / E: Up / Down Thrust
     if (GetAsyncKeyState(Ord('Q')) and $8000) <> 0 then
       Vel.y := BaseThrust
     else if (GetAsyncKeyState(Ord('E')) and $8000) <> 0 then
       Vel.y := -BaseThrust;
-
     // A / D: Yaw Rotation
     if (GetAsyncKeyState(Ord('A')) and $8000) <> 0 then
       AngVel.y := 2.0
     else if (GetAsyncKeyState(Ord('D')) and $8000) <> 0 then
       AngVel.y := -2.0;
-
     FPlayerVehicle.SetLinearVelocity(Vel);
     FPlayerVehicle.SetAngularVelocity(AngVel);
-
     // 2. Third-Person Camera: Cinematic chase cam!
     var Back := Vector3Create(-FlatFwd.x, 0, -FlatFwd.z);
-
     FCamera.position := Vector3Create(
       FPlayerVehicle.Position.x + Back.x * 15.0,
       FPlayerVehicle.Position.y + 6.0,
       FPlayerVehicle.Position.z + Back.z * 15.0
     );
-
     FCamera.target := Vector3Create(
       FPlayerVehicle.Position.x + FlatFwd.x * 10.0,
       FPlayerVehicle.Position.y + 3.0,
       FPlayerVehicle.Position.z + FlatFwd.z * 10.0
     );
-
     FCamera.up := Vector3Create(0, 1, 0);
     FCameraMoved := True;
   end;
