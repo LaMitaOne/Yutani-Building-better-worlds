@@ -91,6 +91,7 @@ slowly getting ready to explore the new universe
 * **W / S** — Pitch (Tilt Up / Down)
 * **A / D** — Yaw (Turn Left / Right)
 * **R / F** — Throttle / Speed Up / Speed Down
+* **Q / E** — Fly up / Down 
     
 ---    
     
