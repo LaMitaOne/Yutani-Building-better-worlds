@@ -36,9 +36,7 @@
  *      and destroy that body (or be safely detached) before the Delphi
  *      object is freed.
  *==============================================================================}
-
 {$POINTERMATH ON}
-
 interface
 
 uses
@@ -183,7 +181,7 @@ type
     property HoverColor: TColorB read FHoverColor write FHoverColor;
     property Caption: string read FButtonCaption write FButtonCaption;
     property Name: string read FName write SetName;
-    property ModelPath: string read FModelPath write SetName;
+    property ModelPath: string read FModelPath write SetModelPath;
     property IsDestructable: Boolean read FIsDestructable write FIsDestructable;
   end;
 
@@ -292,7 +290,6 @@ begin
   JPH_TempAllocator_Destroy(FTempAllocator);
   JPH_JobSystem_Destroy(FJobSystem);
   JPH_PhysicsSystem_Destroy(FPhysicsSystem);
-
   JPH_Shutdown;
   FActorList.Free;
   inherited;
@@ -413,7 +410,6 @@ begin
   FModel.materials := nil;
   FModel.materialCount := 0;
   FMeshSize := Vector3Create(1, 1, 1);
-
   // CRITICAL FIX: Initialize GravityFactor to 1.0 to prevent Jolt auto-launch!
   FGravityFactor := 1.0;
 end;
@@ -437,15 +433,13 @@ begin
   FQuaternion := QuaternionIdentity;
   FModelTransform := MatrixIdentity();
   FShapeType := AShapeType;
-
+  FModelPath := '-';
   FIsStatic := IsStatic;
   FIsDestructable := IsDestructable;
-
   if IsStatic then
     MotionType := JPH_MotionType_Static
   else
     MotionType := JPH_MotionType_Dynamic;
-
   case AShapeType of
     stSphere, stBomb:
       begin
@@ -476,7 +470,6 @@ begin
           for i := 0 to 5 do
             BasePoints[i] := PRISM_VERTS[i];
         end;
-
         // Scale the base points dynamically by the requested size
         for i := 0 to High(BasePoints) do
         begin
@@ -484,7 +477,6 @@ begin
           BasePoints[i].y := BasePoints[i].y * ASize.y;
           BasePoints[i].z := BasePoints[i].z * ASize.z;
         end;
-
         // Create exact Convex Hull physics shape
         ConvexHullSettings := JPH_ConvexHullShapeSettings_Create(@BasePoints[0], Length(BasePoints), JPH_DEFAULT_CONVEX_RADIUS);
         FShape := JPH_ConvexHullShapeSettings_CreateShape(ConvexHullSettings);
@@ -510,7 +502,6 @@ begin
       FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
     end;
   end;
-
   if APos <> nil then
     Pos := APos^
   else
@@ -533,7 +524,6 @@ begin
     FBodyID := JPH_BodyInterface_CreateAndAddBody(FEngine.BodyInterface, CreationSettings, JPH_Activation_DontActivate)
   else
     FBodyID := JPH_BodyInterface_CreateAndAddBody(FEngine.BodyInterface, CreationSettings, JPH_Activation_Activate);
-
   // Free settings memory
   JPH_ShapeSettings_Destroy(ShapeSettings);
   JPH_BodyInterface_SetFriction(FEngine.BodyInterface, FBodyID, FFriction);
@@ -549,7 +539,6 @@ begin
   // Unload the native Raylib model if one was assigned to this actor
   if FModel.meshes <> nil then
     UnloadModel(FModel);
-
   if Assigned(FEngine) and (FBodyID <> 0) then
   begin
     JPH_BodyInterface_RemoveAndDestroyBody(FEngine.BodyInterface, FBodyID);
@@ -782,18 +771,15 @@ begin
     Rot.y := FQuaternion.y;
     Rot.z := FQuaternion.z;
     Rot.w := FQuaternion.w;
-
     // NEW: Reattach with the correct MotionType
     if FIsStatic then
       MotionType := JPH_MotionType_Static
     else
       MotionType := JPH_MotionType_Dynamic;
-
     CreationSettings := JPH_BodyCreationSettings_Create3(FShape, @Pos, @Rot, MotionType, FEngine.CollideAllLayer);
     FBodyID := JPH_BodyInterface_CreateAndAddBody(FEngine.BodyInterface, CreationSettings, JPH_Activation_Activate);
     JPH_BodyInterface_SetFriction(FEngine.BodyInterface, FBodyID, FFriction);
     JPH_BodyInterface_SetRestitution(FEngine.BodyInterface, FBodyID, FRestitution);
-
     // CRITICAL FIX: Restore GravityFactor on Reattach!
     JPH_BodyInterface_SetGravityFactor(FEngine.BodyInterface, FBodyID, FGravityFactor);
   end;
@@ -809,16 +795,13 @@ var
   i: Integer;
 begin
   FScale := Value;
-
   // Clean up old shape
   if FShape <> nil then
     JPH_Shape_Destroy(FShape);
-
   // Determine safe convex radius to prevent Jolt crashes on tiny objects
   ConvexRadius := JPH_DEFAULT_CONVEX_RADIUS;
   if (FScale.x < 0.2) or (FScale.y < 0.2) or (FScale.z < 0.2) then
     ConvexRadius := 0.0;
-
   case FShapeType of
     stSphere, stBomb:
       begin
@@ -846,7 +829,6 @@ begin
           for i := 0 to 5 do
             BasePoints[i] := PRISM_VERTS[i];
         end;
-
         // Apply current scale
         for i := 0 to High(BasePoints) do
         begin
@@ -854,7 +836,6 @@ begin
           BasePoints[i].y := BasePoints[i].y * FScale.y;
           BasePoints[i].z := BasePoints[i].z * FScale.z;
         end;
-
         ConvexHullSettings := JPH_ConvexHullShapeSettings_Create(@BasePoints[0], Length(BasePoints), ConvexRadius);
         FShape := JPH_ConvexHullShapeSettings_CreateShape(ConvexHullSettings);
         ShapeSettings := ConvexHullSettings;
@@ -866,7 +847,6 @@ begin
         HalfExtents.z := FMeshSize.z * FScale.z * 0.5;
         ShapeSettings := JPH_BoxShapeSettings_Create(@HalfExtents, ConvexRadius);
         FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
-
         // Update model offset to keep visual mesh aligned
         FModelOffset.x := -FBBoxMin.x * FScale.x;
         FModelOffset.y := -FBBoxMin.y * FScale.y - (FScale.y * FMeshSize.y * 0.5);
@@ -883,7 +863,6 @@ begin
       FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
     end;
   end;
-
   JPH_ShapeSettings_Destroy(ShapeSettings);
   UpdateModelTransform;
 end;
@@ -934,3 +913,4 @@ begin
 end;
 
 end.
+

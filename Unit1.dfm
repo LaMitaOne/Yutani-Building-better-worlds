@@ -11685,6 +11685,12 @@ object Form1: TForm1
         OnSelectCell = StringGrid1SelectCell
         OnSetEditText = StringGrid1SetEditText
         ExplicitHeight = 358
+        RowHeights = (
+          24
+          24
+          24
+          24
+          24)
       end
     end
   end

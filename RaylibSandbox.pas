@@ -84,7 +84,9 @@ v0.648
  - Successfully defeated some Evil self replicating space thread-Bugs
  - Improved Terraforming Planetary Surface textures
  - Space now pauses on pause too
- - Eliminated startup window flash by teleporting the Raylib window off-screen during creation before reparenting it into the VCL control.
+ - Eliminated startup window flash by teleporting the Raylib window
+   off-screen during creation before reparenting it into the VCL control.
+ - Save/Load Scene now works for 3d models too, (only full path atm)
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -316,6 +318,7 @@ type
     FPopupCloseLock: Boolean;
     FLoadModelQueued: Boolean;
     FQueuedModelPath: string;
+    FLastLoadedModelPath: string;
     FNavIndex: Integer;
 
     // Manual Day/Night Properties
@@ -1124,26 +1127,21 @@ begin
             SetConfigFlags(FLAG_MSAA_4X_HINT or FLAG_WINDOW_RESIZABLE or FLAG_WINDOW_UNDECORATED)
           else
             SetConfigFlags(FLAG_WINDOW_RESIZABLE or FLAG_WINDOW_UNDECORATED);
-
           // 1. Initialize the Raylib window.
           // FLAG_WINDOW_UNDECORATED removes the standard Windows border, preventing
           // any border flicker during the reparenting process.
           InitWindow(1360, 768, 'Raylib Sandbox');
-
           // 2. Grab the window handle immediately after creation
           FRaylibWnd := FindWindow(nil, 'Raylib Sandbox');
-
           if FRaylibWnd <> 0 then
           begin
             // 3. Teleport the window instantly out of the visible screen area.
             // This happens so fast that Windows doesn't even get a chance to draw
             // a background frame on the screen, completely eliminating the startup flash.
             Winapi.Windows.SetWindowPos(FRaylibWnd, 0, -10000, -10000, 0, 0, SWP_NOZORDER or SWP_NOSIZE);
-
             // 4. Embed the window into our VCL control and adjust styles
             Winapi.Windows.SetParent(FRaylibWnd, Self.Handle);
             SetWindowLong(FRaylibWnd, GWL_STYLE, WS_CHILD or WS_VISIBLE);
-
             // 5. Finally, position and size it perfectly inside our VCL parent
             SetWindowPos(FRaylibWnd, 0, 0, 0, Self.ClientWidth, Self.ClientHeight, SWP_NOZORDER);
           end;
@@ -3267,6 +3265,7 @@ begin
   begin
     Obj.FModel := FCustomModel;
     Obj.FMeshSize := MeshSize;
+    Obj.ModelPath := FLastLoadedModelPath;
 
     MeshH := BBox.max.y - BBox.min.y;
     MaxDim := Max(BBox.max.x - BBox.min.x, Max(MeshH, BBox.max.z - BBox.min.z));
@@ -3356,6 +3355,7 @@ begin
   if FCustomModel.meshes <> nil then
   begin
     OutputDebugString('Model loaded successfully. Meshes assigned.');
+    FLastLoadedModelPath := FilePath;
     if (FCustomModel.materialCount > 0) and (FCustomModel.materials <> nil) then
     begin
       // Apply lighting shader to all materials of the model
@@ -3369,6 +3369,7 @@ begin
   end
   else
   begin
+    FLastLoadedModelPath := '';
     Ext := LowerCase(ExtractFileExt(FilePath));
     if (Ext = '.glb') or (Ext = '.gltf') then
       DoEngineException('Model loading FAILED. Meshes are nil. (GLB/GLTF requires libstdc++-6.dll or 64-bit)', 'LoadModelInThread')
@@ -5864,8 +5865,8 @@ begin
         Actor := FItems[i];
         if Assigned(Actor) then
         begin
-          if Actor.ShapeType = stModel then
-            Continue;
+         // if Actor.ShapeType = stModel then
+         //   Continue;
 
           Writer.WriteStr(Actor.Name);
           Writer.WriteInteger(Integer(Actor.ShapeType));
