@@ -15,7 +15,7 @@ This folder contains lightweight 3D models  used strictly for sandbox testing an
 * **License:** CC Attribution
 
 ### 3. Low Poly Mannequin Free
-* **Source:** https://sketchfab.com/3d-models/spaceship-fighter-version-2-meshy-6-ff69bc6de8584bb4b2d6fac0b5a1d2ed
+* **Source:** https://sketchfab.com/3d-models/low-poly-mannequin-free-eb9daa49948f47169b3670169c042599#download
 * **Creator:** W3DGEx
 * **License:** CC Attribution
 
@@ -28,5 +28,3 @@ This folder contains lightweight 3D models  used strictly for sandbox testing an
 
 
 
-
-https://sketchfab.com/3d-models/low-poly-mannequin-free-eb9daa49948f47169b3670169c042599#download
