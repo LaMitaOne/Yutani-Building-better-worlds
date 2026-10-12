@@ -214,8 +214,6 @@ begin
   FYutaniIntro.TextString := 'YUTANI';
   FYutaniIntro.Start;
 
-  Width := 1200;
-  Height := 800;
   Left := -10000;
   Top := -10000;
 
@@ -318,7 +316,6 @@ begin
   lblInfo.Caption := 'Tool: Drag & Throw Active.';
 end;
 
-
 procedure TForm1.btnNanoFogClick(Sender: TObject);
 begin
   FSandbox.TriggerNanoFogDuplicate;
@@ -400,7 +397,8 @@ var
   Idx: Integer;
 begin
   Idx := cbWorldBase.ItemIndex;
-  if Idx < 0 then Exit;
+  if Idx < 0 then
+    Exit;
   SelectedWorld := TWorldBaseType(Idx);
   if Assigned(FSandbox) then
     FSandbox.CurrentWorldBase := SelectedWorld;
@@ -579,9 +577,10 @@ begin
     end;
   end;
 end;
+
 procedure TForm1.btnPianoClick(Sender: TObject);
 begin
- FSandbox.SpawnPiano;
+  FSandbox.SpawnPiano;
 end;
 
 procedure TForm1.btnPlayPauseClick(Sender: TObject);
@@ -783,7 +782,7 @@ end;
 
 procedure TForm1.tbSlowMotionChange(Sender: TObject);
 begin
- FSandbox.TimeScale := tbSlowMotion.Position / 100.0;
+  FSandbox.TimeScale := tbSlowMotion.Position / 100.0;
 end;
 
 procedure TForm1.TimePicker1Change(Sender: TObject);
@@ -793,20 +792,35 @@ end;
 
 procedure TForm1.tmrStartEngineTimer(Sender: TObject);
 begin
-  if not FSandbox.Active  then FSandbox.Active := True;
-  if FYutaniIntro.IntroFinished then begin
-     tmrStartEngine.Enabled := False;
-     tmrStatsUpdater.Enabled := True;
-      left := 0;
-      Top := 0;
-      Width := Screen.Width;
-      Height := SCreen.Height;
-      repeat
-         AlphaBlendValue := AlphaBlendValue+1;
-         sleep(2);
-         APplication.ProcessMessages;
-      until ( AlphaBlendValue > 250);
-      AlphaBlend := False;
+  if not FSandbox.Active then
+  begin
+    FSandbox.Active := True;
+    Exit;
+  end;
+
+  if not FYutaniIntro.IntroFinished then
+    Exit;
+
+  if AlphaBlendValue = 0 then
+  begin
+    Left := 0;
+    Top := 0;
+    Width := Screen.Width;
+    Height := Screen.Height;
+    AlphaBlendValue := 1;
+    Exit;
+  end;
+
+  if AlphaBlendValue < 240 then
+  begin
+    AlphaBlendValue := AlphaBlendValue + 10;
+    RedrawWindow(Handle, nil, 0, RDW_INVALIDATE or RDW_UPDATENOW or RDW_FRAME);
+  end
+  else
+  begin
+    AlphaBlendValue := 255;
+    tmrStartEngine.Enabled := False;
+    tmrStatsUpdater.Enabled := True;
   end;
 end;
 
@@ -940,7 +954,8 @@ var
   SelectedInfo: string;
   i: Integer;
 begin
-   if (not pnlRight.Visible) or (PageControl1.ActivePageIndex <> 0) then Exit;
+  if (not pnlRight.Visible) or (PageControl1.ActivePageIndex <> 0) then
+    Exit;
 
   if not Assigned(FSandbox) then
     Exit;

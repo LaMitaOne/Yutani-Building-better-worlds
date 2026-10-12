@@ -11696,6 +11696,8 @@ object Form1: TForm1
     Align = alRight
     BevelOuter = bvNone
     Caption = 'pnlRight'
+    DoubleBuffered = False
+    ParentDoubleBuffered = False
     TabOrder = 1
     ExplicitLeft = 896
     ExplicitHeight = 654
@@ -11831,11 +11833,13 @@ object Form1: TForm1
           BevelOuter = bvNone
           BorderStyle = bsNone
           Color = clBlack
+          DoubleBuffered = True
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clSilver
           Font.Height = -12
           Font.Name = 'Segoe UI'
           Font.Style = []
+          ParentDoubleBuffered = False
           ParentFont = False
           ReadOnly = True
           TabOrder = 6
@@ -12486,7 +12490,7 @@ object Form1: TForm1
   end
   object tmrStartEngine: TTimer
     Enabled = False
-    Interval = 500
+    Interval = 30
     OnTimer = tmrStartEngineTimer
     Left = 248
     Top = 176
