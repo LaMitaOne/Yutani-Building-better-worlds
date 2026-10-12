@@ -28,7 +28,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 Status: Work in Progress (Alpha v0.647)    
          
 <img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
-       
+    
 ## ✨ Features     
 
 ### 🦾 Core Physics System (Jolt Physics)     
@@ -76,8 +76,9 @@ Status: Work in Progress (Alpha v0.647)
 My first spaceship 🤤     
 slowly getting ready to explore the new universe       
 <img width="1223" height="782" alt="Unbenannt" src="https://github.com/user-attachments/assets/b8068277-fc6c-41a1-9b1c-a854ef418bef" />
-
-             
+     
+> 💡 **Instabile warp drive reactors:** Interstellar flights are currently strictly experimental. The current warp drives cause severe local reality distortions and cognitive perception warps. Planets moving at hyperspeed are not a bug—it’s just the engine frying your brain. Use at your own risk!           
+                   
 ## ⌨️ Controls    
 * **CTRL:** Toggle between Move / Rotate / Scale Gizmos    
 * **Middle Mouse Click + Drag:** Rotate Editor Camera    
