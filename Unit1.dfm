@@ -11775,6 +11775,13 @@ object Form1: TForm1
           ParentFont = False
           Transparent = True
         end
+        object Label2: TLabel
+          Left = 18
+          Top = 228
+          Width = 64
+          Height = 15
+          Caption = 'Rain objects'
+        end
         object btnSpawnCubes: TButton
           Left = 13
           Top = 17
@@ -11853,7 +11860,7 @@ object Form1: TForm1
         end
         object btnSpawnSandbox: TButton
           Left = 13
-          Top = 361
+          Top = 352
           Width = 74
           Height = 25
           Caption = 'Sandbox'
@@ -11862,7 +11869,7 @@ object Form1: TForm1
         end
         object btnSpawnWall: TButton
           Left = 101
-          Top = 330
+          Top = 321
           Width = 74
           Height = 25
           Caption = 'Wall'
@@ -11880,7 +11887,7 @@ object Form1: TForm1
         end
         object btnSpawnButton: TButton
           Left = 13
-          Top = 330
+          Top = 321
           Width = 74
           Height = 25
           Caption = 'Button'
@@ -11909,7 +11916,7 @@ object Form1: TForm1
         end
         object btnSpawnScreens: TButton
           Left = 101
-          Top = 361
+          Top = 352
           Width = 74
           Height = 25
           Caption = 'Screens'
@@ -11938,7 +11945,7 @@ object Form1: TForm1
         end
         object btnPiano: TButton
           Left = 101
-          Top = 299
+          Top = 290
           Width = 74
           Height = 25
           Caption = 'Piano'
@@ -11947,7 +11954,7 @@ object Form1: TForm1
         end
         object btnFog: TButton
           Left = 13
-          Top = 299
+          Top = 290
           Width = 74
           Height = 25
           Caption = 'Fog'
@@ -12000,6 +12007,72 @@ object Form1: TForm1
           Caption = 'Drag n Throw'
           TabOrder = 20
           OnClick = btnToolDragThrowClick
+        end
+        object Button1: TButton
+          Left = 67
+          Top = 245
+          Width = 20
+          Height = 25
+          Caption = 'c'
+          TabOrder = 21
+          OnClick = Button1Click
+        end
+        object Button2: TButton
+          Left = 111
+          Top = 245
+          Width = 20
+          Height = 25
+          Caption = 'p'
+          TabOrder = 22
+          OnClick = Button2Click
+        end
+        object Button3: TButton
+          Left = 89
+          Top = 245
+          Width = 20
+          Height = 25
+          Caption = 's'
+          TabOrder = 23
+          OnClick = Button3Click
+        end
+        object Button4: TButton
+          Left = 133
+          Top = 245
+          Width = 20
+          Height = 25
+          Caption = 'ca'
+          TabOrder = 24
+          OnClick = Button4Click
+        end
+        object Button5: TButton
+          Left = 155
+          Top = 245
+          Width = 20
+          Height = 25
+          Caption = 'pr'
+          TabOrder = 25
+          OnClick = Button5Click
+        end
+        object spRain: TSpinEdit
+          Left = 18
+          Top = 245
+          Width = 43
+          Height = 25
+          MaxValue = 1000
+          MinValue = 1
+          TabOrder = 26
+          Value = 30
+        end
+        object chkShowInfos: TCheckBox
+          Left = 3
+          Top = 383
+          Width = 97
+          Height = 17
+          Anchors = [akLeft, akBottom]
+          Checked = True
+          State = cbChecked
+          TabOrder = 27
+          OnClick = chkShowInfosClick
         end
       end
       object tsEngine: TTabSheet

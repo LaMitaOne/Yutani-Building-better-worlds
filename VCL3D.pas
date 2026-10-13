@@ -24,7 +24,7 @@ type
     class procedure SpawnSandbox(Sandbox: TRaylibSandbox);
 
     { Spawns a grid of blocks sequentially to build a realistic wall }
-    class procedure SpawnDynamicWall(Sandbox: TRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False);
+    class procedure SpawnDynamicWall(Sandbox: TRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False; Destructable: Boolean = False);
 
     { Spawns a 3D UI Button with OnClick Event }
     class procedure SpawnButton(Sandbox: TRaylibSandbox; const ACaption: string; APos, ASize: TVector3; AOnClick: TNotifyEvent);
@@ -35,7 +35,6 @@ type
 
 implementation
 { TVCL3D }
-
 
 class procedure TVCL3D.SpawnSandbox(Sandbox: TRaylibSandbox);
 var
@@ -78,7 +77,7 @@ begin
   Sandbox.QueueCustomSpawn(Req);
 end;
 
-class procedure TVCL3D.SpawnDynamicWall(Sandbox: TRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False);
+class procedure TVCL3D.SpawnDynamicWall(Sandbox: TRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False; Destructable: Boolean = False);
 var
   Req: TSpawnRequest;
   x, y: Integer;
@@ -104,7 +103,7 @@ begin
   Req.Shape := stBox;
   Req.Size := Vector3Create(BrickSize, BrickSize, BrickSize);
   Req.IsStatic := False; // Always dynamic so the bomb can destroy them!
-  Req.IsDestructable := True;
+  Req.IsDestructable := Destructable;
   Req.Color := MAROON;
   Req.GenerateTestTexture := False;
 
@@ -180,9 +179,16 @@ begin
   if not Assigned(Sandbox) then
     Exit;
   // Define 10 different colors for testing
-  Colors[0] := RED; Colors[1] := GREEN; Colors[2] := BLUE; Colors[3] := YELLOW;
-  Colors[4] := MAGENTA; Colors[5] := ORANGE; Colors[6] := PURPLE; Colors[7] := PINK;
-  Colors[8] := LIME; Colors[9] := SKYBLUE;
+  Colors[0] := RED;
+  Colors[1] := GREEN;
+  Colors[2] := BLUE;
+  Colors[3] := YELLOW;
+  Colors[4] := MAGENTA;
+  Colors[5] := ORANGE;
+  Colors[6] := PURPLE;
+  Colors[7] := PINK;
+  Colors[8] := LIME;
+  Colors[9] := SKYBLUE;
   ScreenWidth := 8.0;
   ScreenHeight := 4.5;
   ScreenDepth := 0.5;
@@ -206,7 +212,7 @@ begin
       Req.Pos := Vector3Create(PosX, PosY, PosZ);
       Req.Size := Vector3Create(ScreenWidth, ScreenHeight, ScreenDepth);
       Req.Color := Colors[i]; // Use this color for the generated texture
-      Req.Name := 'Screen_' + IntToStr(i+1);
+      Req.Name := 'Screen_' + IntToStr(i + 1);
       Sandbox.QueueCustomSpawn(Req);
       Inc(i);
     end;

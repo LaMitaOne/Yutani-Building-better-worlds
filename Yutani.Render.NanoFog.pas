@@ -1,7 +1,7 @@
 unit Yutani.Render.NanoFog;
 
 {==============================================================================*
- *  Yutani NanoFog Engine v0.2 - Swarm Core
+ *  Yutani NanoFog Engine v0.3 - Swarm Core
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -13,13 +13,16 @@ unit Yutani.Render.NanoFog;
  *==============================================================================}
 {$POINTERMATH ON}
 interface
+
 uses
-  System.SysUtils, System.Classes, System.Math, System.SyncObjs, Raylib, RayMath,
-  rlgl;
+  System.SysUtils, System.Math, System.SyncObjs, Raylib, RayMath, rlgl;
+
 type
   TNanoShapeType = (nstBox, nstSphere, nstCapsule, nstPyramid, nstPrism);
   // Added nsDead for the epic explosion & fade-out sequence
+
   TNanoState = (nsFog, nsOrbiting, nsForming, nsFormed, nsDead);
+
   TNanoParticle = record
     AvatarID: Integer;
     State: TNanoState;
@@ -34,6 +37,7 @@ type
     Size: Single;
     Color: TColorB;
   end;
+
   TNanoFogEngine = class
   private
     FParticles: array of TNanoParticle;
@@ -43,30 +47,29 @@ type
     FCurrentAvatarID: Integer;
     FMatTargetCount: Integer;
     FMatArrivedCount: Integer;
-    function GeneratePrimitiveGrid(ShapeType: TNanoShapeType; const Scale: TVector3;
-      out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
-    function GenerateMeshGrid(const Mesh: TMesh;
-      out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
-    procedure SpawnAvatarParticles(const TargetPos: TVector3; const Points: TArray<TVector3>;
-      const CenterPos: TVector3; MinY, MaxY: Single; AvatarID: Integer);
+    function GeneratePrimitiveGrid(ShapeType: TNanoShapeType; const Scale: TVector3; out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
+    function GenerateMeshGrid(const Mesh: TMesh; out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
+    procedure SpawnAvatarParticles(const TargetPos: TVector3; const Points: TArray<TVector3>; const CenterPos: TVector3; MinY, MaxY: Single; AvatarID: Integer);
   public
     constructor Create;
     destructor Destroy; override;
     procedure Update(const dt: Single);
     procedure Render;
     procedure EmitMaterializeMesh(const TargetPos: TVector3; const Mesh: TMesh; AvatarID: Integer);
-    procedure EmitMaterializePrimitive(const TargetPos: TVector3; ShapeType: TNanoShapeType;
-      const Scale: TVector3; AvatarID: Integer);
+    procedure EmitMaterializePrimitive(const TargetPos: TVector3; ShapeType: TNanoShapeType; const Scale: TVector3; AvatarID: Integer);
     // Dissolves the avatar completely and immediately into chaotic fog
     procedure MorphToFog(AvatarID: Integer);
     // Epic explosion and death sequence
     procedure ExplodeAndKill;
     procedure Clear;
   end;
+
 implementation
+
 const
   MAX_PARTICLES = 10000;
 { TNanoFogEngine }
+
 constructor TNanoFogEngine.Create;
 begin
   inherited Create;
@@ -78,6 +81,7 @@ begin
   FMatTargetCount := 0;
   FMatArrivedCount := 0;
 end;
+
 destructor TNanoFogEngine.Destroy;
 begin
   FLock.Enter;
@@ -89,6 +93,7 @@ begin
   FLock.Free;
   inherited;
 end;
+
 procedure TNanoFogEngine.Clear;
 begin
   FLock.Enter;
@@ -98,8 +103,8 @@ begin
     FLock.Leave;
   end;
 end;
-procedure TNanoFogEngine.SpawnAvatarParticles(const TargetPos: TVector3; const Points: TArray<TVector3>;
-  const CenterPos: TVector3; MinY, MaxY: Single; AvatarID: Integer);
+
+procedure TNanoFogEngine.SpawnAvatarParticles(const TargetPos: TVector3; const Points: TArray<TVector3>; const CenterPos: TVector3; MinY, MaxY: Single; AvatarID: Integer);
 var
   i, j: Integer;
   P: ^TNanoParticle;
@@ -126,12 +131,8 @@ begin
         P := @FParticles[i];
         P^.AvatarID := -1;
         P^.State := nsFog;
-        P^.Position := Vector3Create(
-          TargetPos.x + (Random * 30 - 15),
-          TargetPos.y + (Random * 20 - 5),
-          TargetPos.z + (Random * 30 - 15)
-        );
-        P^.Velocity := Vector3Create(0,0,0);
+        P^.Position := Vector3Create(TargetPos.x + (Random * 30 - 15), TargetPos.y + (Random * 20 - 5), TargetPos.z + (Random * 30 - 15));
+        P^.Velocity := Vector3Create(0, 0, 0);
         P^.WanderTimer := 0;
         P^.Size := 0.04;
         P^.Color := ColorAlpha(SKYBLUE, 140);
@@ -139,7 +140,8 @@ begin
     end;
     // Calculate target bounding box height for bottom-up assembly delay
     HeightRange := MaxY - MinY;
-    if HeightRange <= 0.001 then HeightRange := 1.0;
+    if HeightRange <= 0.001 then
+      HeightRange := 1.0;
     j := 0;
     // 2. Assign ALL existing particles to fly to the object and orbit it
     for i := 0 to High(FParticles) do
@@ -182,8 +184,8 @@ begin
     FLock.Leave;
   end;
 end;
-function TNanoFogEngine.GeneratePrimitiveGrid(ShapeType: TNanoShapeType; const Scale: TVector3;
-  out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
+
+function TNanoFogEngine.GeneratePrimitiveGrid(ShapeType: TNanoShapeType; const Scale: TVector3; out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
 var
   GridSize, i, j, k: Integer;
   OffsetX, OffsetY, OffsetZ: Single;
@@ -216,8 +218,10 @@ begin
               if DistSq <= RadSq then
               begin
                 Points[Count] := Vector3Create(OffsetX, OffsetY, OffsetZ);
-                if OffsetY < MinY then MinY := OffsetY;
-                if OffsetY > MaxY then MaxY := OffsetY;
+                if OffsetY < MinY then
+                  MinY := OffsetY;
+                if OffsetY > MaxY then
+                  MaxY := OffsetY;
                 Inc(Count);
               end;
             end;
@@ -226,7 +230,8 @@ begin
       begin
         RadSq := Sqr(Max(LenX, LenZ));
         CapY := LenY - Max(LenX, LenZ);
-        if CapY < 0 then CapY := 0;
+        if CapY < 0 then
+          CapY := 0;
         for i := 0 to GridSize - 1 do
           for j := 0 to GridSize - 1 do
             for k := 0 to GridSize - 1 do
@@ -240,8 +245,10 @@ begin
                 if (OffsetY >= -CapY) and (OffsetY <= CapY) then
                 begin
                   Points[Count] := Vector3Create(OffsetX, OffsetY, OffsetZ);
-                  if OffsetY < MinY then MinY := OffsetY;
-                  if OffsetY > MaxY then MaxY := OffsetY;
+                  if OffsetY < MinY then
+                    MinY := OffsetY;
+                  if OffsetY > MaxY then
+                    MaxY := OffsetY;
                   Inc(Count);
                 end
                 else
@@ -253,8 +260,10 @@ begin
                   if DistSq <= RadSq then
                   begin
                     Points[Count] := Vector3Create(OffsetX, OffsetY, OffsetZ);
-                    if OffsetY < MinY then MinY := OffsetY;
-                    if OffsetY > MaxY then MaxY := OffsetY;
+                    if OffsetY < MinY then
+                      MinY := OffsetY;
+                    if OffsetY > MaxY then
+                      MaxY := OffsetY;
                     Inc(Count);
                   end;
                 end;
@@ -271,12 +280,15 @@ begin
               OffsetY := ((j / (GridSize - 1)) - 0.5) * Scale.y;
               OffsetZ := ((k / (GridSize - 1)) - 0.5) * Scale.z;
               t := 1.0 - ((OffsetY + LenY) / Scale.y);
-              if t < 0 then t := 0;
+              if t < 0 then
+                t := 0;
               if (Abs(OffsetX) <= LenX * t) and (Abs(OffsetZ) <= LenZ * t) then
               begin
                 Points[Count] := Vector3Create(OffsetX, OffsetY, OffsetZ);
-                if OffsetY < MinY then MinY := OffsetY;
-                if OffsetY > MaxY then MaxY := OffsetY;
+                if OffsetY < MinY then
+                  MinY := OffsetY;
+                if OffsetY > MaxY then
+                  MaxY := OffsetY;
                 Inc(Count);
               end;
             end;
@@ -294,15 +306,21 @@ begin
               if (Abs(OffsetX) <= MaxR) and (Abs(OffsetZ) <= MaxR) then
               begin
                 Angle := ArcTan2(OffsetZ, OffsetX);
-                while Angle < 0 do Angle := Angle + 2 * PI;
-                while Angle >= 2 * PI do Angle := Angle - 2 * PI;
-                if Angle > 2 * PI / 3 then Angle := Angle - 2 * PI / 3;
-                if Angle > 2 * PI / 3 then Angle := Angle - 2 * PI / 3;
+                while Angle < 0 do
+                  Angle := Angle + 2 * PI;
+                while Angle >= 2 * PI do
+                  Angle := Angle - 2 * PI;
+                if Angle > 2 * PI / 3 then
+                  Angle := Angle - 2 * PI / 3;
+                if Angle > 2 * PI / 3 then
+                  Angle := Angle - 2 * PI / 3;
                 if Sqr(OffsetX) + Sqr(OffsetZ) <= Sqr(MaxR / Cos(Angle - PI / 3)) then
                 begin
                   Points[Count] := Vector3Create(OffsetX, OffsetY, OffsetZ);
-                  if OffsetY < MinY then MinY := OffsetY;
-                  if OffsetY > MaxY then MaxY := OffsetY;
+                  if OffsetY < MinY then
+                    MinY := OffsetY;
+                  if OffsetY > MaxY then
+                    MaxY := OffsetY;
                   Inc(Count);
                 end;
               end;
@@ -318,8 +336,10 @@ begin
               OffsetY := ((j / (GridSize - 1)) - 0.5) * Scale.y;
               OffsetZ := ((k / (GridSize - 1)) - 0.5) * Scale.z;
               Points[Count] := Vector3Create(OffsetX, OffsetY, OffsetZ);
-              if OffsetY < MinY then MinY := OffsetY;
-              if OffsetY > MaxY then MaxY := OffsetY;
+              if OffsetY < MinY then
+                MinY := OffsetY;
+              if OffsetY > MaxY then
+                MaxY := OffsetY;
               Inc(Count);
             end;
       end;
@@ -328,8 +348,8 @@ begin
   SetLength(Points, Count);
   Result := Points;
 end;
-function TNanoFogEngine.GenerateMeshGrid(const Mesh: TMesh;
-  out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
+
+function TNanoFogEngine.GenerateMeshGrid(const Mesh: TMesh; out CenterPos: TVector3; out MinY: Single; out MaxY: Single): TArray<TVector3>;
 var
   i: Integer;
   Points: TArray<TVector3>;
@@ -340,8 +360,9 @@ begin
   if (Mesh.vertexCount = 0) or (Mesh.vertices = nil) then
   begin
     SetLength(Result, 0);
-    CenterPos := Vector3Create(0,0,0);
-    MinY := 0; MaxY := 0;
+    CenterPos := Vector3Create(0, 0, 0);
+    MinY := 0;
+    MaxY := 0;
     Exit;
   end;
   // Apply uniform scaling to prevent flat pancakes
@@ -350,7 +371,8 @@ begin
   MeshH := BBox.max.y - BBox.min.y;
   MeshD := BBox.max.z - BBox.min.z;
   MaxDim := Max(MeshW, Max(MeshH, MeshD));
-  if MaxDim <= 0 then MaxDim := 1.0;
+  if MaxDim <= 0 then
+    MaxDim := 1.0;
   UniformScale := 1.0 / MaxDim;
   SetLength(Points, Mesh.vertexCount);
   MinY := 99999;
@@ -364,12 +386,15 @@ begin
     vy := vy * UniformScale;
     vz := vz * UniformScale;
     Points[i] := Vector3Create(vx, vy, vz);
-    if vy < MinY then MinY := vy;
-    if vy > MaxY then MaxY := vy;
+    if vy < MinY then
+      MinY := vy;
+    if vy > MaxY then
+      MaxY := vy;
   end;
   CenterPos := Vector3Create(0, (MinY + MaxY) * 0.5, 0);
   Result := Points;
 end;
+
 procedure TNanoFogEngine.EmitMaterializeMesh(const TargetPos: TVector3; const Mesh: TMesh; AvatarID: Integer);
 var
   Points: TArray<TVector3>;
@@ -380,8 +405,8 @@ begin
   if Length(Points) > 0 then
     SpawnAvatarParticles(TargetPos, Points, CenterPos, MinY, MaxY, AvatarID);
 end;
-procedure TNanoFogEngine.EmitMaterializePrimitive(const TargetPos: TVector3; ShapeType: TNanoShapeType;
-  const Scale: TVector3; AvatarID: Integer);
+
+procedure TNanoFogEngine.EmitMaterializePrimitive(const TargetPos: TVector3; ShapeType: TNanoShapeType; const Scale: TVector3; AvatarID: Integer);
 var
   Points: TArray<TVector3>;
   CenterPos: TVector3;
@@ -391,6 +416,7 @@ begin
   if Length(Points) > 0 then
     SpawnAvatarParticles(TargetPos, Points, CenterPos, MinY, MaxY, AvatarID);
 end;
+
 procedure TNanoFogEngine.MorphToFog(AvatarID: Integer);
 var
   i: Integer;
@@ -410,7 +436,7 @@ begin
         // Calculate a random direction from the center of the shape
         ExplodeDir := Vector3Subtract(P^.Position, P^.CenterPos);
         if Vector3Length(ExplodeDir) < 0.1 then
-          ExplodeDir := Vector3Create(Random*2-1, Random*2-1, Random*2-1);
+          ExplodeDir := Vector3Create(Random * 2 - 1, Random * 2 - 1, Random * 2 - 1);
         // REDUCED SPEED: Give them a gentle push instead of bombing them to the moon
         P^.Velocity := Vector3Scale(Vector3Normalize(ExplodeDir), 5.0 + Random * 3.0);
         // REDUCED DISTANCE: Send them only a few meters away, not kilometers!
@@ -429,6 +455,7 @@ begin
     FLock.Leave;
   end;
 end;
+
 procedure TNanoFogEngine.ExplodeAndKill;
 var
   i: Integer;
@@ -446,7 +473,7 @@ begin
         // Calculate a fierce outward direction from the shape's center
         ExplodeDir := Vector3Subtract(P^.Position, P^.CenterPos);
         if Vector3Length(ExplodeDir) < 0.1 then
-          ExplodeDir := Vector3Create(Random*2-1, Random*2-1, Random*2-1);
+          ExplodeDir := Vector3Create(Random * 2 - 1, Random * 2 - 1, Random * 2 - 1);
         // Give them a massive burst of speed
         P^.Velocity := Vector3Scale(Vector3Normalize(ExplodeDir), 50.0 + Random * 30.0);
         // Start the death timer
@@ -463,12 +490,14 @@ begin
     FLock.Leave;
   end;
 end;
+
 procedure TNanoFogEngine.Update(const dt: Single);
 var
   i: Integer;
   P: ^TNanoParticle;
   Dir, Tangent: TVector3;
   Dist: Single;
+  NewAlpha: Integer; // Added to safely handle Byte subtraction
 begin
   FLock.Enter;
   try
@@ -484,11 +513,7 @@ begin
             if P^.WanderTimer <= 0 then
             begin
               // REDUCED WANDER RADIUS: Keep them in a tight 5x5x5 area
-              P^.WanderTarget := Vector3Create(
-                P^.Position.x + (Random * 5 - 2.5),
-                P^.Position.y + (Random * 2 - 1.0),
-                P^.Position.z + (Random * 5 - 2.5)
-              );
+              P^.WanderTarget := Vector3Create(P^.Position.x + (Random * 5 - 2.5), P^.Position.y + (Random * 2 - 1.0), P^.Position.z + (Random * 5 - 2.5));
               P^.WanderTimer := 2.0 + Random * 2.0;
             end;
             P^.WanderTimer := P^.WanderTimer - dt;
@@ -541,7 +566,7 @@ begin
             begin
               P^.State := nsForming;
               P^.PhaseTimer := P^.SpawnDelay;
-              P^.Velocity := Vector3Create(0,0,0);
+              P^.Velocity := Vector3Create(0, 0, 0);
             end;
           end;
         nsForming:
@@ -566,7 +591,7 @@ begin
               begin
                 // Arrived exactly at target
                 P^.Position := P^.TargetPosition;
-                P^.Velocity := Vector3Create(0,0,0);
+                P^.Velocity := Vector3Create(0, 0, 0);
                 P^.State := nsFormed;
                 Inc(FMatArrivedCount); // Count arrivals for the strict logic
               end;
@@ -579,11 +604,7 @@ begin
         nsFormed:
           begin
             // COMPLETELY RIGID. Just 0.001 independent micro-jitter
-            P^.Position := Vector3Add(P^.TargetPosition, Vector3Create(
-              Sin(FElapsed * 15.0 + P^.TargetPosition.x * 10.0) * 0.001,
-              Sin(FElapsed * 15.0 + P^.TargetPosition.y * 10.0) * 0.001,
-              Sin(FElapsed * 15.0 + P^.TargetPosition.z * 10.0) * 0.001
-            ));
+            P^.Position := Vector3Add(P^.TargetPosition, Vector3Create(Sin(FElapsed * 15.0 + P^.TargetPosition.x * 10.0) * 0.001, Sin(FElapsed * 15.0 + P^.TargetPosition.y * 10.0) * 0.001, Sin(FElapsed * 15.0 + P^.TargetPosition.z * 10.0) * 0.001));
             P^.Color.r := 0;
             P^.Color.g := 230;
             P^.Color.b := 230;
@@ -607,8 +628,13 @@ begin
             else
             begin
               // Fade out rapidly
-              P^.Color.a := P^.Color.a - Trunc(600 * dt);
-              if P^.Color.a < 0 then P^.Color.a := 0;
+              // CRITICAL FIX: Calculate the new alpha as an Integer first.
+              // Directly assigning a negative result to a Byte field triggers
+              // a Range Check Error (bereichsprüfung) before the < 0 check.
+              NewAlpha := P^.Color.a - Trunc(600 * dt);
+              if NewAlpha < 0 then
+                NewAlpha := 0;
+              P^.Color.a := NewAlpha;
             end;
           end;
       end;
@@ -625,6 +651,7 @@ begin
     FLock.Leave;
   end;
 end;
+
 procedure TNanoFogEngine.Render;
 var
   i: Integer;
@@ -636,7 +663,8 @@ var
 begin
   FLock.Enter;
   try
-    if Length(FParticles) = 0 then Exit;
+    if Length(FParticles) = 0 then
+      Exit;
     // Check if there are any particles left to render
     HasAlive := False;
     for i := 0 to High(FParticles) do
@@ -668,14 +696,30 @@ begin
         Cz := P^.Position.z;
         S := HalfSize;
         rlColor4ub(P^.Color.r, P^.Color.g, P^.Color.b, P^.Color.a);
-        rlVertex3f(Cx, Cy + S, Cz); rlVertex3f(Cx, Cy, Cz + S); rlVertex3f(Cx + S, Cy, Cz);
-        rlVertex3f(Cx, Cy + S, Cz); rlVertex3f(Cx - S, Cy, Cz); rlVertex3f(Cx, Cy, Cz + S);
-        rlVertex3f(Cx, Cy + S, Cz); rlVertex3f(Cx + S, Cy, Cz); rlVertex3f(Cx, Cy, Cz - S);
-        rlVertex3f(Cx, Cy + S, Cz); rlVertex3f(Cx, Cy, Cz - S); rlVertex3f(Cx - S, Cy, Cz);
-        rlVertex3f(Cx, Cy - S, Cz); rlVertex3f(Cx + S, Cy, Cz); rlVertex3f(Cx, Cy, Cz + S);
-        rlVertex3f(Cx, Cy - S, Cz); rlVertex3f(Cx, Cy, Cz + S); rlVertex3f(Cx - S, Cy, Cz);
-        rlVertex3f(Cx, Cy - S, Cz); rlVertex3f(Cx - S, Cy, Cz); rlVertex3f(Cx, Cy, Cz - S);
-        rlVertex3f(Cx, Cy - S, Cz); rlVertex3f(Cx, Cy, Cz - S); rlVertex3f(Cx + S, Cy, Cz);
+        rlVertex3f(Cx, Cy + S, Cz);
+        rlVertex3f(Cx, Cy, Cz + S);
+        rlVertex3f(Cx + S, Cy, Cz);
+        rlVertex3f(Cx, Cy + S, Cz);
+        rlVertex3f(Cx - S, Cy, Cz);
+        rlVertex3f(Cx, Cy, Cz + S);
+        rlVertex3f(Cx, Cy + S, Cz);
+        rlVertex3f(Cx + S, Cy, Cz);
+        rlVertex3f(Cx, Cy, Cz - S);
+        rlVertex3f(Cx, Cy + S, Cz);
+        rlVertex3f(Cx, Cy, Cz - S);
+        rlVertex3f(Cx - S, Cy, Cz);
+        rlVertex3f(Cx, Cy - S, Cz);
+        rlVertex3f(Cx + S, Cy, Cz);
+        rlVertex3f(Cx, Cy, Cz + S);
+        rlVertex3f(Cx, Cy - S, Cz);
+        rlVertex3f(Cx, Cy, Cz + S);
+        rlVertex3f(Cx - S, Cy, Cz);
+        rlVertex3f(Cx, Cy - S, Cz);
+        rlVertex3f(Cx - S, Cy, Cz);
+        rlVertex3f(Cx, Cy, Cz - S);
+        rlVertex3f(Cx, Cy - S, Cz);
+        rlVertex3f(Cx, Cy, Cz - S);
+        rlVertex3f(Cx + S, Cy, Cz);
       end;
     finally
       rlEnd();
@@ -686,4 +730,6 @@ begin
     FLock.Leave;
   end;
 end;
+
 end.
+

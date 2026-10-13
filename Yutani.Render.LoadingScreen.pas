@@ -113,10 +113,20 @@ end;
 constructor TYutaniLoadingScreen.Create;
 var
   ScreenW, ScreenH, Size: Integer;
+  MainFormCenterX, MainFormCenterY: Integer;
 begin
   ScreenW := GetSystemMetrics(SM_CXSCREEN);
   ScreenH := GetSystemMetrics(SM_CYSCREEN);
   Size := 400;
+
+  // CRITICAL FIX: Center on the VCL MainForm instead of the screen
+  MainFormCenterX := ScreenW div 2;
+  MainFormCenterY := ScreenH div 2;
+  if Assigned(Application.MainForm) then
+  begin
+    MainFormCenterX := Application.MainForm.Left + (Application.MainForm.Width div 2);
+    MainFormCenterY := Application.MainForm.Top + (Application.MainForm.Height div 2);
+  end;
 
   FForm := TForm.Create(nil);
   FForm.FormStyle := fsStayOnTop;
@@ -124,8 +134,9 @@ begin
   FForm.Color := clBlack;
   FForm.ClientWidth := Size;
   FForm.ClientHeight := Size;
-  FForm.Left := (ScreenW - Size) div 2;
-  FForm.Top := (ScreenH - Size) div 2;
+  // Position the loading screen exactly in the center of the MainForm
+  FForm.Left := MainFormCenterX - (Size div 2);
+  FForm.Top := MainFormCenterY - (Size div 2);
   MakeClickThroughFullScreen;
 
   FBuffer := TBitmap.Create;

@@ -14,12 +14,11 @@ unit Unit1;
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Math,
-  System.Classes, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
-  Winapi.UxTheme, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, RaylibSandbox,
-  ModelEngine, TypInfo, JoltPhysics, Vcl.Grids, Raylib, Vcl.Menus,
-  Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain,
-  Yutani.SkiaIntro, MiniAudio4Delphi, System.ImageList, Vcl.ImgList;
+  Winapi.Windows, System.SysUtils, System.Math, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
+  RaylibSandbox, ModelEngine, TypInfo, Vcl.Grids, Raylib, Vcl.WinXPickers,
+  Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain, Yutani.SkiaIntro,
+  MiniAudio4Delphi;
 
 type
   TForm1 = class(TForm)
@@ -97,6 +96,14 @@ type
     btnShoot: TButton;
     btnToolDragThrow: TButton;
     lblInfo: TLabel;
+    Button1: TButton;
+    Button2: TButton;
+    Button3: TButton;
+    Button4: TButton;
+    Button5: TButton;
+    Label2: TLabel;
+    spRain: TSpinEdit;
+    chkShowInfos: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -152,6 +159,12 @@ type
     procedure btnNanoFogClick(Sender: TObject);
     procedure btnEndNanoFogClick(Sender: TObject);
     procedure tmrStartEngineTimer(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure chkShowInfosClick(Sender: TObject);
   private
     FSandbox: TRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -248,6 +261,7 @@ begin
   FSandbox.OnSceneCleared := HandleSceneCleared;
   FSandbox.OnEngineException := HandleEngineException;
   FSandbox.OnObjectSelected := HandleObjectSelected;
+  FSandbox.FShowInfosGUi := True;
   seGravity.Value := Round(FSandbox.Gravity);
 end;
 
@@ -316,6 +330,31 @@ begin
   lblInfo.Caption := 'Tool: Drag & Throw Active.';
 end;
 
+procedure TForm1.Button1Click(Sender: TObject);
+begin
+  FSandbox.SpawnObjects(spRain.value, stBox);
+end;
+
+procedure TForm1.Button2Click(Sender: TObject);
+begin
+  FSandbox.SpawnObjects(spRain.value, stCapsule);
+end;
+
+procedure TForm1.Button3Click(Sender: TObject);
+begin
+  FSandbox.SpawnObjects(spRain.value, stSphere);
+end;
+
+procedure TForm1.Button4Click(Sender: TObject);
+begin
+  FSandbox.SpawnObjects(spRain.value, stPyramid);
+end;
+
+procedure TForm1.Button5Click(Sender: TObject);
+begin
+  FSandbox.SpawnObjects(spRain.value, stPrism);
+end;
+
 procedure TForm1.btnNanoFogClick(Sender: TObject);
 begin
   FSandbox.TriggerNanoFogDuplicate;
@@ -340,6 +379,15 @@ end;
 procedure TForm1.cbFrustumCullingClick(Sender: TObject);
 begin
   FSandbox.FrustumCulling := cbFrustumCulling.Checked;
+end;
+
+procedure TForm1.chkShowInfosClick(Sender: TObject);
+begin
+  FSandbox.FShowInfosGUi := chkShowInfos.Checked;
+  tmrStatsUpdater.enabled := chkShowInfos.Checked;
+  if not chkShowInfos.Checked then begin
+    if Memo1.Lines.Count > 2 then Memo1.Clear;
+  end;
 end;
 
 procedure TForm1.cbSpawnEffectsChange(Sender: TObject);
@@ -388,7 +436,7 @@ end;
 
 procedure TForm1.chkSlowMotionClick(Sender: TObject);
 begin
-  FSandbox.SetSlowMotion(chkSlowMotion.Checked);
+  FSandbox.SetSlowMotionActive(chkSlowMotion.Checked);
 end;
 
 procedure TForm1.cbWorldBaseChange(Sender: TObject);
@@ -455,7 +503,7 @@ end;
 
 procedure TForm1.btnSpawnWallClick(Sender: TObject);
 begin
-  TVCL3D.SpawnDynamicWall(FSandbox, 10, 10, false, true);
+  TVCL3D.SpawnDynamicWall(FSandbox, 10, 10, false, true, chkDestructable.Checked);
 end;
 
 procedure TForm1.btnSpawn3DModelClick(Sender: TObject);
@@ -954,6 +1002,8 @@ var
   SelectedInfo: string;
   i: Integer;
 begin
+  if not chkShowInfos.Checked then Exit;
+
   if (not pnlRight.Visible) or (PageControl1.ActivePageIndex <> 0) then
     Exit;
 

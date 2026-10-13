@@ -87,6 +87,12 @@ v0.648
  - Eliminated startup window flash by teleporting the Raylib window
    off-screen during creation before reparenting it into the VCL control.
  - Save/Load Scene now works for 3d models too, (only full path atm)
+ - Stabilized nanofog and bomb
+ - Slowmotion can do now fastmotion too (Trackbar max 200 now)
+ - Pressing F11 again now first changes direction 90 degrees till it leaves
+ - Loading screen now shows on mainform center, not screen center
+ - Added mass rain spawn spinedit and btns in form and removed ugly internal test hud
+ - ADded checkbox to show/hide infos internal and on form
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -96,13 +102,12 @@ v0.648
 interface
 
 uses
-  Winapi.Windows, Winapi.MultiMon, Winapi.MMSystem, System.SysUtils,
-  System.Classes, System.Math, System.SyncObjs, Vcl.Controls, Vcl.Forms,
-  Vcl.Graphics, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
-  MiniAudio4Delphi, MPVManager, MPVEmbedded, Yutani.Audio,
-  Yutani.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
-  Yutani.Worlds.Space, Yutani.Render.Shaders, Yutani.Render.Particles,
-  Yutani.Render.NanoFog, Yutani.Render.LoadingScreen;
+  Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Math,
+  System.SyncObjs, Vcl.Controls, Raylib, RayMath, rlgl, ModelEngine, JoltPhysics,
+  MiniAudio4Delphi, MPVManager, Yutani.Audio, Yutani.VoronoiFracture,
+  Yutani.AliveHighlighter3D, Yutani.Worlds.Island, Yutani.Worlds.Space,
+  Yutani.Render.Shaders, Yutani.Render.Particles, Yutani.Render.NanoFog,
+  Yutani.Render.LoadingScreen;
 
 type
   PItemData = ^TItemData;
@@ -304,11 +309,6 @@ type
     FHighlightCollision: Boolean;
     FActiveBodies: Integer;
     FLastPhysicsTime: Single;
-    FSpawnButton1WasDown: Boolean;
-    FSpawnButton2WasDown: Boolean;
-    FSpawnButton3WasDown: Boolean;
-    FSpawnButton4WasDown: Boolean;
-    FSpawnButton5WasDown: Boolean;
     FFrustumCulling: Boolean;
     FDistanceCulling: Boolean;
     FPopupOpen: Boolean;
@@ -480,7 +480,6 @@ type
 
     procedure SetAntiAliasing(const Value: Boolean);
     procedure SetGravity(const Value: Single);
-    procedure SetSlowMotionActive(const Value: Boolean);
     procedure SetTimeScale(const Value: Single);
   protected
     procedure Resize; override;
@@ -497,12 +496,14 @@ type
     FIsBrushActive: Boolean;
     FAudioEngine: ma_engine;
     FYutaniAudio: TYutaniAudioEngine;
+    FShowInfosGUi : Boolean;
     function ItemCount: Integer;
     procedure ClearItems;
     procedure DeleteSelectedActor;
     procedure SpawnObjects(Count: Integer; ShapeType: TShapeType);
     procedure SetBrush(AShape: TShapeType);
     procedure SetSimulationRunning(AValue: Boolean);
+    procedure SetSlowMotionActive(const Value: Boolean);
     procedure LoadCustomModel(const FilePath: string);
     function GetSimulationRunning: Boolean;
     function GetActorBoundingBoxWS(Actor: TA3DComponent): TBoundingBox;
@@ -513,9 +514,6 @@ type
 
     // Exposes the custom spawn queue to external threads/UI
     procedure QueueCustomSpawn(const Request: TSpawnRequest);
-
-    // External method to toggle slow motion externally
-    procedure SetSlowMotion(Active: Boolean);
 
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -685,6 +683,7 @@ begin
   SetLength(FParticleSpawnQueue, 0);
   FFocusTrackingActor := nil;
   FAltWasPressed := False;
+  FShowInfosGUi := False;
 
   // Optimization: Initialize default shader ID to 0
   FDefaultShader.id := 0;
@@ -1742,7 +1741,7 @@ var
   downRay: TRay;
   downHit: TRayCollision;
   topY: Single;
-  HalfH, HalfX, HalfY, HalfZ: Single;
+  HalfX, HalfY, HalfZ: Single;
   GScaleX, GScaleY, GScaleZ: Single;
   TargetY, t: Single;
   bIsModelBrush: Boolean;
@@ -1873,72 +1872,6 @@ begin
     end;
   end;
 
-  // ==========================================
-  // HUD SPAWN BUTTONS (Rain Spawns)
-  // ==========================================
-  var LocalMouseY: Integer := Trunc(FMousePos.y);
-
-  if CheckButton(0, 10, 40, 40) then
-  begin
-    if not FSpawnButton1WasDown then
-    begin
-      SpawnObjects(30, stBox);
-      FSpawnButton1WasDown := True;
-    end;
-    FMouseLeftHandled := True;
-    Exit;
-  end
-  else
-    FSpawnButton1WasDown := False;
-  if CheckButton(40, 10, 40, 40) then
-  begin
-    if not FSpawnButton2WasDown then
-    begin
-      SpawnObjects(30, stSphere);
-      FSpawnButton2WasDown := True;
-    end;
-    FMouseLeftHandled := True;
-    Exit;
-  end
-  else
-    FSpawnButton2WasDown := False;
-  if CheckButton(80, 10, 40, 40) then
-  begin
-    if not FSpawnButton3WasDown then
-    begin
-      SpawnObjects(30, stCapsule);
-      FSpawnButton3WasDown := True;
-    end;
-    FMouseLeftHandled := True;
-    Exit;
-  end
-  else
-    FSpawnButton3WasDown := False;
-  if CheckButton(120, 10, 40, 40) then
-  begin
-    if not FSpawnButton4WasDown then
-    begin
-      SpawnObjects(30, stPyramid);
-      FSpawnButton4WasDown := True;
-    end;
-    FMouseLeftHandled := True;
-    Exit;
-  end
-  else
-    FSpawnButton4WasDown := False;
-  if CheckButton(160, 10, 40, 40) then
-  begin
-    if not FSpawnButton5WasDown then
-    begin
-      SpawnObjects(30, stPrism);
-      FSpawnButton5WasDown := True;
-    end;
-    FMouseLeftHandled := True;
-    Exit;
-  end
-  else
-    FSpawnButton5WasDown := False;
-
   // Handle Delete Key directly inside the sandbox thread
   if (GetAsyncKeyState(VK_DELETE) and $1) <> 0 then
   begin
@@ -2045,29 +1978,37 @@ begin
   begin
     if Assigned(FItemSelected) then
     begin
-      FIsDriving := not FIsDriving;
-      if FIsDriving then
+      // MODE 1: Not driving yet -> Possess the object!
+      if not FIsDriving then
       begin
+        FIsDriving := True;
         FPlayerVehicle := FItemSelected;
-        // CRITICAL FIX: Hard-Reset ALL movement and speed!
         FPlayerVehicle.ActivateBody;
         FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
-        FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
         FVehicleSpeedMul := 1.0;
       end
+      // MODE 2: Already driving -> Rotate OURSELVES (Camera & Flight Direction) by 90 Deg!
       else
-        FPlayerVehicle := nil;
+      begin
+        // CRITICAL FIX: Rotate FCamYaw directly by 90 degrees.
+        // This rotates our view AND our flight direction seamlessly.
+        FCamYaw := FCamYaw + (90.0 * DEG2RAD);
+
+        // Stop the vehicle immediately so it doesn't drift into the old direction
+        FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
+        FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
+      end;
       FMouseLeftHandled := True;
     end
     else
     begin
+      // MODE 3: Nothing selected -> Force exit vehicle mode safely
       FIsDriving := False;
       FPlayerVehicle := nil;
     end;
   end;
 
   ray := GetScreenToWorldRay(FMousePos, FCamera);
-
 
   // ====================================================================
   // SECOND LIFE STYLE CAMERA FOCUS (ALT + Left Click)
@@ -2780,7 +2721,6 @@ var
   EndScale: TVector3;
   OldScaleY, NewScaleY, YLift: Single;
   CamForward, CamRight, CamUp, MoveDir: TVector3;
-  CamDot: Single;
 begin
   MouseDeltaX := FMousePos.x - FGizmoStartMouse.x;
   MouseDeltaY := FMousePos.y - FGizmoStartMouse.y;
@@ -3720,28 +3660,33 @@ begin
   if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
   begin
     FPlayerVehicle.ActivateBody;
+
     // R / F: Speed control (Hold to change speed)
     if (GetAsyncKeyState(Ord('R')) and $8000) <> 0 then
       FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul + (0.5 * dt), 0.2, 10.0);
     if (GetAsyncKeyState(Ord('F')) and $8000) <> 0 then
       FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul - (0.5 * dt), 0.2, 10.0);
+
     // Prevent Space Landing logic from interfering while driving
     if FCurrentWorldBase = wbSpace then
       FSpaceLandingState := 0;
-    // 1. get rotation from jolt
-    var JRot: JPH_Quat;
-    JPH_BodyInterface_GetRotation(FPlayerVehicle.FEngine.BodyInterface, FPlayerVehicle.FBodyID, @JRot);
-    FPlayerVehicle.FQuaternion.x := JRot.x;
-    FPlayerVehicle.FQuaternion.y := JRot.y;
-    FPlayerVehicle.FQuaternion.z := JRot.z;
-    FPlayerVehicle.FQuaternion.w := JRot.w;
-    var Fwd := Vector3RotateByQuaternion(Vector3Create(0, 0, 1), FPlayerVehicle.FQuaternion);
-    var FlatFwd := Vector3Create(Fwd.x, 0, Fwd.z);
+
+    // 1. WE DO NOT READ OR SET ROTATION FROM JOLT!
+    // The model stays exactly as it is lying on the ground.
+    // CRITICAL FIX: Extract flat forward direction perfectly from FCamYaw.
+    var FlatFwd := Vector3Create(-Sin(FCamYaw + 0.50), 0, -Cos(FCamYaw + 0.50));
+
     FlatFwd := Vector3Normalize(FlatFwd);
+
+    // Determine our flat Right vector
+    var FlatRight := Vector3Create(Cos(FCamYaw), 0, -Sin(FCamYaw));
+    FlatRight := Vector3Normalize(FlatRight);
+
     var Vel := Vector3Create(0, 0, 0);
     var AngVel := Vector3Create(0, 0, 0);
     var BaseThrust: Single := 10.0 * FVehicleSpeedMul;
-    // W / S: Forward / Backward
+
+    // W / S: Forward / Backward (Relative to our chosen Orbit Angle!)
     if (GetAsyncKeyState(Ord('W')) and $8000) <> 0 then
     begin
       Vel.x := FlatFwd.x * BaseThrust;
@@ -3752,21 +3697,33 @@ begin
       Vel.x := -FlatFwd.x * BaseThrust;
       Vel.z := -FlatFwd.z * BaseThrust;
     end;
+
     // Q / E: Up / Down Thrust
     if (GetAsyncKeyState(Ord('Q')) and $8000) <> 0 then
       Vel.y := BaseThrust
     else if (GetAsyncKeyState(Ord('E')) and $8000) <> 0 then
       Vel.y := -BaseThrust;
-    // A / D: Yaw Rotation
+
+    // A / D: Strafe Left / Right
     if (GetAsyncKeyState(Ord('A')) and $8000) <> 0 then
-      AngVel.y := 2.0
+    begin
+      Vel.x := Vel.x - FlatRight.x * BaseThrust * 0.8;
+      Vel.z := Vel.z - FlatRight.z * BaseThrust * 0.8;
+    end
     else if (GetAsyncKeyState(Ord('D')) and $8000) <> 0 then
-      AngVel.y := -2.0;
+    begin
+      Vel.x := Vel.x + FlatRight.x * BaseThrust * 0.8;
+      Vel.z := Vel.z + FlatRight.z * BaseThrust * 0.8;
+    end;
+
     FPlayerVehicle.SetLinearVelocity(Vel);
     FPlayerVehicle.SetAngularVelocity(AngVel);
+
     // 2. Third-Person Camera: Cinematic chase cam!
+    // The camera snaps directly behind our new Flight Direction
     var Back := Vector3Create(-FlatFwd.x, 0, -FlatFwd.z);
     FCamera.position := Vector3Create(FPlayerVehicle.Position.x + Back.x * 15.0, FPlayerVehicle.Position.y + 6.0, FPlayerVehicle.Position.z + Back.z * 15.0);
+
     FCamera.target := Vector3Create(FPlayerVehicle.Position.x + FlatFwd.x * 10.0, FPlayerVehicle.Position.y + 3.0, FPlayerVehicle.Position.z + FlatFwd.z * 10.0);
     FCamera.up := Vector3Create(0, 1, 0);
     FCameraMoved := True;
@@ -3849,12 +3806,12 @@ begin
   end;
   if (FSceneStartTime > 0) and (GetTime() - FSceneStartTime > 1.0) then
     FSceneStartTime := 0;
-  if (FSceneStartTime = 0) and (FHUDAnimY < 0) then
+{  if (FSceneStartTime = 0) and (FHUDAnimY < 0) then
   begin
     FHUDAnimY := FHUDAnimY * (1.0 - dt * 6.0);
     if FHUDAnimY > -0.5 then
       FHUDAnimY := 0;
-  end;
+  end;     }
   FGizmoHoverAxis := 0;
   if FInitialized and Assigned(FItemSelected) and not FGizmoDragging and not FDragging and not FPopupOpen and (FGizmoMode <> gmNone) then
   begin
@@ -4474,6 +4431,7 @@ begin
             DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
             DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
           end
+          // other forms -------------
           else if (Actor.ShapeType = stSphere) then
           begin
             var SphereScale: Single := Max(Actor.Scale.x, Max(Actor.Scale.y, Actor.Scale.z)) * 0.5;
@@ -4513,9 +4471,13 @@ begin
           end
           else if Actor.ShapeType = stBomb then
           begin
-            ModelMat := rlGetMatrixTransform();
-            SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-            DrawModel(FSphereModel, Vector3Create(0, 0, 0), 0.5, GetActorColor(Actor));
+            // CRITICAL FIX: Prevent Access Violation if the bomb was deleted this frame
+            if Assigned(FBombActor) and (Actor = FBombActor) and (not Actor.FIsDead) and (FSphereModel.meshes <> nil) and (FSphereModel.meshCount > 0) then
+            begin
+              ModelMat := rlGetMatrixTransform();
+              SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+              DrawModel(FSphereModel, Vector3Create(0, 0, 0), 0.5, GetActorColor(Actor));
+            end;
           end
           else if Actor.ShapeType = stCapsule then
           begin
@@ -4746,8 +4708,6 @@ var
   TipX, TipY, TipZ: TVector3;
   NegTipX, NegTipY, NegTipZ: TVector3;
   ArrowRadius, HandleSize: Single;
-  BBox: TBoundingBox;
-  PhysRadius: Single;
 begin
   Pos := FItemSelected.Position;
 
@@ -4982,37 +4942,7 @@ begin
   end
   else
   begin
-    YOffset := Trunc(FHUDAnimY);
-    DrawRectangle(10, 10 + YOffset, 214, 50, Fade(BLACK, 0.8));
-    DrawRectangleLines(10, 10 + YOffset, 214, 50, RAYWHITE);
-    for I := 0 to 4 do
-    begin
-      IconRect.x := 15 + (I * 40);
-      IconRect.y := 15 + YOffset;
-      IconRect.width := 30;
-      IconRect.height := 30;
-      DrawRectangleLines(Round(IconRect.x), Round(IconRect.y), 30, 30, RAYWHITE);
-      if I = 0 then
-        DrawRectangle(Round(IconRect.x + 8), Round(IconRect.y + 8), 14, 14, Fade(BLUE, 0.8))
-      else if I = 1 then
-        DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 15), 10, Fade(GREEN, 0.8))
-      else if I = 2 then
-      begin
-        DrawRectangle(Round(IconRect.x + 11), Round(IconRect.y + 6), 8, 18, Fade(GREEN, 0.8));
-        DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 6), 4, Fade(GREEN, 0.8));
-        DrawCircle(Round(IconRect.x + 15), Round(IconRect.y + 24), 4, Fade(GREEN, 0.8));
-      end
-      else if I = 3 then
-      begin
-        DrawRectangle(Round(IconRect.x + 5), Round(IconRect.y + 5), 20, 20, Fade(PURPLE, 0.8));
-        DrawLine(Round(IconRect.x + 5), Round(IconRect.y + 5), Round(IconRect.x + 25), Round(IconRect.y + 25), RAYWHITE);
-        DrawLine(Round(IconRect.x + 25), Round(IconRect.y + 5), Round(IconRect.x + 5), Round(IconRect.y + 25), RAYWHITE);
-      end
-      else if I = 4 then
-      begin
-        DrawTriangle(Vector2Create(IconRect.x + 5, IconRect.y + 25), Vector2Create(IconRect.x + 25, IconRect.y + 25), Vector2Create(IconRect.x + 15, IconRect.y + 5), Fade(COL_PRISM, 0.8));
-      end;
-    end;
+    if FShowInfosGUi then begin
     fpsBuf := AnsiString(Format('FPS: %d', [GetFPS()]));
     DrawText(PAnsiChar(fpsBuf), 10, GetScreenHeight() - 30, 20, GREEN);
 
@@ -5044,6 +4974,7 @@ begin
       ModeStr := 'Mode: None (UI Interaction)';
     end;
     DrawText(PAnsiChar(ModeStr), 10, GetScreenHeight() - 120, 20, RAYWHITE);
+     end;
   end;
 end;
 
@@ -5315,6 +5246,9 @@ begin
 
   if Req.Name = 'THE_BOMB' then
   begin
+    // CRITICAL FIX: DO NOT assign FModel. The stBomb render block draws it
+    // automatically using FSphereModel. Assigning it causes primitive
+    // fallback blocks to attempt drawing dead bombs, leading to AVs.
     FBombActor := Obj;
     FBombTimer := 2.0;
     FBombExploded := False;
@@ -5361,10 +5295,8 @@ var
   Seeds: array of TVec3;
   Fragments: TFragmentArray;
   I, J: Integer;
-  BBox: TBoundingBox;
   Centroid: TVec3;
   Dir: TVec3;
-  ScaleFactor: Single;
 begin
   if not Assigned(Actor) or not Actor.IsDestructable then
     Exit;
@@ -5629,7 +5561,8 @@ end;
 
 procedure TRaylibSandbox.UpdateBomb(dt: Single);
 begin
-  if not Assigned(FBombActor) or FBombExploded then
+  // CRITICAL FIX: Prevent access violation if bomb was already cleared/deleted
+  if not Assigned(FBombActor) or FBombExploded or FBombActor.FIsDead then
     Exit;
 
   FBombTimer := FBombTimer - dt;
@@ -5658,8 +5591,10 @@ var
   ForceMag: Single;
   BombIdx: Integer;
 begin
-  if not Assigned(FBombActor) then
+  if not Assigned(FBombActor) or FBombExploded then
     Exit;
+
+  // CRITICAL FIX: Set flag immediately to prevent multiple triggers in the same frame
   FBombExploded := True;
   PlayImpactSound;
 
@@ -5700,8 +5635,9 @@ begin
       end;
     end;
   end;
+
   // ====================================================================
-  // HARD DELETE BOMB
+  // SAFE DESTRUCTION: Mark for deletion instead of hard deleting here
   // ====================================================================
   // 1. Find the bomb's index in the FItems array
   BombIdx := -1;
@@ -5713,37 +5649,47 @@ begin
       Break;
     end;
   end;
-  // 2. If found, remove from Physics Engine and memory
+
+  // 2. If found, notify UI and mark for deletion
   if BombIdx >= 0 then
   begin
     // Notify the VCL Form to remove the node from the TreeView!
     DoActorDestroyed(FBombActor, BombIdx);
-    // Remove and destroy from Jolt Physics
+
+    // CRITICAL FIX: Deselect bomb if it was selected to prevent Gizmo crashes
+    if FItemSelected = FBombActor then
+    begin
+      FItemSelected := nil;
+      DoObjectSelected(nil);
+    end;
+
+    // Remove and destroy from Jolt Physics immediately so it stops colliding
     if FBombActor.FBodyID <> 0 then
     begin
       JPH_BodyInterface_RemoveAndDestroyBody(FEngine.BodyInterface, FBombActor.FBodyID);
       FBombActor.FBodyID := 0;
     end;
+
     // Free UserData if it exists
     if FBombActor.UserData <> nil then
+    begin
       Dispose(PItemData(FBombActor.UserData));
-    // Free the class instance
-    FBombActor.Visible := False;
-    FBombActor.Free;
-    // Close the gap in the array
-    for i := BombIdx to High(FItems) - 1 do
-      FItems[i] := FItems[i + 1];
-    // Resize array
-    SetLength(FItems, Length(FItems) - 1);
-  end;
-  // Clear the reference
-  FBombActor := nil;
-end;
-// External accessor to toggle slow motion from VCL/UI
+      FBombActor.UserData := nil;
+    end;
 
-procedure TRaylibSandbox.SetSlowMotion(Active: Boolean);
-begin
-  FSlowMotionActive := Active;
+    // CRITICAL FIX: Clear the Model reference so the primitive render block
+    // doesn't attempt to draw the dead, invisible bomb before garbage collection!
+    FBombActor.FModel := Default(TModel);
+
+    // CRITICAL FIX: Instead of FreeAndNil here (which causes Access Violations
+    // if the RenderThread tries to draw it at the same time), we mark it as Dead.
+    // The garbage collector at the end of UpdateGame will safely free the memory.
+    FBombActor.FIsDead := True;
+    FBombActor.Visible := False;
+  end;
+
+  // Clear the reference so UpdateBomb doesn't fire it again
+  FBombActor := nil;
 end;
 
 procedure TRaylibSandbox.ClearDynamicItemsOnly;
