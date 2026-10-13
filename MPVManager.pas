@@ -3,8 +3,7 @@ unit MPVManager;
 interface
 
 uses
-  System.SysUtils, System.Classes, Winapi.Windows, Winapi.OpenGL, Raylib, rlgl,
-  MPVEmbedded;
+  System.SysUtils, Winapi.Windows, Winapi.OpenGL, Raylib, MPVEmbedded;
 
 type
   TMPVPlayer = class
@@ -83,7 +82,6 @@ begin
   if FPendingFile <> '' then
     LoadFile(FPendingFile);
 end;
-
 
 destructor TMPVPlayer.Destroy;
 begin

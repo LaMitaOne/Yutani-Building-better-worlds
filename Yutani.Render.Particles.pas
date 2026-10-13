@@ -53,8 +53,7 @@ unit Yutani.Render.Particles;
 interface
 
 uses
-  System.SysUtils, System.Classes, System.Math, System.SyncObjs, Raylib, RayMath,
-  rlgl;
+  System.SysUtils, System.Math, System.SyncObjs, Raylib, RayMath, rlgl;
 
 type
   PParticleInstance = ^TParticleInstance;
@@ -802,6 +801,7 @@ begin
     FHasSolidCube := False;
   end;
 end;
+
 procedure TYutaniParticleEngine.Render;
 var
   i: Integer;
@@ -847,23 +847,47 @@ begin
               V7 := Vector3Create(PosX - HalfSize, PosY + HalfSize, PosZ + HalfSize);
               rlColor4ub(P.Color.r, P.Color.g, P.Color.b, P.Color.a);
               // Front face
-              rlVertex3f(V0.x, V0.y, V0.z); rlVertex3f(V1.x, V1.y, V1.z); rlVertex3f(V2.x, V2.y, V2.z);
-              rlVertex3f(V0.x, V0.y, V0.z); rlVertex3f(V2.x, V2.y, V2.z); rlVertex3f(V3.x, V3.y, V3.z);
+              rlVertex3f(V0.x, V0.y, V0.z);
+              rlVertex3f(V1.x, V1.y, V1.z);
+              rlVertex3f(V2.x, V2.y, V2.z);
+              rlVertex3f(V0.x, V0.y, V0.z);
+              rlVertex3f(V2.x, V2.y, V2.z);
+              rlVertex3f(V3.x, V3.y, V3.z);
               // Back face
-              rlVertex3f(V5.x, V5.y, V5.z); rlVertex3f(V4.x, V4.y, V4.z); rlVertex3f(V7.x, V7.y, V7.z);
-              rlVertex3f(V5.x, V5.y, V5.z); rlVertex3f(V7.x, V7.y, V7.z); rlVertex3f(V6.x, V6.y, V6.z);
+              rlVertex3f(V5.x, V5.y, V5.z);
+              rlVertex3f(V4.x, V4.y, V4.z);
+              rlVertex3f(V7.x, V7.y, V7.z);
+              rlVertex3f(V5.x, V5.y, V5.z);
+              rlVertex3f(V7.x, V7.y, V7.z);
+              rlVertex3f(V6.x, V6.y, V6.z);
               // Top face
-              rlVertex3f(V3.x, V3.y, V3.z); rlVertex3f(V2.x, V2.y, V2.z); rlVertex3f(V6.x, V6.y, V6.z);
-              rlVertex3f(V3.x, V3.y, V3.z); rlVertex3f(V6.x, V6.y, V6.z); rlVertex3f(V7.x, V7.y, V7.z);
+              rlVertex3f(V3.x, V3.y, V3.z);
+              rlVertex3f(V2.x, V2.y, V2.z);
+              rlVertex3f(V6.x, V6.y, V6.z);
+              rlVertex3f(V3.x, V3.y, V3.z);
+              rlVertex3f(V6.x, V6.y, V6.z);
+              rlVertex3f(V7.x, V7.y, V7.z);
               // Bottom face
-              rlVertex3f(V4.x, V4.y, V4.z); rlVertex3f(V5.x, V5.y, V5.z); rlVertex3f(V1.x, V1.y, V1.z);
-              rlVertex3f(V4.x, V4.y, V4.z); rlVertex3f(V1.x, V1.y, V1.z); rlVertex3f(V0.x, V0.y, V0.z);
+              rlVertex3f(V4.x, V4.y, V4.z);
+              rlVertex3f(V5.x, V5.y, V5.z);
+              rlVertex3f(V1.x, V1.y, V1.z);
+              rlVertex3f(V4.x, V4.y, V4.z);
+              rlVertex3f(V1.x, V1.y, V1.z);
+              rlVertex3f(V0.x, V0.y, V0.z);
               // Left face
-              rlVertex3f(V4.x, V4.y, V4.z); rlVertex3f(V0.x, V0.y, V0.z); rlVertex3f(V3.x, V3.y, V3.z);
-              rlVertex3f(V4.x, V4.y, V4.z); rlVertex3f(V3.x, V3.y, V3.z); rlVertex3f(V7.x, V7.y, V7.z);
+              rlVertex3f(V4.x, V4.y, V4.z);
+              rlVertex3f(V0.x, V0.y, V0.z);
+              rlVertex3f(V3.x, V3.y, V3.z);
+              rlVertex3f(V4.x, V4.y, V4.z);
+              rlVertex3f(V3.x, V3.y, V3.z);
+              rlVertex3f(V7.x, V7.y, V7.z);
               // Right face
-              rlVertex3f(V1.x, V1.y, V1.z); rlVertex3f(V5.x, V5.y, V5.z); rlVertex3f(V6.x, V6.y, V6.z);
-              rlVertex3f(V1.x, V1.y, V1.z); rlVertex3f(V6.x, V6.y, V6.z); rlVertex3f(V2.x, V2.y, V2.z);
+              rlVertex3f(V1.x, V1.y, V1.z);
+              rlVertex3f(V5.x, V5.y, V5.z);
+              rlVertex3f(V6.x, V6.y, V6.z);
+              rlVertex3f(V1.x, V1.y, V1.z);
+              rlVertex3f(V6.x, V6.y, V6.z);
+              rlVertex3f(V2.x, V2.y, V2.z);
             end;
           finally
             rlEnd();
@@ -882,28 +906,52 @@ begin
               Cy := P.Position.y;
               Cz := P.Position.z;
               // Top, Bottom, Left, Right, Front, Back
-              Sx := HalfSize; Sy := HalfSize; Sz := HalfSize;
+              Sx := HalfSize;
+              Sy := HalfSize;
+              Sz := HalfSize;
               rlColor4ub(P.Color.r, P.Color.g, P.Color.b, P.Color.a);
               // Top-Left triangles
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx - Sx, Cy, Cz - Sz); rlVertex3f(Cx - Sx, Cy, Cz + Sz);
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx - Sx, Cy, Cz - Sz);
+              rlVertex3f(Cx - Sx, Cy, Cz + Sz);
               // Top-Right triangles
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx + Sx, Cy, Cz + Sz); rlVertex3f(Cx + Sx, Cy, Cz - Sz);
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx + Sx, Cy, Cz + Sz);
+              rlVertex3f(Cx + Sx, Cy, Cz - Sz);
               // Top-Front triangles
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx, Cy, Cz + Sz); rlVertex3f(Cx + Sx, Cy, Cz + Sz); // Wait, need simpler octa
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx, Cy, Cz + Sz);
+              rlVertex3f(Cx + Sx, Cy, Cz + Sz); // Wait, need simpler octa
               // Actually, let's just use 8 simple faces (Octahedron)
               // Re-doing it cleanly below for top/bottom left/right front/back
               // Top Front
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx, Cy, Cz + Sz); rlVertex3f(Cx + Sx, Cy, Cz);
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx - Sx, Cy, Cz); rlVertex3f(Cx, Cy, Cz + Sz);
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx, Cy, Cz + Sz);
+              rlVertex3f(Cx + Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx - Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy, Cz + Sz);
               // Top Back
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx + Sx, Cy, Cz); rlVertex3f(Cx, Cy, Cz - Sz);
-              rlVertex3f(Cx, Cy + Sy, Cz); rlVertex3f(Cx, Cy, Cz - Sz); rlVertex3f(Cx - Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx + Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy, Cz - Sz);
+              rlVertex3f(Cx, Cy + Sy, Cz);
+              rlVertex3f(Cx, Cy, Cz - Sz);
+              rlVertex3f(Cx - Sx, Cy, Cz);
               // Bottom Front
-              rlVertex3f(Cx, Cy - Sy, Cz); rlVertex3f(Cx + Sx, Cy, Cz); rlVertex3f(Cx, Cy, Cz + Sz);
-              rlVertex3f(Cx, Cy - Sy, Cz); rlVertex3f(Cx, Cy, Cz + Sz); rlVertex3f(Cx - Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy - Sy, Cz);
+              rlVertex3f(Cx + Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy, Cz + Sz);
+              rlVertex3f(Cx, Cy - Sy, Cz);
+              rlVertex3f(Cx, Cy, Cz + Sz);
+              rlVertex3f(Cx - Sx, Cy, Cz);
               // Bottom Back
-              rlVertex3f(Cx, Cy - Sy, Cz); rlVertex3f(Cx - Sx, Cy, Cz); rlVertex3f(Cx, Cy, Cz - Sz);
-              rlVertex3f(Cx, Cy - Sy, Cz); rlVertex3f(Cx, Cy, Cz - Sz); rlVertex3f(Cx + Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy - Sy, Cz);
+              rlVertex3f(Cx - Sx, Cy, Cz);
+              rlVertex3f(Cx, Cy, Cz - Sz);
+              rlVertex3f(Cx, Cy - Sy, Cz);
+              rlVertex3f(Cx, Cy, Cz - Sz);
+              rlVertex3f(Cx + Sx, Cy, Cz);
             end;
           finally
             rlEnd();
@@ -945,5 +993,6 @@ begin
     FLock.Leave;
   end;
 end;
+
 end.
 

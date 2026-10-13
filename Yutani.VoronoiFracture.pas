@@ -18,7 +18,7 @@ unit Yutani.VoronoiFracture;
 interface
 
 uses
-  System.SysUtils, System.Math, raylib, rlgl;
+  System.SysUtils, System.Math, raylib;
 
 type
   // Lightweight 3D Vector with Delphi operator overloading
@@ -391,16 +391,23 @@ begin
       end
       else
       begin
-        if Vert.X < MinV.X then MinV.X := Vert.X;
-        if Vert.Y < MinV.Y then MinV.Y := Vert.Y;
-        if Vert.Z < MinV.Z then MinV.Z := Vert.Z;
-        if Vert.X > MaxV.X then MaxV.X := Vert.X;
-        if Vert.Y > MaxV.Y then MaxV.Y := Vert.Y;
-        if Vert.Z > MaxV.Z then MaxV.Z := Vert.Z;
+        if Vert.X < MinV.X then
+          MinV.X := Vert.X;
+        if Vert.Y < MinV.Y then
+          MinV.Y := Vert.Y;
+        if Vert.Z < MinV.Z then
+          MinV.Z := Vert.Z;
+        if Vert.X > MaxV.X then
+          MaxV.X := Vert.X;
+        if Vert.Y > MaxV.Y then
+          MaxV.Y := Vert.Y;
+        if Vert.Z > MaxV.Z then
+          MaxV.Z := Vert.Z;
       end;
     end;
   end;
-  if FirstVert then Exit; // No vertices found
+  if FirstVert then
+    Exit; // No vertices found
   // Calculate the exact center of the mesh
   Center.X := (MinV.X + MaxV.X) * 0.5;
   Center.Y := (MinV.Y + MaxV.Y) * 0.5;
@@ -425,7 +432,8 @@ begin
       // ENSURE CCW: Check if the normal points towards the center of the fragment.
       // If it points inwards, the winding is wrong (Clockwise), so we reverse the polygon!
       var Centroid: TVec3 := Default(TVec3);
-      for J := 0 to High(Poly) do Centroid := Centroid + Poly[J];
+      for J := 0 to High(Poly) do
+        Centroid := Centroid + Poly[J];
       Centroid := Centroid * (1.0 / Length(Poly));
       var ToCenter: TVec3 := Center - Centroid;
       if Normal.Dot(ToCenter) > 0 then
@@ -443,34 +451,34 @@ begin
       for J := 1 to Length(Poly) - 2 do
       begin
         // Vertex 1 (Shifted by -Center)
-        Vertices[VtxCounter*3] := Poly[0].X - Center.X;
-        Vertices[VtxCounter*3+1] := Poly[0].Y - Center.Y;
-        Vertices[VtxCounter*3+2] := Poly[0].Z - Center.Z;
-        Normals[VtxCounter*3] := Normal.X;
-        Normals[VtxCounter*3+1] := Normal.Y;
-        Normals[VtxCounter*3+2] := Normal.Z;
-        TexCoords[VtxCounter*2] := 0.0;
-        TexCoords[VtxCounter*2+1] := 0.0;
+        Vertices[VtxCounter * 3] := Poly[0].X - Center.X;
+        Vertices[VtxCounter * 3 + 1] := Poly[0].Y - Center.Y;
+        Vertices[VtxCounter * 3 + 2] := Poly[0].Z - Center.Z;
+        Normals[VtxCounter * 3] := Normal.X;
+        Normals[VtxCounter * 3 + 1] := Normal.Y;
+        Normals[VtxCounter * 3 + 2] := Normal.Z;
+        TexCoords[VtxCounter * 2] := 0.0;
+        TexCoords[VtxCounter * 2 + 1] := 0.0;
         Inc(VtxCounter);
         // Vertex 2 (Shifted by -Center)
-        Vertices[VtxCounter*3] := Poly[J].X - Center.X;
-        Vertices[VtxCounter*3+1] := Poly[J].Y - Center.Y;
-        Vertices[VtxCounter*3+2] := Poly[J].Z - Center.Z;
-        Normals[VtxCounter*3] := Normal.X;
-        Normals[VtxCounter*3+1] := Normal.Y;
-        Normals[VtxCounter*3+2] := Normal.Z;
-        TexCoords[VtxCounter*2] := 1.0;
-        TexCoords[VtxCounter*2+1] := 0.0;
+        Vertices[VtxCounter * 3] := Poly[J].X - Center.X;
+        Vertices[VtxCounter * 3 + 1] := Poly[J].Y - Center.Y;
+        Vertices[VtxCounter * 3 + 2] := Poly[J].Z - Center.Z;
+        Normals[VtxCounter * 3] := Normal.X;
+        Normals[VtxCounter * 3 + 1] := Normal.Y;
+        Normals[VtxCounter * 3 + 2] := Normal.Z;
+        TexCoords[VtxCounter * 2] := 1.0;
+        TexCoords[VtxCounter * 2 + 1] := 0.0;
         Inc(VtxCounter);
         // Vertex 3 (Shifted by -Center)
-        Vertices[VtxCounter*3] := Poly[J+1].X - Center.X;
-        Vertices[VtxCounter*3+1] := Poly[J+1].Y - Center.Y;
-        Vertices[VtxCounter*3+2] := Poly[J+1].Z - Center.Z;
-        Normals[VtxCounter*3] := Normal.X;
-        Normals[VtxCounter*3+1] := Normal.Y;
-        Normals[VtxCounter*3+2] := Normal.Z;
-        TexCoords[VtxCounter*2] := 1.0;
-        TexCoords[VtxCounter*2+1] := 1.0;
+        Vertices[VtxCounter * 3] := Poly[J + 1].X - Center.X;
+        Vertices[VtxCounter * 3 + 1] := Poly[J + 1].Y - Center.Y;
+        Vertices[VtxCounter * 3 + 2] := Poly[J + 1].Z - Center.Z;
+        Normals[VtxCounter * 3] := Normal.X;
+        Normals[VtxCounter * 3 + 1] := Normal.Y;
+        Normals[VtxCounter * 3 + 2] := Normal.Z;
+        TexCoords[VtxCounter * 2] := 1.0;
+        TexCoords[VtxCounter * 2 + 1] := 1.0;
         Inc(VtxCounter);
       end;
     end;

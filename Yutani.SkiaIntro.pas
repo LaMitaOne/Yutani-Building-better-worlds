@@ -27,6 +27,7 @@ type
   { Defines the current phase of the intro animation }
   TIntroState = (isIdle, isFadeIn, isParticlesForm, isTextGlow, isFadeOut, isFinished);
   { High Precision Timer based on TStopwatch (QPC on Windows) }
+
   THighResTimer = record
     Frequency: Int64;
     procedure Init;
@@ -34,6 +35,7 @@ type
     procedure HybridWaitUntil(const ATargetTicks, ASpinNanoseconds: Int64);
   end;
   { Represents a single particle used to form the hologram text }
+
   TParticle = record
     Pos, Vel, Target: TPointF;
     LifeTime: Double;
@@ -500,7 +502,8 @@ end;
 
 procedure TYutaniSkiaIntro.Start;
 begin
-  if FState <> isIdle then Exit;
+  if FState <> isIdle then
+    Exit;
 
   InitParticles;
   FState := isFadeIn;
@@ -756,3 +759,4 @@ begin
 end;
 
 end.
+

@@ -134,11 +134,11 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="RaylibSandbox.pas"/>
+        <DCCReference Include="Yutani.Core.pas"/>
         <DCCReference Include="JoltPhysics.pas"/>
-        <DCCReference Include="ModelEngine.pas"/>
-        <DCCReference Include="Unit1.pas">
-            <Form>Form1</Form>
+        <DCCReference Include="Yutani.Core.ModelEngine.pas"/>
+        <DCCReference Include="Yutani.Core.View.pas">
+            <Form>YutaniWindow</Form>
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="VCL3D.pas"/>
@@ -146,7 +146,7 @@
         <DCCReference Include="MPVEmbedded.pas"/>
         <DCCReference Include="uMRX_GamepadCore.pas"/>
         <DCCReference Include="uMRX_GamepadCoreMain.pas">
-            <Form>Form2</Form>
+            <Form>FGamepadMain</Form>
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="Yutani.SkiaIntro.pas"/>

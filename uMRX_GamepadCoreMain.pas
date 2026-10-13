@@ -12,16 +12,14 @@ unit uMRX_GamepadCoreMain;
 interface
 
 uses
-  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
-  Winapi.Windows, Winapi.Messages, Vcl.Forms, Vcl.Controls, Vcl.Graphics,
-  Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, uMRX_GamepadCore,
-  uMRX_GamepadSettings;
+  System.SysUtils, System.UITypes, System.Classes, Vcl.Forms, Vcl.Controls,
+  Vcl.Graphics, Vcl.StdCtrls, uMRX_GamepadCore, uMRX_GamepadSettings;
 
 type
   /// <summary>
   /// Demo form showing how to use the TMRXGamepadCore and Settings.
   /// </summary>
-  TForm2 = class(TForm)
+  TFGamepadMain = class(TForm)
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
@@ -39,12 +37,12 @@ type
   end;
 
 var
-  Form2: TForm2;
+  FGamepadMain: TFGamepadMain;
 
 implementation
 {$R *.dfm}
 
-procedure TForm2.FormCreate(Sender: TObject);
+procedure TFGamepadMain.FormCreate(Sender: TObject);
 begin
   Caption := 'MRX Gamepad Core';
   ClientWidth := 600;
@@ -96,12 +94,12 @@ begin
   end;
 end;
 
-procedure TForm2.FormDestroy(Sender: TObject);
+procedure TFGamepadMain.FormDestroy(Sender: TObject);
 begin
   FGamepadCore.Free;
 end;
 
-procedure TForm2.OnGamepadInput(Sender: TObject; PadID: Integer; Element: TGamepadElement; Pressed: Boolean; Value: Single);
+procedure TFGamepadMain.OnGamepadInput(Sender: TObject; PadID: Integer; Element: TGamepadElement; Pressed: Boolean; Value: Single);
 var
   BtnName, StateStr: string;
 begin
@@ -175,7 +173,7 @@ begin
   end;
 end;
 
-procedure TForm2.BtnSettingsClick(Sender: TObject);
+procedure TFGamepadMain.BtnSettingsClick(Sender: TObject);
 var
   FrmSettings: TfrmGamepadSettings;
 begin
@@ -188,12 +186,12 @@ begin
   end;
 end;
 
-procedure TForm2.BtnRumbleClick(Sender: TObject);
+procedure TFGamepadMain.BtnRumbleClick(Sender: TObject);
 begin
   FGamepadCore.Rumble(0, 65535, 65535, 500);
 end;
 
-procedure TForm2.BtnRumble2Click(Sender: TObject);
+procedure TFGamepadMain.BtnRumble2Click(Sender: TObject);
 begin
   FGamepadCore.Rumble(1, 65535, 65535, 500);
 end;

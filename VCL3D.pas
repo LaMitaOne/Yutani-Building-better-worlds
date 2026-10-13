@@ -14,29 +14,29 @@ unit VCL3D;
 interface
 
 uses
-  System.SysUtils, System.Classes, Raylib, RaylibSandbox, ModelEngine;
+  System.SysUtils, System.Classes, Raylib, Yutani.Core, Yutani.Core.ModelEngine;
 
 type
   TVCL3D = class
   private
   public
     { Spawns 4 solid, static walls to create a closed sandbox environment }
-    class procedure SpawnSandbox(Sandbox: TRaylibSandbox);
+    class procedure SpawnSandbox(Sandbox: TYutaniRaylibSandbox);
 
     { Spawns a grid of blocks sequentially to build a realistic wall }
-    class procedure SpawnDynamicWall(Sandbox: TRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False; Destructable: Boolean = False);
+    class procedure SpawnDynamicWall(Sandbox: TYutaniRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False; Destructable: Boolean = False);
 
     { Spawns a 3D UI Button with OnClick Event }
-    class procedure SpawnButton(Sandbox: TRaylibSandbox; const ACaption: string; APos, ASize: TVector3; AOnClick: TNotifyEvent);
+    class procedure SpawnButton(Sandbox: TYutaniRaylibSandbox; const ACaption: string; APos, ASize: TVector3; AOnClick: TNotifyEvent);
 
     { Spawns a 2x5 grid of floating TV screens for a future multiview system }
-    class procedure SpawnMonitorWall(Sandbox: TRaylibSandbox);
+    class procedure SpawnMonitorWall(Sandbox: TYutaniRaylibSandbox);
   end;
 
 implementation
 { TVCL3D }
 
-class procedure TVCL3D.SpawnSandbox(Sandbox: TRaylibSandbox);
+class procedure TVCL3D.SpawnSandbox(Sandbox: TYutaniRaylibSandbox);
 var
   Req: TSpawnRequest;
 begin
@@ -77,7 +77,7 @@ begin
   Sandbox.QueueCustomSpawn(Req);
 end;
 
-class procedure TVCL3D.SpawnDynamicWall(Sandbox: TRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False; Destructable: Boolean = False);
+class procedure TVCL3D.SpawnDynamicWall(Sandbox: TYutaniRaylibSandbox; Width, Height: Integer; SpawnFalling: Boolean = True; SpawnBomb: Boolean = False; Destructable: Boolean = False);
 var
   Req: TSpawnRequest;
   x, y: Integer;
@@ -139,7 +139,7 @@ begin
   end;
 end;
 
-class procedure TVCL3D.SpawnButton(Sandbox: TRaylibSandbox; const ACaption: string; APos, ASize: TVector3; AOnClick: TNotifyEvent);
+class procedure TVCL3D.SpawnButton(Sandbox: TYutaniRaylibSandbox; const ACaption: string; APos, ASize: TVector3; AOnClick: TNotifyEvent);
 var
   Req: TSpawnRequest;
 begin
@@ -166,7 +166,7 @@ begin
   Sandbox.QueueCustomSpawn(Req);
 end;
 
-class procedure TVCL3D.SpawnMonitorWall(Sandbox: TRaylibSandbox);
+class procedure TVCL3D.SpawnMonitorWall(Sandbox: TYutaniRaylibSandbox);
 var
   Req: TSpawnRequest;
   Row, Col, i: Integer;

@@ -2,15 +2,15 @@ program Yutani;
 
 uses
   Vcl.Forms,
-  RaylibSandbox in 'RaylibSandbox.pas',
+  Yutani.Core in 'Yutani.Core.pas',
   JoltPhysics in 'JoltPhysics.pas',
-  ModelEngine in 'ModelEngine.pas',
-  Unit1 in 'Unit1.pas' {Form1},
+  Yutani.Core.ModelEngine in 'Yutani.Core.ModelEngine.pas',
+  Yutani.Core.View in 'Yutani.Core.View.pas' {YutaniWindow},
   VCL3D in 'VCL3D.pas',
   MPVManager in 'MPVManager.pas',
   MPVEmbedded in 'MPVEmbedded.pas',
   uMRX_GamepadCore in 'uMRX_GamepadCore.pas',
-  uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {Form2},
+  uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {FGamepadMain},
   Yutani.SkiaIntro in 'Yutani.SkiaIntro.pas',
   Yutani.VoronoiFracture in 'Yutani.VoronoiFracture.pas',
   Yutani.Render.Shaders in 'Yutani.Render.Shaders.pas',
@@ -27,7 +27,7 @@ uses
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TForm1, Form1);
-  Application.CreateForm(TForm2, Form2);
+  Application.CreateForm(TYutaniWindow, YutaniWindow);
+  Application.CreateForm(TFGamepadMain, FGamepadMain);
   Application.Run;
 end.

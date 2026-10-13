@@ -1,9 +1,9 @@
-object Form2: TForm2
+object FGamepadMain: TFGamepadMain
   Left = 0
   Top = 0
-  Caption = 'Form2'
-  ClientHeight = 442
-  ClientWidth = 628
+  Caption = 'Gamepad main'
+  ClientHeight = 441
+  ClientWidth = 624
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
