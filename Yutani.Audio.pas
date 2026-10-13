@@ -1,11 +1,12 @@
 unit Yutani.Audio;
 
 {==============================================================================*
- *  Yutani.Audio - TinySoundFont Wrapper & Threaded Audio Engine 0.642
+ *  Yutani.Audio - TinySoundFont & MiniAudio Wrapper (Threaded Audio Engine)
  *------------------------------------------------------------------------------
  *  Description:
- *    Standalone audio engine for TinySoundFont. Handles dynamic DLL loading,
- *    soundfont loading, and low-latency audio rendering via MMSystem (WaveOut).
+ *    Standalone audio engine. Handles dynamic DLL loading for TinySoundFont,
+ *    and full MiniAudio integration (SFX Groups, 3D Audio, etc.).
+ *    Low-latency TSF audio rendering via MMSystem (WaveOut).
  *    The audio thread spins up on demand when notes are played and pauses
  *    automatically (saving CPU) when idle for more than 2 seconds.
  *==============================================================================}
@@ -13,11 +14,12 @@ interface
 
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.SyncObjs,
-  System.Diagnostics, Winapi.MMSystem, TinySoundFont;
+  System.Diagnostics, Winapi.MMSystem, TinySoundFont, MiniAudio4Delphi;
 
 type
   TYutaniAudioEngine = class
   private
+    // TSF (TinySoundFont) Fields
     FTSFDLL: HMODULE;
     FTSF: Ptsf;
     FDLLLoaded: Boolean;
@@ -31,6 +33,12 @@ type
     FNoteQueue: TArray<Integer>;
     FLastNoteTime: TStopwatch;
     FFramesToRender: Cardinal;
+    // MiniAudio Fields
+    FMAEngine: ma_engine;
+    FSFXGroup: ma_sound_group;
+    FMusicGroup: ma_sound_group;
+    FMAInitialized: Boolean;
+    procedure InitMiniAudio;
   public
     constructor Create;
     destructor Destroy; override;
@@ -39,13 +47,20 @@ type
     procedure AddNote(MidiNote: Integer; Velocity: Single = 1.0);
     // Direct live play (bypasses queue, instant trigger)
     procedure PlayLiveNote(MidiNote: Integer; Velocity: Single = 1.0);
+    // --- MiniAudio Convenience Methods ---
+    procedure PlaySoundEffect(const FilePath: string; Volume: Single = 1.0);
+    procedure SetSFXVolume(Volume: Single);
+    procedure SetSFXPitch(Pitch: Single);
+    procedure SetTSFPitch(Pitch: Single);
+    procedure SetMusicVolume(Volume: Single);
+    function GetMAEngine: ma_engine;
   end;
 
 implementation
 
 const
   WAVE_FORMAT_IEEE_FLOAT = 3;
-  IDLE_TIMEOUT_MS = 5000; // Pause thread after 5s of silence (gives notes enough time to ring out / decay)
+  IDLE_TIMEOUT_MS = 5000; // Pause thread after 5s of silence
 
 { TYutaniAudioEngine }
 
@@ -60,6 +75,11 @@ begin
   FIsRunning := False;
   FFramesToRender := 22050; // 0.5 seconds of audio at 44.1kHz
   FLastNoteTime := TStopwatch.Create;
+  // MiniAudio states
+  FMAInitialized := False;
+  FMAEngine := nil;
+  FSFXGroup := nil;
+  FMusicGroup := nil;
 end;
 
 destructor TYutaniAudioEngine.Destroy;
@@ -70,6 +90,7 @@ begin
     FAudioThread.WaitFor;
     FreeAndNil(FAudioThread);
   end;
+  // 1. Cleanup TinySoundFont
   if Assigned(FTSF) then
     tsf_close(FTSF);
   if FWaveOut <> 0 then
@@ -83,8 +104,62 @@ begin
     FreeMem(FBuffer);
   if FTSFDLL <> 0 then
     FreeLibrary(FTSFDLL);
+  // 2. Cleanup MiniAudio
+  if FMAInitialized then
+  begin
+    if FSFXGroup <> nil then
+    begin
+      ma_sound_group_uninit(FSFXGroup);
+      FreeMem(FSFXGroup);
+    end;
+    if FMusicGroup <> nil then
+    begin
+      ma_sound_group_uninit(FMusicGroup);
+      FreeMem(FMusicGroup);
+    end;
+    if FMAEngine <> nil then
+    begin
+      ma_engine_uninit(FMAEngine);
+      FreeMem(FMAEngine);
+    end;
+  end;
   FreeAndNil(FLock);
   inherited;
+end;
+
+procedure TYutaniAudioEngine.InitMiniAudio;
+var
+  Res: ma_result;
+begin
+  if FMAInitialized then
+    Exit;
+  // 1. Allocate and Init Main Engine
+  // We allocate 8192 bytes. This is more than enough for the ma_engine struct.
+  GetMem(FMAEngine, 8192);
+  Res := ma_engine_init(nil, FMAEngine);
+  if Res <> MA_SUCCESS then
+  begin
+    FreeMem(FMAEngine);
+    FMAEngine := nil;
+    raise Exception.Create('Failed to initialize MiniAudio engine!');
+  end;
+  // 2. Allocate and Init SFX Group
+  GetMem(FSFXGroup, 2048); // 2KB is safe for groups
+  Res := ma_sound_group_init(FMAEngine, 0, nil, FSFXGroup);
+  if Res <> MA_SUCCESS then
+  begin
+    FreeMem(FSFXGroup);
+    FSFXGroup := nil;
+  end;
+  // 3. Allocate and Init Music Group
+  GetMem(FMusicGroup, 2048);
+  Res := ma_sound_group_init(FMAEngine, 0, nil, FMusicGroup);
+  if Res <> MA_SUCCESS then
+  begin
+    FreeMem(FMusicGroup);
+    FMusicGroup := nil;
+  end;
+  FMAInitialized := True;
 end;
 
 procedure TYutaniAudioEngine.InitAudio;
@@ -92,6 +167,8 @@ var
   DllPath: string;
   Format: TWaveFormatEx;
 begin
+  // Initialize MiniAudio first! It doesn't depend on TSF
+  InitMiniAudio;
   if FDLLLoaded then
     Exit;
   // 1. Load TinySoundFont DLL
@@ -163,7 +240,6 @@ begin
           Timer: TStopwatch;
           Freq: Int64;
           TargetTicks, NowTicks, SpinTicks: Int64;
-          CurrentTime: Double;
           BufIndex: Integer;
           LocalQueue: TArray<Integer>;
           i: Integer;
@@ -194,11 +270,10 @@ begin
               end;
             end;
             // --- 2. IDLE TIMEOUT LOGIC ---
-            // If nothing was played for 2 seconds, sleep and skip rendering to save CPU
             if FLastNoteTime.ElapsedMilliseconds > IDLE_TIMEOUT_MS then
             begin
               Sleep(50);
-              TargetTicks := Timer.GetTimestamp; // Reset timer so we don't fast-forward
+              TargetTicks := Timer.GetTimestamp;
               Continue;
             end;
             // --- 3. RENDER AUDIO CHUNK ---
@@ -214,7 +289,6 @@ begin
             NowTicks := Timer.GetTimestamp;
             if TargetTicks <= NowTicks then
               TargetTicks := NowTicks + (Freq div 2);
-            // Hybrid Sleep/Spin
             while (TargetTicks - Timer.GetTimestamp) > SpinTicks do
               Sleep(1);
             while Timer.GetTimestamp < TargetTicks do
@@ -239,7 +313,7 @@ begin
   finally
     FLock.Leave;
   end;
-  FLastNoteTime.Reset; // Reset idle timer
+  FLastNoteTime.Reset;
   FLastNoteTime.Start;
 end;
 
@@ -251,6 +325,65 @@ begin
     FLastNoteTime.Reset;
     FLastNoteTime.Start;
   end;
+end;
+// =============================================================================
+// MINIAUDIO CONVENIENCE METHODS
+// =============================================================================
+
+procedure TYutaniAudioEngine.PlaySoundEffect(const FilePath: string; Volume: Single = 1.0);
+begin
+  if not FMAInitialized then
+    Exit;
+  // Set volume for the SFX bus right before playing
+  if FSFXGroup <> nil then
+    ma_sound_group_set_volume(FSFXGroup, Volume);
+  // Play sound routed into the SFX group
+  ma_engine_play_sound(FMAEngine, PAnsiChar(AnsiString(FilePath)), FSFXGroup);
+end;
+
+procedure TYutaniAudioEngine.SetSFXVolume(Volume: Single);
+begin
+  if FMAInitialized and (FSFXGroup <> nil) then
+    ma_sound_group_set_volume(FSFXGroup, Volume);
+end;
+
+procedure TYutaniAudioEngine.SetSFXPitch(Pitch: Single);
+begin
+  // Pitch 1.0 = Normal speed, 0.5 = Slow/Low, 2.0 = Fast/High
+  if FMAInitialized and (FSFXGroup <> nil) then
+    ma_sound_group_set_pitch(FSFXGroup, Pitch);
+end;
+
+procedure TYutaniAudioEngine.SetTSFPitch(Pitch: Single);
+var
+  TargetSampleRate: Integer;
+begin
+  if not Assigned(FTSF) then
+    Exit;
+
+  // Calculate the new sample rate based on the pitch (1.0 = normal)
+  // Pitch 0.5 means we halve the sample rate, resulting in slow & low audio
+  TargetSampleRate := Round(44100 * Pitch);
+
+  // Prevent invalid sample rates
+  if TargetSampleRate < 4000 then
+    TargetSampleRate := 4000;
+  if TargetSampleRate > 96000 then
+    TargetSampleRate := 96000;
+
+  // Re-configure the TSF output format
+  tsf_set_output(FTSF, TSF_STEREO_INTERLEAVED, TargetSampleRate, 0.0);
+end;
+
+procedure TYutaniAudioEngine.SetMusicVolume(Volume: Single);
+begin
+  if FMAInitialized and (FMusicGroup <> nil) then
+    ma_sound_group_set_volume(FMusicGroup, Volume);
+end;
+
+function TYutaniAudioEngine.GetMAEngine: ma_engine;
+begin
+  Result := FMAEngine;
 end;
 
 end.

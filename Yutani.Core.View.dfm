@@ -12381,9 +12381,35 @@ object YutaniWindow: TYutaniWindow
         object lblMasterVolume: TLabel
           Left = 16
           Top = 11
-          Width = 76
+          Width = 79
           Height = 15
-          Caption = 'MasterVolume'
+          Caption = 'Master Volume'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblSFXVolume: TLabel
+          Left = 19
+          Top = 83
+          Width = 62
+          Height = 15
+          Caption = 'SFX Volume'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblMusicVolume: TLabel
+          Left = 19
+          Top = 147
+          Width = 75
+          Height = 15
+          Caption = 'Music Volume'
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clBlack
           Font.Height = -12
@@ -12404,8 +12430,8 @@ object YutaniWindow: TYutaniWindow
           OnChange = tbMasterVolumeChange
         end
         object btnTestSFX: TButton
-          Left = 13
-          Top = 94
+          Left = 11
+          Top = 270
           Width = 98
           Height = 25
           Caption = 'Test audio'
@@ -12414,12 +12440,36 @@ object YutaniWindow: TYutaniWindow
         end
         object btnLoadSF2: TButton
           Left = 13
-          Top = 286
+          Top = 310
           Width = 98
           Height = 25
           Caption = 'Load sf2'
           TabOrder = 2
           OnClick = btnLoadSF2Click
+        end
+        object tbSFXVolume: TTrackBar
+          Left = 11
+          Top = 104
+          Width = 150
+          Height = 45
+          Max = 100
+          Position = 100
+          ShowSelRange = False
+          TabOrder = 3
+          TickStyle = tsNone
+          OnChange = tbSFXVolumeChange
+        end
+        object tbMusicVOlume: TTrackBar
+          Left = 11
+          Top = 168
+          Width = 150
+          Height = 45
+          Max = 100
+          Position = 100
+          ShowSelRange = False
+          TabOrder = 4
+          TickStyle = tsNone
+          OnChange = tbMusicVOlumeChange
         end
       end
     end

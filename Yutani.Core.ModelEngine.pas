@@ -1,7 +1,7 @@
 ﻿unit Yutani.Core.ModelEngine;
 
 {==============================================================================*
- *  ModelEngine v0.647 - Actor Layer combining Raylib rendering with Jolt Physics
+ *  ModelEngine v0.648 - Actor Layer combining Raylib rendering with Jolt Physics
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *

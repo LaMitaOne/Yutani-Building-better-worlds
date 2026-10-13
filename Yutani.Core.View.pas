@@ -17,7 +17,7 @@ uses
   Winapi.Windows, System.SysUtils, System.Math, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   Yutani.Core, Yutani.Core.ModelEngine, TypInfo, Vcl.Grids, Raylib,
-  Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D, uMRX_GamepadCoreMain,
+  Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D,
   Yutani.SkiaIntro, MiniAudio4Delphi;
 
 type
@@ -105,6 +105,10 @@ type
     spRain: TSpinEdit;
     chkShowInfos: TCheckBox;
     btnControls: TButton;
+    tbSFXVolume: TTrackBar;
+    lblSFXVolume: TLabel;
+    lblMusicVolume: TLabel;
+    tbMusicVOlume: TTrackBar;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -167,6 +171,8 @@ type
     procedure Button5Click(Sender: TObject);
     procedure chkShowInfosClick(Sender: TObject);
     procedure btnControlsClick(Sender: TObject);
+    procedure tbSFXVolumeChange(Sender: TObject);
+    procedure tbMusicVOlumeChange(Sender: TObject);
   private
     FSandbox: TYutaniRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -322,7 +328,7 @@ end;
 
 procedure TYutaniWindow.btnTestSFXClick(Sender: TObject);
 begin
-  FSandbox.PlayTestSound;
+  FSandbox.FYutaniAudio.PlaySoundEffect('ressources\audio\test.wav', 1.0);;
 end;
 
 procedure TYutaniWindow.btnToolDragThrowClick(Sender: TObject);
@@ -611,7 +617,7 @@ end;
 procedure TYutaniWindow.btnGamepadCoreClick(Sender: TObject);
 begin
   //--
-  FGamepadMain.Show;
+  FSandbox.FInputManager.ShowGamepadSettings(Self);
 end;
 
 procedure TYutaniWindow.btnLoadSF2Click(Sender: TObject);
@@ -838,7 +844,18 @@ end;
 
 procedure TYutaniWindow.tbMasterVolumeChange(Sender: TObject);
 begin
-  ma_engine_set_volume(FSandbox.FAudioEngine, tbMasterVolume.Position / 100.0);
+  ma_engine_set_volume(FSandbox.FYutaniAudio, tbMasterVolume.Position / 100.0);
+end;
+
+procedure TYutaniWindow.tbMusicVOlumeChange(Sender: TObject);
+begin
+  FSandbox.FYutaniAudio.SetMusicVolume(tbSFXVolume.Position / 100.0);
+  //tinysoundfont vol to do
+end;
+
+procedure TYutaniWindow.tbSFXVolumeChange(Sender: TObject);
+begin
+  FSandbox.FYutaniAudio.SetSFXVolume(tbSFXVolume.Position / 100.0);
 end;
 
 procedure TYutaniWindow.tbSlowMotionChange(Sender: TObject);

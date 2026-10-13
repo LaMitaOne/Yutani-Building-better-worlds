@@ -34,15 +34,12 @@
        replacement with a proper data dictionary in v0.2).
 }
 unit uMRX_GamepadSettings;
-
 interface
-
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.TypInfo,
   System.IniFiles, Winapi.Windows, Vcl.Forms, Vcl.Controls, Vcl.Graphics,
   Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.Imaging.pngimage, uMRX_GamepadCore,
   Vcl.ComCtrls;
-
 type
   /// <summary>
   /// Record associating a visual label with a gamepad element.
@@ -54,7 +51,6 @@ type
   /// <summary>
   /// Form for visually configuring gamepad mappings and deadzones.
   /// </summary>
-
   TfrmGamepadSettings = class(TForm)
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -99,13 +95,10 @@ type
   public
     constructor Create(AOwner: TComponent; ACore: TMRXGamepadCore); reintroduce;
   end;
-
 var
   frmGamepadSettings: TfrmGamepadSettings;
-
 implementation
 {$R *.dfm}
-
 constructor TfrmGamepadSettings.Create(AOwner: TComponent; ACore: TMRXGamepadCore);
 begin
   inherited Create(AOwner);
@@ -114,7 +107,6 @@ begin
   FCore.OnInputEvent := OnGamepadInput;
   OnKeyDown := FormKeyDown;
 end;
-
 procedure TfrmGamepadSettings.FormCreate(Sender: TObject);
 begin
   Caption := 'MRX Gamepad Settings';
@@ -127,13 +119,11 @@ begin
   InitVisuals;
   LoadProfilesToList;
 end;
-
 procedure TfrmGamepadSettings.FormDestroy(Sender: TObject);
 begin
   if Assigned(FCore) then
     FCore.OnInputEvent := nil;
 end;
-
 procedure TfrmGamepadSettings.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 var
   Ini: TIniFile;
@@ -160,7 +150,6 @@ begin
   UpdateButtonLabel(FListeningBtn, ValName);
   Key := 0;
 end;
-
 procedure TfrmGamepadSettings.UpdateButtonLabel(Btn: TLabel; MappedValue: string);
 var
   OrigName, SelfEnumName: string;
@@ -188,13 +177,11 @@ begin
     Btn.Caption := OrigName + #13#10 + '= ' + MappedValue;
   end;
 end;
-
 procedure TfrmGamepadSettings.InitVisuals;
 var
   Lbl: TLabel;
   BottomBar: TPanel;
   i: Integer;
-
   procedure AddButton(const AText: string; AX, AY: Integer; AElement: TGamepadElement);
   var
     Rec: TButtonRec;
@@ -224,7 +211,6 @@ var
     SetLength(FButtonRecs, Length(FButtonRecs) + 1);
     FButtonRecs[High(FButtonRecs)] := Rec;
   end;
-
 begin
   FImgController := TImage.Create(Self);
   FImgController.Parent := Self;
@@ -389,7 +375,6 @@ begin
   FBlinkTimer.Enabled := False;
   FBlinkTimer.OnTimer := OnBlinkTimer;
 end;
-
 procedure TfrmGamepadSettings.OnImageMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   i: Integer;
@@ -423,7 +408,6 @@ begin
     FBlinkTimer.Enabled := True;
   end;
 end;
-
 procedure TfrmGamepadSettings.OnGamepadInput(Sender: TObject; PadID: Integer; Element: TGamepadElement; Pressed: Boolean; Value: Single);
 var
   i: Integer;
@@ -565,7 +549,6 @@ begin
     end;
   end;
 end;
-
 procedure TfrmGamepadSettings.HighlightButton(Element: TGamepadElement; Pressed: Boolean);
 var
   i: Integer;
@@ -582,14 +565,12 @@ begin
     end;
   end;
 end;
-
 function TfrmGamepadSettings.GetSelectedPadID: Integer;
 begin
   Result := FComboPad.ItemIndex;
   if Result < 0 then
     Result := 0;
 end;
-
 procedure TfrmGamepadSettings.LoadProfilesToList;
 var
   SR: TSearchRec;
@@ -620,7 +601,6 @@ begin
   FComboProfiles.ItemIndex := 0;
   LoadProfileSettings;
 end;
-
 function TfrmGamepadSettings.GetProfileFile: string;
 begin
   if FComboProfiles.ItemIndex >= 0 then
@@ -628,7 +608,6 @@ begin
   else
     Result := FProfilePath + 'Default.ini';
 end;
-
 procedure TfrmGamepadSettings.SaveCurrentMappings;
 var
   Ini: TIniFile;
@@ -661,19 +640,16 @@ begin
     Ini.Free;
   end;
 end;
-
 procedure TfrmGamepadSettings.BtnSaveClick(Sender: TObject);
 begin
   SaveCurrentMappings;
 end;
-
 procedure TfrmGamepadSettings.BtnLoadClick(Sender: TObject);
 begin
   if FComboProfiles.ItemIndex < 0 then
     Exit;
   LoadProfileSettings;
 end;
-
 procedure TfrmGamepadSettings.BtnNewClick(Sender: TObject);
 var
   NewName: string;
@@ -689,12 +665,10 @@ begin
     end;
   end;
 end;
-
 procedure TfrmGamepadSettings.BtnDefaultClick(Sender: TObject);
 begin
   ResetToDefaults;
 end;
-
 procedure TfrmGamepadSettings.ResetToDefaults;
 var
   i: Integer;
@@ -718,7 +692,6 @@ begin
     end;
   end;
 end;
-
 procedure TfrmGamepadSettings.OnTrackChange(Sender: TObject);
 var
   CircleSize: Single;
@@ -738,7 +711,6 @@ begin
   FCircleRight.Left := Trunc((520 + 30) - (CircleSize / 2));
   FCircleRight.Top := Trunc((320 + 22) - (CircleSize / 2));
 end;
-
 procedure TfrmGamepadSettings.OnBtnMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   i: Integer;
@@ -758,7 +730,6 @@ begin
     end;
   end;
 end;
-
 procedure TfrmGamepadSettings.OnBlinkTimer(Sender: TObject);
 begin
   if FListeningBtn.Font.Color = clRed then
@@ -766,7 +737,6 @@ begin
   else
     FListeningBtn.Font.Color := clRed;
 end;
-
 procedure TfrmGamepadSettings.LoadProfileSettings;
 var
   Ini: TIniFile;
@@ -794,5 +764,4 @@ begin
     Ini.Free;
   end;
 end;
-
 end.

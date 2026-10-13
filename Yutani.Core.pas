@@ -89,11 +89,17 @@ v0.648
  - Save/Load Scene now works for 3d models too, (only full path atm)
  - Stabilized nanofog and bomb
  - Slowmotion can do now fastmotion too (Trackbar max 200 now)
- - Pressing F11 again now first changes direction 90 degrees till it leaves
+ - Pressing F11 again changes direction 90 degrees, click somewhere
+   outside and then F11 to leave
  - Loading screen now shows on mainform center, not screen center
- - Added mass rain spawn spinedit and btns in form and removed ugly internal test hud
+ - Added mass rain spawn spinedit and btns in form and removed ugly
+   internal test hud
  - Added checkbox to show/hide infos internal and on form
- - Space has now 0 Gravity and now mor eground except 4x4 block for spacestation later
+ - Space has now 0 Gravity and no more ground, except 4x4 block for
+   spacestation later
+ - Moved MiniAudio to Yutani.Audio
+ - Added Yutani.Avatar.Controls unit
+ - Connected audio engines (MiniAudio & TinySoundFont) to slow motion too
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -106,9 +112,10 @@ uses
   Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Math,
   System.SyncObjs, Vcl.Controls, Raylib, RayMath, rlgl, Yutani.Core.ModelEngine,
   JoltPhysics, MiniAudio4Delphi, MPVManager, Yutani.Audio,
-  Yutani.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
+  Yutani.Render.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
   Yutani.Worlds.Space, Yutani.Render.Shaders, Yutani.Render.Particles,
-  Yutani.Render.NanoFog, Yutani.Render.LoadingScreen;
+  Yutani.Render.NanoFog, Yutani.Render.LoadingScreen, GameNetworkingSockets,
+  VerySimple.Lua, Yutani.Avatar.Controls;
 
 type
   PItemData = ^TItemData;
@@ -405,10 +412,13 @@ type
     FFocusTrackingActor: TA3DComponent;
     FAltWasPressed: Boolean;
 
-    // Vehicle Flight Control (F11 + Enter system)
+   // ====================================================================
+    // Centralized Avatar Controls & Input Manager
+    // Replaces the old hardcoded F11 + Enter Vehicle logic.
+    // ====================================================================
+    FAvatarController: TYutaniAvatarController;
     FPlayerVehicle: TA3DComponent;
     FIsDriving: Boolean;
-    FVehicleSpeedMul: Single;
 
     // Dematerialize Queue
     FDematerializeQueue: TArray<TDematerializeRequest>;
@@ -467,8 +477,6 @@ type
     procedure SetFrustumCulling(const Value: Boolean);
     procedure SetDistanceCulling(const Value: Boolean);
     procedure SetMaxRenderDistance(const Value: Single);
-    procedure PlayImpactSound;
-    procedure PlaySpawnSound;
 
     // Internal execution in the main thread
     procedure ExecuteSceneSave(const FileName: string);
@@ -495,9 +503,9 @@ type
     FSpawnDestructable: Boolean;
     FGhostVisible: Boolean;
     FIsBrushActive: Boolean;
-    FAudioEngine: ma_engine;
     FYutaniAudio: TYutaniAudioEngine;
     FShowInfosGUi: Boolean;
+    FInputManager: TYutaniInputManager;
     function ItemCount: Integer;
     procedure ClearItems;
     procedure DeleteSelectedActor;
@@ -528,7 +536,6 @@ type
     procedure SetSelectedActor(AActor: TA3DComponent);
     procedure SetGizmoMode(AMode: TGizmoMode);
     procedure PublicShootBall;
-    procedure PlayTestSound;
     property Engine: TModelEngine read FEngine;
     property FrustumCulling: Boolean read FFrustumCulling write SetFrustumCulling;
     property DistanceCulling: Boolean read FDistanceCulling write SetDistanceCulling;
@@ -675,7 +682,6 @@ begin
   FDistanceCulling := True;
   FLoadModelQueued := False;
   FQueuedModelPath := '';
-  FAudioEngine := nil;
   FShadowBias := 0.003;
   FDayTime := 0.3; // Start at morning
   FDaySpeed := 0.01; // Day cycle speed
@@ -719,10 +725,14 @@ begin
   // Piano Component init
   FPiano := nil;
 
-    // Init Vehicle Flight Control
+   // ====================================================================
+    // Initialize Avatar Controls
+    // ====================================================================
+  FInputManager := TYutaniInputManager.Create;
+  FInputManager.InitializeGamepad;
   FPlayerVehicle := nil;
   FIsDriving := False;
-  FVehicleSpeedMul := 1.0;
+  FAvatarController := nil;
 
   //init audio engines
   FYutaniAudio := TYutaniAudioEngine.Create;
@@ -734,6 +744,7 @@ destructor TYutaniRaylibSandbox.Destroy;
 begin
   StopThread;
   FreeAndNil(FPiano);
+  FreeAndNil(FAvatarController);
   FreeAndNil(FLock);
   if Assigned(FYutaniAudio) then
     FreeAndNil(FYutaniAudio);
@@ -821,13 +832,6 @@ begin
   FDaySpeed := EnsureRange(Value, 0.0, 1.0);
 end;
 
-procedure TYutaniRaylibSandbox.SetTimeScale(const Value: Single);
-begin
-  FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
-  if FSlowMotionActive then
-    FTimeScale := FSavedTimeScale;
-end;
-
 procedure TYutaniRaylibSandbox.SetSlowMotionActive(const Value: Boolean);
 begin
   if FSlowMotionActive <> Value then
@@ -837,6 +841,29 @@ begin
       FTimeScale := FSavedTimeScale
     else
       FTimeScale := 1.0;
+
+    // Adjust audio pitch to match the slow motion / fast forward state
+    if Assigned(FYutaniAudio) then
+    begin
+      FYutaniAudio.SetSFXPitch(FTimeScale);   // MiniAudio SFX
+      FYutaniAudio.SetTSFPitch(FTimeScale);   // TinySoundFont Piano
+    end;
+  end;
+end;
+
+procedure TYutaniRaylibSandbox.SetTimeScale(const Value: Single);
+begin
+  FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
+  if FSlowMotionActive then
+    FTimeScale := FSavedTimeScale
+  else
+    FTimeScale := 1.0;
+
+  // Live-update audio pitch when the trackbar value changes
+  if Assigned(FYutaniAudio) then
+  begin
+    FYutaniAudio.SetSFXPitch(FTimeScale);     // MiniAudio SFX
+    FYutaniAudio.SetTSFPitch(FTimeScale);     // TinySoundFont Piano
   end;
 end;
 
@@ -1112,45 +1139,7 @@ begin
   end;
 end;
 
-procedure TYutaniRaylibSandbox.PlayTestSound;
-var
-  Res: Integer;
-begin
-  if FAudioEngine <> nil then
-  begin
-    Res := ma_engine_play_sound(FAudioEngine, 'ressources\audio\test.wav', nil);
-    if Res <> MA_SUCCESS then
-      DoEngineException('Failed to play test.wav', 'AudioEngine');
-  end;
-end;
-
-procedure TYutaniRaylibSandbox.PlaySpawnSound;
-var
-  Res: Integer;
-begin
-  if FAudioEngine <> nil then
-  begin
-    Res := ma_engine_play_sound(FAudioEngine, 'ressources\audio\impactPlank_medium_000.wav', nil);
-    if Res <> MA_SUCCESS then
-      DoEngineException('Failed to play impactPlank_medium_000.wav', 'AudioEngine');
-  end;
-end;
-
-procedure TYutaniRaylibSandbox.PlayImpactSound;
-var
-  Res: Integer;
-begin
-  if FAudioEngine <> nil then
-  begin
-    Res := ma_engine_play_sound(FAudioEngine, 'ressources\audio\explosionCrunch_004.wav', nil);
-    if Res <> MA_SUCCESS then
-      DoEngineException('Failed to play explosionCrunch_004.wav', 'AudioEngine');
-  end;
-end;
-
 procedure TYutaniRaylibSandbox.StartThread;
-var
-  AudioRes: Integer;
 begin
   if FThreadActive then
     Exit;
@@ -1186,10 +1175,6 @@ begin
             // 5. Finally, position and size it perfectly inside our VCL parent
             SetWindowPos(FRaylibWnd, 0, 0, 0, Self.ClientWidth, Self.ClientHeight, SWP_NOZORDER);
           end;
-          GetMem(FAudioEngine, ma_engine_sizeof());
-          AudioRes := ma_engine_init(nil, FAudioEngine);
-          if AudioRes <> MA_SUCCESS then
-            DoEngineException('Audio Engine Init failed: ' + IntToStr(AudioRes), 'AudioInit');
 
           FEngine := TModelEngine.Create;
           // Apply initial Gravity
@@ -1394,12 +1379,7 @@ begin
             UnloadTexture(FDefaultWhiteTex);
           UnloadMesh(FUnitBox);
           UnloadMesh(FUnitSphere);
-          if FAudioEngine <> nil then
-          begin
-            ma_engine_uninit(FAudioEngine);
-            FreeMem(FAudioEngine);
-            FAudioEngine := nil;
-          end;
+
           if Assigned(FIslandWorld) then
             FreeAndNil(FIslandWorld);
           if Assigned(FSpaceWorld) then
@@ -1640,7 +1620,6 @@ end;
 
 procedure TYutaniRaylibSandbox.PublicShootBall;
 begin
-  PlayTestSound;
   ShootBall;
 end;
 
@@ -2013,15 +1992,19 @@ begin
         FIsDriving := True;
         FPlayerVehicle := FItemSelected;
         FPlayerVehicle.ActivateBody;
-        FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
-        FVehicleSpeedMul := 1.0;
+
+        // Initialize the appropriate controller
+        if FCurrentWorldBase = wbSpace then
+          FAvatarController := TYutaniFlightController.Create(FPlayerVehicle, @FCamera)
+        else
+          FAvatarController := TYutaniVehicleController.Create(FPlayerVehicle, @FCamera);
       end
       // MODE 2: Already driving -> Rotate OURSELVES (Camera & Flight Direction) by 90 Deg!
       else
       begin
         // Rotate FCamYaw directly by 90 degrees.
         // This rotates our view AND our flight direction seamlessly.
-        FCamYaw := FCamYaw + (90.0 * DEG2RAD);
+        FAvatarController.CamYaw := FAvatarController.CamYaw + (90.0 * DEG2RAD);
 
         // Stop the vehicle immediately so it doesn't drift into the old direction
         FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
@@ -2034,6 +2017,7 @@ begin
       // MODE 3: Nothing selected -> Force exit vehicle mode safely
       FIsDriving := False;
       FPlayerVehicle := nil;
+      FreeAndNil(FAvatarController);
     end;
   end;
 
@@ -2630,7 +2614,7 @@ begin
       NewActor.Visible := True;
 
       FItems[OldLen] := NewActor;
-      PlaySpawnSound;
+      FYutaniAudio.PlaySoundEffect('ressources\audio\impactPlank_medium_000.wav', 1.0);
       DoActorSpawned(NewActor, OldLen);
       DoObjectSelected(NewActor);
       FItemSelected := NewActor;
@@ -3287,7 +3271,7 @@ begin
   end;
 
   FItems[oldLen] := Obj;
-  PlaySpawnSound;
+  FYutaniAudio.PlaySoundEffect('ressources\audio\impactPlank_medium_000.wav', 1.0);
   TriggerSpawnEffect(Vector3Create(JPos.x, JPos.y, JPos.z), Obj);
   DoActorSpawned(Obj, oldLen);
 end;
@@ -3684,78 +3668,20 @@ begin
   end;
 
   // ====================================================================
-  // VEHICLE FLIGHT CONTROL LOGIC & THIRD-PERSON CAMERA OVERRIDE
+  // NEW: Update Avatar Controller (Replaces hardcoded flight logic)
   // ====================================================================
   if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
   begin
     FPlayerVehicle.ActivateBody;
-
-    // R / F: Speed control (Hold to change speed)
-    if (GetAsyncKeyState(Ord('R')) and $8000) <> 0 then
-      FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul + (0.5 * dt), 0.2, 10.0);
-    if (GetAsyncKeyState(Ord('F')) and $8000) <> 0 then
-      FVehicleSpeedMul := EnsureRange(FVehicleSpeedMul - (0.5 * dt), 0.2, 10.0);
-
-    // Prevent Space Landing logic from interfering while driving
-    if FCurrentWorldBase = wbSpace then
-      FSpaceLandingState := 0;
-
-    // 1. WE DO NOT READ OR SET ROTATION FROM JOLT!
-    // The model stays exactly as it is lying on the ground.
-    // Extract flat forward direction perfectly from FCamYaw.
-    var FlatFwd := Vector3Create(-Sin(FCamYaw + 0.50), 0, -Cos(FCamYaw + 0.50));
-
-    FlatFwd := Vector3Normalize(FlatFwd);
-
-    // Determine our flat Right vector
-    var FlatRight := Vector3Create(Cos(FCamYaw), 0, -Sin(FCamYaw));
-    FlatRight := Vector3Normalize(FlatRight);
-
-    var Vel := Vector3Create(0, 0, 0);
-    var AngVel := Vector3Create(0, 0, 0);
-    var BaseThrust: Single := 10.0 * FVehicleSpeedMul;
-
-    // W / S: Forward / Backward (Relative to our chosen Orbit Angle!)
-    if (GetAsyncKeyState(Ord('W')) and $8000) <> 0 then
-    begin
-      Vel.x := FlatFwd.x * BaseThrust;
-      Vel.z := FlatFwd.z * BaseThrust;
-    end
-    else if (GetAsyncKeyState(Ord('S')) and $8000) <> 0 then
-    begin
-      Vel.x := -FlatFwd.x * BaseThrust;
-      Vel.z := -FlatFwd.z * BaseThrust;
-    end;
-
-    // Q / E: Up / Down Thrust
-    if (GetAsyncKeyState(Ord('Q')) and $8000) <> 0 then
-      Vel.y := BaseThrust
-    else if (GetAsyncKeyState(Ord('E')) and $8000) <> 0 then
-      Vel.y := -BaseThrust;
-
-    // A / D: Strafe Left / Right
-    if (GetAsyncKeyState(Ord('A')) and $8000) <> 0 then
-    begin
-      Vel.x := Vel.x - FlatRight.x * BaseThrust * 0.8;
-      Vel.z := Vel.z - FlatRight.z * BaseThrust * 0.8;
-    end
-    else if (GetAsyncKeyState(Ord('D')) and $8000) <> 0 then
-    begin
-      Vel.x := Vel.x + FlatRight.x * BaseThrust * 0.8;
-      Vel.z := Vel.z + FlatRight.z * BaseThrust * 0.8;
-    end;
-
-    FPlayerVehicle.SetLinearVelocity(Vel);
-    FPlayerVehicle.SetAngularVelocity(AngVel);
-
-    // 2. Third-Person Camera: Cinematic chase cam!
-    // The camera snaps directly behind our new Flight Direction
-    var Back := Vector3Create(-FlatFwd.x, 0, -FlatFwd.z);
-    FCamera.position := Vector3Create(FPlayerVehicle.Position.x + Back.x * 15.0, FPlayerVehicle.Position.y + 6.0, FPlayerVehicle.Position.z + Back.z * 15.0);
-
-    FCamera.target := Vector3Create(FPlayerVehicle.Position.x + FlatFwd.x * 10.0, FPlayerVehicle.Position.y + 3.0, FPlayerVehicle.Position.z + FlatFwd.z * 10.0);
-    FCamera.up := Vector3Create(0, 1, 0);
+    FAvatarController.Update(dt, FInputManager);
     FCameraMoved := True;
+  end
+  else if Assigned(FAvatarController) then
+  begin
+    // Clean up if the vehicle died or was deleted
+    FIsDriving := False;
+    FPlayerVehicle := nil;
+    FreeAndNil(FAvatarController);
   end;
 
   HandleCameraInput;
@@ -3769,24 +3695,15 @@ begin
   if FSimulationRunning then
   begin
     try
-   // CRITICAL: Disable gravity ONLY while driving. 0 = No gravity, 1 = Normal.
-      if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
-        FPlayerVehicle.SetGravityFactor(0.0)
-      else if Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
-        FPlayerVehicle.SetGravityFactor(1.0);
+      // ====================================================================
+      // Handle Gravity for the active Avatar Controller
+      // ====================================================================
+      if Assigned(FAvatarController) then
+        FAvatarController.Avatar.SetGravityFactor(0.0); // Handled internally by controllers now!
 
       QueryPerformanceCounter(StartTime);
       FEngine.Update(PhysDt); // Pass slowed down time to Jolt Physics
       QueryPerformanceCounter(EndTime);
-
-      // Cancel out gravity for the driven vehicle so it can fly properly!
-      if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
-      begin
-        var V := FPlayerVehicle.GetLinearVelocity;
-        V.y := V.y - (FGravity * PhysDt); // Counter the gravity that was just applied by Jolt
-        FPlayerVehicle.SetLinearVelocity(V);
-        FPlayerVehicle.SetRotation(FPlayerVehicle.Quaternion);
-      end;
 
       QueryPerformanceFrequency(Freq);
       FLastPhysicsTime := (EndTime - StartTime) * 1000.0 / Freq;
@@ -5622,7 +5539,7 @@ begin
 
   // Set flag immediately to prevent multiple triggers in the same frame
   FBombExploded := True;
-  PlayImpactSound;
+  FYutaniAudio.PlaySoundEffect('ressources\audio\explosionCrunch_004.wav', 1.0);
 
   if Assigned(FParticleEngine) then
   begin

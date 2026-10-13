@@ -10,9 +10,8 @@ uses
   MPVManager in 'MPVManager.pas',
   MPVEmbedded in 'MPVEmbedded.pas',
   uMRX_GamepadCore in 'uMRX_GamepadCore.pas',
-  uMRX_GamepadCoreMain in 'uMRX_GamepadCoreMain.pas' {FGamepadMain},
   Yutani.SkiaIntro in 'Yutani.SkiaIntro.pas',
-  Yutani.VoronoiFracture in 'Yutani.VoronoiFracture.pas',
+  Yutani.Render.VoronoiFracture in 'Yutani.Render.VoronoiFracture.pas',
   Yutani.Render.Shaders in 'Yutani.Render.Shaders.pas',
   Yutani.Worlds.Island in 'Yutani.Worlds.Island.pas',
   Yutani.Render.Particles in 'Yutani.Render.Particles.pas',
@@ -20,7 +19,11 @@ uses
   Yutani.Render.NanoFog in 'Yutani.Render.NanoFog.pas',
   Yutani.Worlds.Space in 'Yutani.Worlds.Space.pas',
   Yutani.Worlds.Space.Textures in 'Yutani.Worlds.Space.Textures.pas',
-  Yutani.Render.LoadingScreen in 'Yutani.Render.LoadingScreen.pas';
+  Yutani.Render.LoadingScreen in 'Yutani.Render.LoadingScreen.pas',
+  Yutani.Avatar.Controls in 'Yutani.Avatar.Controls.pas',
+  Yutani.Avatar.Animations in 'Yutani.Avatar.Animations.pas',
+  Yutani.Audio in 'Yutani.Audio.pas',
+  uMRX_GamepadSettings in 'uMRX_GamepadSettings.pas' {frmGamepadSettings};
 
 {$R *.res}
 
@@ -28,6 +31,6 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TYutaniWindow, YutaniWindow);
-  Application.CreateForm(TFGamepadMain, FGamepadMain);
+  Application.CreateForm(TfrmGamepadSettings, frmGamepadSettings);
   Application.Run;
 end.

@@ -145,12 +145,8 @@
         <DCCReference Include="MPVManager.pas"/>
         <DCCReference Include="MPVEmbedded.pas"/>
         <DCCReference Include="uMRX_GamepadCore.pas"/>
-        <DCCReference Include="uMRX_GamepadCoreMain.pas">
-            <Form>FGamepadMain</Form>
-            <FormType>dfm</FormType>
-        </DCCReference>
         <DCCReference Include="Yutani.SkiaIntro.pas"/>
-        <DCCReference Include="Yutani.VoronoiFracture.pas"/>
+        <DCCReference Include="Yutani.Render.VoronoiFracture.pas"/>
         <DCCReference Include="Yutani.Render.Shaders.pas"/>
         <DCCReference Include="Yutani.Worlds.Island.pas"/>
         <DCCReference Include="Yutani.Render.Particles.pas"/>
@@ -159,6 +155,13 @@
         <DCCReference Include="Yutani.Worlds.Space.pas"/>
         <DCCReference Include="Yutani.Worlds.Space.Textures.pas"/>
         <DCCReference Include="Yutani.Render.LoadingScreen.pas"/>
+        <DCCReference Include="Yutani.Avatar.Controls.pas"/>
+        <DCCReference Include="Yutani.Avatar.Animations.pas"/>
+        <DCCReference Include="Yutani.Audio.pas"/>
+        <DCCReference Include="uMRX_GamepadSettings.pas">
+            <Form>frmGamepadSettings</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
