@@ -100,6 +100,10 @@ v0.648
  - Moved MiniAudio to Yutani.Audio
  - Added Yutani.Avatar.Controls unit
  - Connected audio engines (MiniAudio & TinySoundFont) to slow motion too
+   (try the audio tab test btn in slowmotion :D)
+ - Fixed spawn not showing while pause, caused by new materialize spawn effect (now no effect on pause)
+ - Fixed loadscene spawned everything while pause first at 0,0,0, now ..on pause already correct
+ - Added units Yutani.Chaos.Skia, Yutani.Avatar.Animations, Yutani.Render.PlanarReflections
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -1223,6 +1227,8 @@ begin
               QueryPerformanceCounter(FrameStart);
               if WindowShouldClose() then
                 Break;
+
+
 
               // ==========================================
               // WORLD LOADING (RAYLIB STAYS VISIBLE BUT BLACK)
@@ -5868,6 +5874,9 @@ begin
           Actor.ActColor := LoadColor;
           Actor.TargetColor := LoadColor;
           Actor.Visible := True;
+
+         Actor.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
+          Actor.SetRotation(QuaternionCreate(JRot.x, JRot.y, JRot.z, JRot.w));
 
           // Load model mesh if it's a model
           if (ShapeType = stModel) and (ModelPath <> '-') and (ModelPath <> '') then
