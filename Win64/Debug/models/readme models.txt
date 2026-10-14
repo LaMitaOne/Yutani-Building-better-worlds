@@ -19,7 +19,10 @@ This folder contains lightweight 3D models  used strictly for sandbox testing an
 * **Creator:** W3DGEx
 * **License:** CC Attribution
 
-
+### 4. Kruschke Good Karma 4V R6 Beams 120x40 Frame
+* **Source:** https://sketchfab.com/3d-models/kruschke-good-karma-4v-r6-beams-120x40-frame-a58f21b823944ae286ac3a3a14b76d94
+* **Creator:** Martin Prochazka
+* **License:** CC Attribution
 
 ---
 
