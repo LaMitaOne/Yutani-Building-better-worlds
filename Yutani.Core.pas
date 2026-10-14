@@ -115,11 +115,11 @@ interface
 uses
   Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Math,
   System.SyncObjs, Vcl.Controls, Raylib, RayMath, rlgl, Yutani.Core.ModelEngine,
-  JoltPhysics, MiniAudio4Delphi, MPVManager, Yutani.Audio,
+  JoltPhysics, MiniAudio4Delphi, Yutani.Audio,
   Yutani.Render.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
   Yutani.Worlds.Space, Yutani.Render.Shaders, Yutani.Render.Particles,
   Yutani.Render.NanoFog, Yutani.Render.LoadingScreen, GameNetworkingSockets,
-  VerySimple.Lua, Yutani.Avatar.Controls;
+  VerySimple.Lua, Yutani.Avatar.Controls, Yutani.Video.MPV;
 
 type
   PItemData = ^TItemData;
@@ -6013,7 +6013,6 @@ begin
           FIsMaterializingActor := True;
           ExecuteMaterializeActor(FActiveSpawnEffects[i].TargetActor);
         end;
-
         // 2. WAIT FOR THE TOP LAYER!
         // The model is only shown when the Particle Engine signals: "All arrived!"
         if Assigned(FParticleEngine) and FParticleEngine.SolidCubeReady then
@@ -6023,13 +6022,11 @@ begin
             FActiveSpawnEffects[i].TargetActor.Visible := True;
             FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
             FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
-
             FParticleEngine.SolidCubeReady := False;
             FIsMaterializingActor := False;
             bRemove := True; // End effect because the top layer has been reached!
           end;
         end;
-
         // Safety: Abort if the object is deleted before it could materialize
         if not Assigned(FActiveSpawnEffects[i].TargetActor) then
         begin

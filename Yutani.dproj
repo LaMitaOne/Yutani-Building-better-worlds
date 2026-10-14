@@ -142,9 +142,7 @@
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="VCL3D.pas"/>
-        <DCCReference Include="MPVManager.pas"/>
-        <DCCReference Include="MPVEmbedded.pas"/>
-        <DCCReference Include="uMRX_GamepadCore.pas"/>
+        <DCCReference Include="Yutani.Avatar.Controls.GamepadCore.pas"/>
         <DCCReference Include="Yutani.SkiaIntro.pas"/>
         <DCCReference Include="Yutani.Render.VoronoiFracture.pas"/>
         <DCCReference Include="Yutani.Render.Shaders.pas"/>
@@ -158,10 +156,11 @@
         <DCCReference Include="Yutani.Avatar.Controls.pas"/>
         <DCCReference Include="Yutani.Avatar.Animations.pas"/>
         <DCCReference Include="Yutani.Audio.pas"/>
-        <DCCReference Include="uMRX_GamepadSettings.pas">
+        <DCCReference Include="Yutani.Avatar.Controls.GamepadSettings.pas">
             <Form>frmGamepadSettings</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="Yutani.Video.MPV.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

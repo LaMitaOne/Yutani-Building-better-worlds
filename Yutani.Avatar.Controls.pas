@@ -17,7 +17,7 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.SyncObjs, System.Math,
   Vcl.Forms, Raylib, RayMath, JoltPhysics, Yutani.Core.ModelEngine,
-  uMRX_GamepadCore, uMRX_GamepadSettings;
+  Yutani.Avatar.Controls.GamepadCore, Yutani.Avatar.Controls.GamepadSettings;
 
 type
   /// <summary>
@@ -46,7 +46,6 @@ type
 
     property Core: TMRXGamepadCore read FGamepadCore;
   end;
-
   /// <summary>
   /// Base abstract controller for all avatar modes.
   /// </summary>
@@ -118,7 +117,6 @@ type
   end;
 
 implementation
-
 { TYutaniInputManager }
 
 constructor TYutaniInputManager.Create;
@@ -294,7 +292,6 @@ begin
     FLock.Release;
   end;
 end;
-
 { TYutaniAvatarController }
 
 constructor TYutaniAvatarController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -333,7 +330,6 @@ begin
   if (GetAsyncKeyState(Ord('D')) and $8000) <> 0 then
     FInputRight := 1.0;
 end;
-
 { TYutaniThirdPersonController }
 
 constructor TYutaniThirdPersonController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -383,7 +379,6 @@ begin
   FCamera^.position := Vector3Create(FAvatar.Position.x + Cos(FCamPitch) * Sin(FCamYaw) * FCamDist, FAvatar.Position.y + Sin(FCamPitch) * FCamDist, FAvatar.Position.z + Cos(FCamPitch) * Cos(FCamYaw) * FCamDist);
   FCamera^.Up := Vector3Create(0, 1, 0);
 end;
-
 { TYutaniFlightController }
 
 constructor TYutaniFlightController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -439,7 +434,6 @@ begin
   FCamera^.position := Vector3Add(FAvatar.Position, Vector3Scale(back, FCamDist));
   FCamera^.Up := Vector3Create(0, 1, 0);
 end;
-
 { TYutaniVehicleController }
 
 constructor TYutaniVehicleController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);

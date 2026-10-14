@@ -7,9 +7,7 @@ uses
   Yutani.Core.ModelEngine in 'Yutani.Core.ModelEngine.pas',
   Yutani.Core.View in 'Yutani.Core.View.pas' {YutaniWindow},
   VCL3D in 'VCL3D.pas',
-  MPVManager in 'MPVManager.pas',
-  MPVEmbedded in 'MPVEmbedded.pas',
-  uMRX_GamepadCore in 'uMRX_GamepadCore.pas',
+  Yutani.Avatar.Controls.GamepadCore in 'Yutani.Avatar.Controls.GamepadCore.pas',
   Yutani.SkiaIntro in 'Yutani.SkiaIntro.pas',
   Yutani.Render.VoronoiFracture in 'Yutani.Render.VoronoiFracture.pas',
   Yutani.Render.Shaders in 'Yutani.Render.Shaders.pas',
@@ -23,7 +21,8 @@ uses
   Yutani.Avatar.Controls in 'Yutani.Avatar.Controls.pas',
   Yutani.Avatar.Animations in 'Yutani.Avatar.Animations.pas',
   Yutani.Audio in 'Yutani.Audio.pas',
-  uMRX_GamepadSettings in 'uMRX_GamepadSettings.pas' {frmGamepadSettings};
+  Yutani.Avatar.Controls.GamepadSettings in 'Yutani.Avatar.Controls.GamepadSettings.pas' {frmGamepadSettings},
+  Yutani.Video.MPV in 'Yutani.Video.MPV.pas';
 
 {$R *.res}
 
