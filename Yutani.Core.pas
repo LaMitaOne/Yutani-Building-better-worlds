@@ -841,7 +841,6 @@ begin
       FTimeScale := FSavedTimeScale
     else
       FTimeScale := 1.0;
-
     // Adjust audio pitch to match the slow motion / fast forward state
     if Assigned(FYutaniAudio) then
     begin
@@ -850,7 +849,6 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetTimeScale(const Value: Single);
 begin
   FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
@@ -858,7 +856,6 @@ begin
     FTimeScale := FSavedTimeScale
   else
     FTimeScale := 1.0;
-
   // Live-update audio pitch when the trackbar value changes
   if Assigned(FYutaniAudio) then
   begin
@@ -5985,38 +5982,51 @@ begin
       end;
     end
     // ==============================================================
-    // BEAM MATERIALIZATION (IGNORES DURATION / TIME!)
+    // BEAM MATERIALIZATION
     // ==============================================================
     else if FActiveSpawnEffects[i].EffectType = spefBeam then
     begin
-      // 1. Trigger exactly once if the Actor is still invisible
-      if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) and (not FIsMaterializingActor) then
+      if not FSimulationRunning then
       begin
-        FIsMaterializingActor := True;
-        ExecuteMaterializeActor(FActiveSpawnEffects[i].TargetActor);
-      end;
-
-      // 2. WAIT FOR THE TOP LAYER!
-      // The model is only shown when the Particle Engine signals: "All arrived!"
-      if Assigned(FParticleEngine) and FParticleEngine.SolidCubeReady then
-      begin
-        if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) then
+        if Assigned(FActiveSpawnEffects[i].TargetActor) then
         begin
           FActiveSpawnEffects[i].TargetActor.Visible := True;
           FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
           FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
-
-          FParticleEngine.SolidCubeReady := False;
-          FIsMaterializingActor := False;
-          bRemove := True; // End effect because the top layer has been reached!
         end;
-      end;
-
-      // Safety: Abort if the object is deleted before it could materialize
-      if not Assigned(FActiveSpawnEffects[i].TargetActor) then
-      begin
         bRemove := True;
-        FIsMaterializingActor := False;
+      end
+      else
+      begin
+        // 1. Trigger exactly once if the Actor is still invisible
+        if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) and (not FIsMaterializingActor) then
+        begin
+          FIsMaterializingActor := True;
+          ExecuteMaterializeActor(FActiveSpawnEffects[i].TargetActor);
+        end;
+
+        // 2. WAIT FOR THE TOP LAYER!
+        // The model is only shown when the Particle Engine signals: "All arrived!"
+        if Assigned(FParticleEngine) and FParticleEngine.SolidCubeReady then
+        begin
+          if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) then
+          begin
+            FActiveSpawnEffects[i].TargetActor.Visible := True;
+            FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
+            FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
+
+            FParticleEngine.SolidCubeReady := False;
+            FIsMaterializingActor := False;
+            bRemove := True; // End effect because the top layer has been reached!
+          end;
+        end;
+
+        // Safety: Abort if the object is deleted before it could materialize
+        if not Assigned(FActiveSpawnEffects[i].TargetActor) then
+        begin
+          bRemove := True;
+          FIsMaterializingActor := False;
+        end;
       end;
     end;
 
