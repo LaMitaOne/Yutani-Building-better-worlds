@@ -770,38 +770,47 @@ end;
 
 procedure TSkChaos.Start;
 begin
-  if FState <> csIdle then
-    Exit;
+  if FState = csForming then Exit; // Already starting
+
+  // WICHTIG: Form wieder anzeigen, da sie beim Stop versteckt wurde!
+  if Assigned(FForm) then
+    FForm.Show;
+
   InitParticles;
   FState := csForming;
   FStateTimer := 0;
-  FAlpha := 1.0; // Alpha stays at 1; tear-down handles visual fading via particle physics
-  FForm.Show;
+  FAlpha := 1.0;
+
   StartThread;
 end;
 
 procedure TSkChaos.Stop;
 begin
-  if FState = csActive then
+  // Allow tear-down from both Active and Forming states
+  if (FState = csActive) or (FState = csForming) then
   begin
-    // Start the tear-down animation instead of immediately stopping
+    // Start the tear-down animation
     FState := csFading;
     FStateTimer := 0;
     FDespawnY := FMinY;
   end
   else
   begin
+    // Hard stop if already fading or finished
     StopThread;
-    if Assigned(FForm) then
-      FForm.Hide;
+    if Assigned(FForm) then FForm.Hide;
     FState := csIdle;
   end;
 end;
 
+
+
 procedure TSkChaos.StartThread;
 begin
-  if FThreadActive then
-    Exit;
+  // If the thread is somehow still active from a previous run,
+  // we don't need to start a new one, it will pick up the csForming state.
+  if FThreadActive then Exit;
+
   FThreadActive := True;
   FThread := TThread.CreateAnonymousThread(
     procedure
@@ -813,8 +822,7 @@ begin
       begin
         NowTime := TThread.GetTickCount;
         DeltaMS := NowTime - LastTime;
-        if DeltaMS = 0 then
-          DeltaMS := 1;
+        if DeltaMS = 0 then DeltaMS := 1;
         LastTime := NowTime;
 
         FStateTimer := FStateTimer + (DeltaMS / 1000);
@@ -831,14 +839,9 @@ begin
               else
               begin
                 for var I := 0 to High(FParticles) do
-                  if not FParticles[I].ReachedTarget then
-                  begin
-                    AllReached := False;
-                    Break;
-                  end;
+                  if not FParticles[I].ReachedTarget then begin AllReached := False; Break; end;
               end;
-              if AllReached then
-                FState := csActive;
+              if AllReached then FState := csActive;
             end;
           csActive, csFading:
             begin
@@ -848,7 +851,7 @@ begin
             Break;
         end;
 
-        // Render the current frame to the buffer and window
+        // Render the current frame
         if Assigned(FForm) and FForm.Visible then
           RenderFrame;
 
@@ -861,9 +864,10 @@ begin
         TThread.Queue(nil,
           procedure
           begin
-            if Assigned(FForm) then
-              FForm.Hide;
+            if Assigned(FForm) then FForm.Hide;
             FState := csIdle;
+            // WICHTIG: Thread als inaktiv markieren, damit er beim nächsten Start neu erstellt wird!
+            FThreadActive := False;
           end);
       end;
     end);
