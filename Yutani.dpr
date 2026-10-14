@@ -6,7 +6,7 @@ uses
   JoltPhysics in 'JoltPhysics.pas',
   Yutani.Core.ModelEngine in 'Yutani.Core.ModelEngine.pas',
   Yutani.Core.View in 'Yutani.Core.View.pas' {YutaniWindow},
-  VCL3D in 'VCL3D.pas',
+  Yutani.VCL3D in 'Yutani.VCL3D.pas',
   Yutani.Avatar.Controls.GamepadCore in 'Yutani.Avatar.Controls.GamepadCore.pas',
   Yutani.SkiaIntro in 'Yutani.SkiaIntro.pas',
   Yutani.Render.VoronoiFracture in 'Yutani.Render.VoronoiFracture.pas',

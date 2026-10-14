@@ -133,7 +133,7 @@ type
     Name: string;
     OldVelocity: TVector3;
   end;
-  // Custom Spawn Request record for external tools like VCL3D.pas
+  // Custom Spawn Request record for external tools like Yutani.VCL3D.pas
 
   TSpawnRequest = record
     Shape: TShapeType;

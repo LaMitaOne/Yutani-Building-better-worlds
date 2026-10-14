@@ -141,7 +141,7 @@
             <Form>YutaniWindow</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="VCL3D.pas"/>
+        <DCCReference Include="Yutani.VCL3D.pas"/>
         <DCCReference Include="Yutani.Avatar.Controls.GamepadCore.pas"/>
         <DCCReference Include="Yutani.SkiaIntro.pas"/>
         <DCCReference Include="Yutani.Render.VoronoiFracture.pas"/>

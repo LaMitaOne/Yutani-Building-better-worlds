@@ -1,7 +1,7 @@
 unit Yutani.Core.View;
 
 {==============================================================================*
- *  Mainform of Yutani v0.643
+ *  Mainform of Yutani
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -17,7 +17,7 @@ uses
   Winapi.Windows, System.SysUtils, System.Math, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   Yutani.Core, Yutani.Core.ModelEngine, TypInfo, Vcl.Grids, Raylib,
-  Vcl.WinXPickers, Vcl.Samples.Spin, VCL3D,
+  Vcl.WinXPickers, Vcl.Samples.Spin, Yutani.VCL3D,
   Yutani.SkiaIntro, MiniAudio4Delphi;
 
 type
