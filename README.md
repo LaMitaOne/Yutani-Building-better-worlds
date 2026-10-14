@@ -226,6 +226,7 @@ GameNetworkingSockets4delphi https://github.com/LaMitaOne/GameNetworkingSockets4
 Yutani Voronoi-Destruction-Engine https://github.com/LaMitaOne/Yutani-Voronoi-Destruction-Engine      
 Yutani Particle Engine https://github.com/LaMitaOne/Yutani-Particle-Engine    
 Yutani Skia Holographic Splash https://github.com/LaMitaOne/Yutani-Skia-Holographic-Splash       
+Yutani CHAOS - Complete Holographic AI Operating System Interface https://github.com/LaMitaOne/Yutani.CHAOS     
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
