@@ -53,6 +53,7 @@ type
     procedure SetSFXPitch(Pitch: Single);
     procedure SetTSFPitch(Pitch: Single);
     procedure SetMusicVolume(Volume: Single);
+    procedure SetMasterVolume(Volume: Single);
     function GetMAEngine: ma_engine;
   end;
 
@@ -380,6 +381,13 @@ begin
   if FMAInitialized and (FMusicGroup <> nil) then
     ma_sound_group_set_volume(FMusicGroup, Volume);
 end;
+
+procedure TYutaniAudioEngine.SetMasterVolume(Volume: Single);
+begin
+  if FMAInitialized and (FMusicGroup <> nil) then
+    ma_engine_set_volume(FMAEngine, Volume);
+end;
+
 
 function TYutaniAudioEngine.GetMAEngine: ma_engine;
 begin

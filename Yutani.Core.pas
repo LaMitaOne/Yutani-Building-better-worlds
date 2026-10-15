@@ -89,7 +89,7 @@ v0.648
  - Save/Load Scene now works for 3d models too, (only full path atm)
  - Stabilized nanofog and bomb
  - Slowmotion can do now fastmotion too (Trackbar max 200 now)
- - Pressing F11 again changes direction 90 degrees, click somewhere
+ - Pressing F11 again changes direction 45 degrees, click somewhere
    outside and then F11 to leave
  - Loading screen now shows on mainform center, not screen center
  - Added mass rain spawn spinedit and btns in form and removed ugly
@@ -115,11 +115,13 @@ interface
 uses
   Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Math,
   System.SyncObjs, Vcl.Controls, Raylib, RayMath, rlgl, Yutani.Core.ModelEngine,
-  JoltPhysics, MiniAudio4Delphi, Yutani.Audio,
-  Yutani.Render.VoronoiFracture, Yutani.AliveHighlighter3D, Yutani.Worlds.Island,
-  Yutani.Worlds.Space, Yutani.Render.Shaders, Yutani.Render.Particles,
-  Yutani.Render.NanoFog, Yutani.Render.LoadingScreen, GameNetworkingSockets,
-  VerySimple.Lua, Yutani.Avatar.Controls, Yutani.Video.MPV;
+  JoltPhysics, MiniAudio4Delphi, Yutani.Audio, Yutani.Render.VoronoiFracture,
+  Yutani.AliveHighlighter3D, Yutani.Worlds.Island, Yutani.Worlds.Space,
+  Yutani.Render.Shaders, Yutani.Render.Particles, Yutani.Render.NanoFog,
+  Yutani.Render.LoadingScreen, GameNetworkingSockets, VerySimple.Lua,
+  Yutani.Avatar.Controls, Yutani.Video.MPV, Yutani.Chaos.Skia;
+  //RN_InputGeom, RN_Recast, RN_SampleInterfaces, RN_Sample, RN_SampleSoloMesh, RN_SampleTileMesh,
+  //dglOpenGL, KromOGLUtils;
 
 type
   PItemData = ^TItemData;
@@ -853,6 +855,7 @@ begin
     end;
   end;
 end;
+
 procedure TYutaniRaylibSandbox.SetTimeScale(const Value: Single);
 begin
   FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
@@ -1227,8 +1230,6 @@ begin
               QueryPerformanceCounter(FrameStart);
               if WindowShouldClose() then
                 Break;
-
-
 
               // ==========================================
               // WORLD LOADING (RAYLIB STAYS VISIBLE BUT BLACK)
@@ -1801,7 +1802,7 @@ begin
           FSpaceLandingState := 2; // Landed
           if FSpaceLandingTargetIndex >= 0 then
             FSpaceWorld.InitiateLanding(FSpaceLandingTargetIndex, FCamera.target, FCamera.position);
-          // Snappen, damit die Kamera perfekt auf der Oberfläche ausgerichtet ist
+          // Snap to ensure the camera is perfectly aligned with the surface
           FCamera.position := FSpaceLandingTargetPos;
           FCamera.target := FSpaceLandingCamTargetCenter;
           FCamera.up := FSpaceLandingTargetUp;
@@ -1850,17 +1851,17 @@ begin
           var PlanetPos: TVector3;
           var PlanetRadius: Single;
           FSpaceWorld.GetPlanetInfo(Idx, PlanetPos, PlanetRadius);
-          // 1. SurfDir: Der Vektor vom Zentrum zu uns
+          // 1. SurfDir: The vector from the center to our position
           var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
           if (IsNan(SurfDir.x)) or (IsNan(SurfDir.y)) or (IsNan(SurfDir.z)) then
             SurfDir := Vector3Create(0, 1, 0);
-          // 2. CamPos: 10 Einheiten über der Oberfläche
+          // 2. CamPos: 10 units above the surface
           FSpaceLandingTargetPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 10.0));
-          // 3. CamTarget: Ein Punkt 15 Einheiten vor uns auf der Oberfläche (Schräg nach unten schauen)
-          // Wir bewegen uns ein Stück "vorwärts" auf der Kugel und setzten den Zielpunkt 2 Einheiten über dem Boden.
+          // 3. CamTarget: A point 15 units in front of us on the surface (looking slightly downwards)
+          // We move a bit "forward" on the sphere and set the target point 2 units above the ground.
           var LookAtPos := Vector3Add(PlanetPos, Vector3Scale(SurfDir, PlanetRadius + 2.0));
           FSpaceLandingCamTargetCenter := LookAtPos;
-          // Up-Vektor = SurfDir, damit der Horizont gerade ist
+          // Up-Vector = SurfDir, so the horizon is straight
           FSpaceLandingTargetUp := SurfDir;
           FSpaceCamStartPos := FCamera.position;
           FSpaceCamStartTarget := FCamera.target;
@@ -1873,7 +1874,7 @@ begin
         // Start Takeoff
         FSpaceCamStartPos := FCamera.position;
         FSpaceCamStartTarget := FCamera.target;
-        // Geradeaus nach vorne hochfliegen (in Blickrichtung)
+        // Fly straight forward and upwards (in view direction)
         var forward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
         FSpaceLandingTargetPos := Vector3Add(FCamera.position, Vector3Scale(forward, 300.0));
         FSpaceLandingTargetUp := Vector3Create(0, 1, 0);
@@ -1989,25 +1990,25 @@ begin
   begin
     if Assigned(FItemSelected) then
     begin
+      FGizmoMode := gmNone;
       // MODE 1: Not driving yet -> Possess the object!
       if not FIsDriving then
       begin
         FIsDriving := True;
         FPlayerVehicle := FItemSelected;
         FPlayerVehicle.ActivateBody;
-
-        // Initialize the appropriate controller
-        if FCurrentWorldBase = wbSpace then
-          FAvatarController := TYutaniFlightController.Create(FPlayerVehicle, @FCamera)
-        else
-          FAvatarController := TYutaniVehicleController.Create(FPlayerVehicle, @FCamera);
+        FAvatarController := TYutaniVehicleController.Create(FPlayerVehicle, @FCamera);
       end
-      // MODE 2: Already driving -> Rotate OURSELVES (Camera & Flight Direction) by 90 Deg!
+      // MODE 2: Already driving -> Rotate OURSELVES (Camera & Flight Direction) by 45 Deg!
       else
       begin
-        // Rotate FCamYaw directly by 90 degrees.
-        // This rotates our view AND our flight direction seamlessly.
-        FAvatarController.CamYaw := FAvatarController.CamYaw + (90.0 * DEG2RAD);
+        // Rotate 45 degrees further (Camera and Flight Direction)
+        FAvatarController.CamYaw := FAvatarController.CamYaw + (Pi / 4.0);
+
+        // SIMULTANEOUSLY: Adjust model offset by -45 degrees,
+        // so the model itself stays exactly where it is in the world!
+        if FAvatarController is TYutaniVehicleController then
+          TYutaniVehicleController(FAvatarController).FVehicleModelOffset := TYutaniVehicleController(FAvatarController).FVehicleModelOffset - (Pi / 4.0);
 
         // Stop the vehicle immediately so it doesn't drift into the old direction
         FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
@@ -5875,7 +5876,7 @@ begin
           Actor.TargetColor := LoadColor;
           Actor.Visible := True;
 
-         Actor.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
+          Actor.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
           Actor.SetRotation(QuaternionCreate(JRot.x, JRot.y, JRot.z, JRot.w));
 
           // Load model mesh if it's a model

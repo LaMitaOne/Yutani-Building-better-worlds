@@ -1,7 +1,7 @@
 unit Yutani.Avatar.Controls;
 
 {==============================================================================*
- *  Yutani Avatar Controls & Input Manager v1.1
+ *  Yutani Avatar Controls & Input Manager
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -20,9 +20,6 @@ uses
   Yutani.Avatar.Controls.GamepadCore, Yutani.Avatar.Controls.GamepadSettings;
 
 type
-  /// <summary>
-  /// Manages Gamepad input and provides thread-safe access to current states.
-  /// </summary>
   TYutaniInputManager = class
   private
     FGamepadCore: TMRXGamepadCore;
@@ -46,9 +43,7 @@ type
 
     property Core: TMRXGamepadCore read FGamepadCore;
   end;
-  /// <summary>
-  /// Base abstract controller for all avatar modes.
-  /// </summary>
+
   TYutaniAvatarController = class abstract
   private
     FAvatar: TA3DComponent;
@@ -110,6 +105,7 @@ type
   protected
     procedure UpdateCameraTransform(dt: Single); override;
   public
+    FVehicleModelOffset: Single;
     constructor Create(AAvatar: TA3DComponent; ACamera: PCamera3D); override;
     procedure Update(DeltaTime: Single; InputManager: TYutaniInputManager); override;
     property MaxSpeed: Single read FMaxSpeed write FMaxSpeed;
@@ -117,6 +113,7 @@ type
   end;
 
 implementation
+
 { TYutaniInputManager }
 
 constructor TYutaniInputManager.Create;
@@ -166,7 +163,6 @@ procedure TYutaniInputManager.HandleGamepadInput(Sender: TObject; PadID: Integer
 var
   BtnName, StateStr: string;
 begin
-  // Log standard buttons to the debug console
   if not (Element in [geLeftStickX, geLeftStickY, geRightStickX, geRightStickY, geLT, geRT]) then
   begin
     BtnName := 'Unknown';
@@ -215,12 +211,10 @@ begin
       StateStr := 'pressed'
     else
       StateStr := 'released';
-
     OutputDebugString(PChar(Format('[Pad %d] %s %s', [PadID, BtnName, StateStr])));
   end
   else
   begin
-    // Log analog axes only if value exceeds threshold to prevent spam
     if Abs(Value) > 0.1 then
     begin
       BtnName := 'Unknown';
@@ -242,7 +236,6 @@ begin
     end;
   end;
 
-  // Thread-safe buffering
   FLock.Acquire;
   try
     case Element of
@@ -285,13 +278,13 @@ begin
     LookY := FBufLookY;
     Action1 := FBufAction1;
     Action2 := FBufAction2;
-
     FBufLookX := 0;
     FBufLookY := 0;
   finally
     FLock.Release;
   end;
 end;
+
 { TYutaniAvatarController }
 
 constructor TYutaniAvatarController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -330,6 +323,7 @@ begin
   if (GetAsyncKeyState(Ord('D')) and $8000) <> 0 then
     FInputRight := 1.0;
 end;
+
 { TYutaniThirdPersonController }
 
 constructor TYutaniThirdPersonController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -375,10 +369,11 @@ procedure TYutaniThirdPersonController.UpdateCameraTransform(dt: Single);
 begin
   if not Assigned(FCamera) then
     Exit;
-  FCamera^.target := FAvatar.Position;
+  FCamera^.target := Vector3Create(FAvatar.Position.x, FAvatar.Position.y + 2.0, FAvatar.Position.z);
   FCamera^.position := Vector3Create(FAvatar.Position.x + Cos(FCamPitch) * Sin(FCamYaw) * FCamDist, FAvatar.Position.y + Sin(FCamPitch) * FCamDist, FAvatar.Position.z + Cos(FCamPitch) * Cos(FCamYaw) * FCamDist);
   FCamera^.Up := Vector3Create(0, 1, 0);
 end;
+
 { TYutaniFlightController }
 
 constructor TYutaniFlightController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -395,7 +390,6 @@ begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
 
-  // Space/Ctrl for vertical flight
   if (GetAsyncKeyState(VK_SPACE) and $8000) <> 0 then
     FInputUp := 1.0;
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
@@ -419,7 +413,6 @@ begin
   vel := Vector3Add(vel, Vector3Scale(up, FInputUp * FMoveSpeed));
 
   FAvatar.SetLinearVelocity(vel);
-
   UpdateCameraTransform(DeltaTime);
 end;
 
@@ -430,10 +423,11 @@ begin
   if not Assigned(FCamera) then
     Exit;
   back := Vector3Create(Cos(FCamPitch) * Sin(FCamYaw + PI), Sin(FCamPitch + PI), Cos(FCamPitch) * Cos(FCamYaw + PI));
-  FCamera^.target := FAvatar.Position;
+  FCamera^.target := Vector3Create(FAvatar.Position.x, FAvatar.Position.y + 2.0, FAvatar.Position.z);
   FCamera^.position := Vector3Add(FAvatar.Position, Vector3Scale(back, FCamDist));
   FCamera^.Up := Vector3Create(0, 1, 0);
 end;
+
 { TYutaniVehicleController }
 
 constructor TYutaniVehicleController.Create(AAvatar: TA3DComponent; ACamera: PCamera3D);
@@ -443,6 +437,7 @@ begin
   FTurnSpeed := 2.0;
   FCurrentSpeed := 0;
   FCamDist := 12.0;
+  FVehicleModelOffset := 0;
 end;
 
 procedure TYutaniVehicleController.Update(DeltaTime: Single; InputManager: TYutaniInputManager);
@@ -453,37 +448,32 @@ begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
 
-  // Q / E: Up / Down Thrust
   if (GetAsyncKeyState(Ord('Q')) and $8000) <> 0 then
     FInputUp := 1.0;
   if (GetAsyncKeyState(Ord('E')) and $8000) <> 0 then
     FInputUp := -1.0;
 
-  // Acceleration / Braking
   if FInputForward > 0 then
     FCurrentSpeed := EnsureRange(FCurrentSpeed + (20 * DeltaTime), 0, FMaxSpeed)
   else if FInputForward < 0 then
     FCurrentSpeed := EnsureRange(FCurrentSpeed - (40 * DeltaTime), -FMaxSpeed * 0.5, FMaxSpeed)
   else
-    FCurrentSpeed := FCurrentSpeed * (1.0 - (0.5 * DeltaTime)); // Friction
+    FCurrentSpeed := FCurrentSpeed * (1.0 - (0.5 * DeltaTime));
 
-  // Steering: REVERSED direction! (Matches the previous F11 logic)
   if Abs(FCurrentSpeed) > 0.1 then
     FCamYaw := FCamYaw - (FInputRight * FTurnSpeed * DeltaTime * (FCurrentSpeed / FMaxSpeed));
 
   fwd := Vector3Create(-Sin(FCamYaw), 0, -Cos(FCamYaw));
 
-  // Hover mode
   FAvatar.SetAngularVelocity(Vector3Create(0, 0, 0));
   FAvatar.SetGravityFactor(0.0);
 
   vel := Vector3Scale(fwd, FCurrentSpeed);
-  vel.y := FInputUp * 10.0; // Apply Up/Down Thrust directly
+  vel.y := FInputUp * 10.0;
 
   FAvatar.SetLinearVelocity(vel);
 
-  // Match avatar rotation to flight direction
-  RotQuat := QuaternionFromAxisAngle(Vector3Create(0, 1, 0), FCamYaw);
+  RotQuat := QuaternionFromAxisAngle(Vector3Create(0, 1, 0), FCamYaw + FVehicleModelOffset);
   FAvatar.SetRotation(RotQuat);
 
   UpdateCameraTransform(DeltaTime);
@@ -496,8 +486,8 @@ begin
   if not Assigned(FCamera) then
     Exit;
   back := Vector3Create(Sin(FCamYaw), 0, Cos(FCamYaw));
-  FCamera^.target := FAvatar.Position;
-  FCamera^.position := Vector3Create(FAvatar.Position.x + (back.x * FCamDist), FAvatar.Position.y + 5.0, FAvatar.Position.z + (back.z * FCamDist));
+  FCamera^.target := Vector3Create(FAvatar.Position.x, FAvatar.Position.y + 2.0, FAvatar.Position.z);
+  FCamera^.position := Vector3Create(FAvatar.Position.x + (back.x * FCamDist), FAvatar.Position.y + 6.0, FAvatar.Position.z + (back.z * FCamDist));
   FCamera^.Up := Vector3Create(0, 1, 0);
 end;
 

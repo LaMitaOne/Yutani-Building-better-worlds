@@ -844,12 +844,14 @@ end;
 
 procedure TYutaniWindow.tbMasterVolumeChange(Sender: TObject);
 begin
-  ma_engine_set_volume(FSandbox.FYutaniAudio, tbMasterVolume.Position / 100.0);
+  FSandbox.FYutaniAudio.SetMasterVolume(tbMasterVolume.Position / 100.0);
+  //ma_engine_set_volume(FSandbox.FYutaniAudio, tbMasterVolume.Position / 100.0);
+  //tinysoundfont to do
 end;
 
-procedure TYutaniWindow.tbMusicVOlumeChange(Sender: TObject);
+procedure TYutaniWindow.tbMusicVolumeChange(Sender: TObject);
 begin
-  FSandbox.FYutaniAudio.SetMusicVolume(tbSFXVolume.Position / 100.0);
+  FSandbox.FYutaniAudio.SetMusicVolume(tbMusicVOlume.Position / 100.0);
   //tinysoundfont vol to do
 end;
 
