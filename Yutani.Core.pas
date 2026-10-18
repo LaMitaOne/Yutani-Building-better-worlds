@@ -2,7 +2,7 @@
 
 
 {==============================================================================*
- *  Yutani.Core v0.648 - Multi-threaded Raylib + Jolt 3D Editor
+ *  Yutani.Core v0.649 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -82,114 +82,8 @@
 
 v0.648
 
- - Warp core stability improved, interstellar space flight now safer.
- - Replaced the chunk-based distant-solar-system generation with a
-   strict one-system-at-a-time galaxy lifecycle. The player can never
-   see two star systems fully rendered at the same time anymore -
-   departure, empty void and approach are now distinct phases.
- - Star systems fade out smoothly as the camera leaves, an empty void
-   pause gives the player a clear "crossing space" moment, then a new
-   system fades in directly in the flight direction. Total hop time
-   ~30 seconds, not minutes.
- - Visited star systems are persisted to SQLite so revisits
-   reproduce the exact same layout.
-   Deterministic procedural gen keyed off a 3D hash of the galaxy
-   cell ensures the same coordinates always yield the same system.
- - Ambient dust / rock particle system: 600 small drifting specks in
-   a shell around the camera, dark gray / brown palette so they read
-   as actual debris instead of pixel noise. Drift slowly and respawn
-   when they wander too far so the layer is always present.
- - Galaxy minimap overlay (top-right): shows the player as a white
-   dot with a flight-direction arrow, the current system in green,
-   the next target system in yellow during approach, and every
-   previously discovered system as a gray dot. 10000u range, 10s DB
-   cache so the overlay does not query SQLite every frame.
- - All galaxy lifecycle distances exposed as published properties on
-   TSpaceWorld for runtime tuning from a settings dialog (FadeStart,
-   FadeEnd, TargetPickDistance, TargetApproachFadeStart, ArriveDistance,
-   MinTravelTime, plus Phase / CurrentVisibility / NextVisibility /
-   CurrentSeed / NextSeed for HUD readouts).
- - HUD shows the currently selected controller type (green while driving)
- - Successfully defeated some Evil self replicating space thread-Bugs
- - Improved Terraforming Planetary Surface textures
- - Space now pauses on pause too
- - Eliminated startup window flash by teleporting the Raylib window
-   off-screen during creation before reparenting it into the VCL control.
- - Save/Load Scene now works for 3d models too, (only full path atm)
- - Stabilized nanofog and bomb
- - Slowmotion can do now fastmotion too (Trackbar max 200 now)
- - Pressing F11 again changes direction 45 degrees, click somewhere
-   outside and then F11 to leave
- - Loading screen now shows on mainform center, not screen center
- - Added mass rain spawn spinedit and btns in form and removed ugly
-   internal test hud
- - Added checkbox to show/hide infos internal and on form
- - Space has now 0 Gravity and no more ground, except 4x4 block for
-   spacestation later
- - Moved MiniAudio to Yutani.Audio
- - Added Yutani.Avatar.Controls unit
- - Connected audio engines (MiniAudio & TinySoundFont) to slow motion too
-   (try the audio tab test btn in slowmotion :D)
- - Fixed spawn not showing while pause, caused by new materialize spawn effect (now no effect on pause)
- - Fixed loadscene spawned everything while pause first at 0,0,0, now ..on pause already correct
- - Added units Yutani.Chaos.Skia, Yutani.Avatar.Animations, Yutani.Render.PlanarReflections
- - Added First Person, Spectator, Orbit and RigidBody avatar controllers
-   on top of the existing ThirdPerson / Flight / Vehicle trio
- - Shift+F11 cycles through all 7 controller types live, rebuilds the
-   active controller in place and keeps CamYaw/Pitch
- - F11 now possesses with whatever controller type is selected
-   (default is still Vehicle so old muscle memory keeps working)
- - Added Mouselook via TYutaniInputManager (Start/Stop/PollMouseLook),
-   cursor hides and snaps to viewport center, combines with gamepad look
- - Camera smoothing on the base controller: CamSmoothing for soft chase
-   feel and BeginCameraTransition for cinematic swaps on possess and
-   Shift+F11 (no more zack, camera flies to the new spot)
- - Camera collision on the base controller raycasts from the look anchor
-   towards the desired camera position and pulls the camera in to just
-   before the hit so it never clips through walls
- - Avatar facing rotates the body to match the movement direction so
-   the avatar no longer slides in place - enabled by default on
-   ThirdPerson, FirstPerson and RigidBody
- - Mouse wheel zoom on every controller with adjustable CamDist; clamp
-   via MinCamDist / MaxCamDist so settings dialogs can tweak the range
- - First Person ADS: hold right mouse to zoom, wheel adjusts ADS target
-   FOV live so the player can swap magnification tiers while aiming
- - Velocity-driven footstep audio trigger fires OnFootstep at an
-   interval inversely proportional to horizontal speed - wire to
-   MiniAudio from the sandbox to actually play the sample
- - TYutaniAvatarSettings record (sensitivity, deadzones, FOV, pitch
-   clamps) ready to be wired into a settings dialog later
- - RigidBody controller is force/torque based instead of
-   SetLinearVelocity, uses RayCast ground check so jumping works on
-   ramps and stairs
- - Orbit controller auto-rotates around the avatar for showcase scenes,
-   manual look overrides auto-rotation while the stick is touched
- - HUD shows the currently selected controller type (green while driving)
- - Per-pad input API on TYutaniInputManager (GetInputsForPad /
-   GetPlayerState) so each gamepad's state can be read in isolation
- - TYutaniMultiPlayerManager + TYutaniPlayerSlot enable 2-player local
-   couch-coop - slot 0 is keyboard/mouse, slot 1 is gamepad 1
- - Split-screen rendering via rlViewport: scene is drawn twice per
-   frame, once per player's camera, clipped to left/right half of the
-   window
- - F12 toggles split-screen on the fly using the first two items in the
-   scene as avatars (quick test) - for production call EnableSplitScreen
-   explicitly from the VCL
- - HUD line shows SPLIT SCREEN status (purple) vs Single-player (gray)
- - F11 possess is blocked while split-screen is active so the two modes
-   cannot fight over the camera pointer
- - All camera / avatar / wheel / ADS / footstep settings exposed as
-   published properties so a VCL settings dialog can tweak them live
- - Standalone factory function YutaniCreateAvatarController decouples
-   controller spawning from the sandbox so external tools and the
-   split-screen manager can build controllers without a sandbox reference
- - Mouselook writes only into the per-pad slot 0 buffer so the mouse
-   (single physical device) does not leak into player 2's gamepad axis
- - During split-screen, FCam1 is mirrored onto FCamera each frame so
-   shadow camera centering, distance culling and the existing render
-   pipeline see a valid view position without needing a separate pass
- - Render3DScene split into Render3DSceneCore (the actual scene pipeline)
-   plus a thin wrapper that runs it twice with rlViewport for split-screen
+ - F11 posess item, but F12 now leave, split screen moved to F2
+ -
 
 
  *==============================================================================}
@@ -2340,28 +2234,67 @@ begin
     FCtrlWasPressed := False;
 
   // ====================================================================
-  // Split-Screen Toggle (F12)
+  // Split-Screen Toggle (F2)
   // --------------------------------------------------------------------
   // Toggles 2-player local couch-coop. When enabling, the first two
   // items in the scene become the avatars - useful for quick testing.
   // For production use, call EnableSplitScreen explicitly from your
   // VCL with the specific avatars you want.
+  //
+  // Key swap: split-screen used to live on F12, but F12 has been
+  // reassigned to "exit driving mode" so the user has an obvious
+  // escape key that does not require clicking outside the viewport.
+  // Split-screen moved to F2 to make room.
   // ====================================================================
-  if (GetAsyncKeyState(VK_F12) and $1) <> 0 then
+  if (GetAsyncKeyState(VK_F2) and $1) <> 0 then
   begin
     HandleF12SplitScreenToggle;
     FMouseLeftHandled := True;
   end;
 
   // ====================================================================
+  // Exit Driving Mode (F12)
+  // --------------------------------------------------------------------
+  // F12 is the dedicated "leave vehicle / exit driving" key. It
+  // releases the currently possessed avatar, restores the editor
+  // cursor and smoothly blends the camera back to the editor orbit
+  // view. Safe to call when not driving - it is a no-op in that case.
+  //
+  // This replaces the old "click outside + F11 to leave" escape path
+  // that was unreliable while mouselook was hiding the cursor or when
+  // the possessed vehicle was large enough to fill the viewport.
+  // ====================================================================
+  if (GetAsyncKeyState(VK_F12) and $1) <> 0 then
+  begin
+    if FIsDriving then
+    begin
+      if Assigned(FInputManager) then
+        FInputManager.StopMouseLook;
+      // Smooth blend from the avatar chase cam back to the editor
+      // orbit view before we tear down the controller, otherwise the
+      // camera snaps in a single frame.
+      StartCameraBlendToEditor(0.8);
+      FIsDriving := False;
+      FPlayerVehicle := nil;
+      FreeAndNil(FAvatarController);
+    end;
+    FMouseLeftHandled := True;
+  end;
+
+  // ====================================================================
   // Avatar Flight Control (F11)
   // --------------------------------------------------------------------
-  // F11 possesses the selected object using the controller type stored
-  // in FAvatarControllerType. Shift+F11 cycles the type without
-  // possessing. The 45-degree rotate on the second F11 press is
-  // preserved for the vehicle controller; for all other controllers the
-  // second F11 press simply exits driving so the user has an obvious
-  // way out without having to deselect first.
+  // F11 keeps its two original behaviours:
+  //   1. When NOT driving and an object is selected -> possess it using
+  //      the controller type stored in FAvatarControllerType.
+  //   2. When ALREADY driving a Vehicle controller -> rotate the chase
+  //      cam by 45 degrees around the avatar.
+  //
+  // The exit-driving path that used to live on F11 (for non-vehicle
+  // controllers and on a no-selection press) has been REMOVED.
+  // Exiting driving mode now lives on the dedicated F12 key. This
+  // fixes the unreliability where mouselook hid the cursor and the
+  // "click outside + F11" gesture could not be performed.
   // ====================================================================
 
   // Shift+F11: cycle the selected controller type. Always allowed, even
@@ -2408,78 +2341,47 @@ begin
   begin
     // Refuse to start the single-player possess flow while split-screen
     // is active - the two modes share the FCamera pointer and would
-    // fight over it. The user must call DisableSplitScreen first.
+    // fight over it. The user must call DisableSplitScreen (F2) first.
     if Assigned(FMultiPlayer) and FMultiPlayer.Active then
     begin
       FMouseLeftHandled := True;
     end
-    else
+    else if Assigned(FItemSelected) then
     begin
-      if Assigned(FItemSelected) then
+      FGizmoMode := gmNone;
+      if not FIsDriving then
       begin
-        FGizmoMode := gmNone;
-      // MODE 1: Not driving yet -> possess the selected object using
-      // the currently selected controller type.
-        if not FIsDriving then
-        begin
-          FIsDriving := True;
-          FPlayerVehicle := FItemSelected;
-          FPlayerVehicle.ActivateBody;
-          FAvatarController := CreateAvatarControllerOfType(FAvatarControllerType, FPlayerVehicle);
+        // MODE 1: Not driving yet -> possess the selected object using
+        // the currently selected controller type.
+        FIsDriving := True;
+        FPlayerVehicle := FItemSelected;
+        FPlayerVehicle.ActivateBody;
+        FAvatarController := CreateAvatarControllerOfType(FAvatarControllerType, FPlayerVehicle);
         // Smooth cinematic fly-in from the editor orbit position to
         // the avatar chase position. Slightly longer than the swap
         // transition because the camera typically has further to go.
-          FAvatarController.BeginCameraTransition(0.8);
+        FAvatarController.BeginCameraTransition(0.8);
         // Start mouselook so cursor deltas are converted to look input
         // for the freshly spawned controller.
-          FInputManager.StartMouseLook(FRaylibWnd);
-        end
-      // MODE 2: Already driving -> rotate ourselves by 45 deg. This is
-      // only meaningful for the vehicle controller; for every other
-      // controller type we just exit driving so the user has an escape.
-        else
-        begin
-          if FAvatarController is TYutaniVehicleController then
-          begin
-            FAvatarController.CamYaw := FAvatarController.CamYaw + (Pi / 4.0);
-          // Adjust model offset by -45 degrees so the model itself
-          // stays exactly where it is in the world.
-            TYutaniVehicleController(FAvatarController).FVehicleModelOffset := TYutaniVehicleController(FAvatarController).FVehicleModelOffset - (Pi / 4.0);
-          // Stop the vehicle immediately so it doesn't drift into the
-          // old direction while the camera swings around.
-            FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
-            FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
-          end
-          else
-          begin
-          // Non-vehicle controllers have no meaningful 45-degree
-          // behaviour, so the second F11 press is the exit gesture.
-            FInputManager.StopMouseLook;
-          // Start a smooth blend from the avatar's chase cam back to
-          // the editor orbit view before we tear down the controller,
-          // otherwise the camera snaps in a single frame.
-            StartCameraBlendToEditor(0.8);
-            FIsDriving := False;
-            FPlayerVehicle := nil;
-            FreeAndNil(FAvatarController);
-          end;
-        end;
-        FMouseLeftHandled := True;
+        FInputManager.StartMouseLook(FRaylibWnd);
       end
-      else
+      else if (FAvatarController is TYutaniVehicleController) then
       begin
-      // MODE 3: Nothing selected -> force exit driving mode safely.
-      // Also restores the cursor in case mouselook was still active.
-        if Assigned(FInputManager) then
-          FInputManager.StopMouseLook;
-      // Start a smooth blend from the avatar's chase cam back to
-      // the editor orbit view before we tear down the controller,
-      // otherwise the camera snaps in a single frame.
-        StartCameraBlendToEditor(0.8);
-        FIsDriving := False;
-        FPlayerVehicle := nil;
-        FreeAndNil(FAvatarController);
+        // MODE 2: Already driving a Vehicle controller -> rotate the
+        // chase cam by 45 degrees around the avatar. The model offset
+        // is adjusted by -45 degrees so the model itself stays put in
+        // world space while only the camera swings.
+        FAvatarController.CamYaw := FAvatarController.CamYaw + (Pi / 4.0);
+        TYutaniVehicleController(FAvatarController).FVehicleModelOffset := TYutaniVehicleController(FAvatarController).FVehicleModelOffset - (Pi / 4.0);
+        // Stop the vehicle immediately so it doesn't drift into the
+        // old direction while the camera swings around.
+        FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
+        FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
       end;
+      // For non-vehicle controllers while driving, F11 is a no-op now.
+      // Use F12 to exit driving mode instead.
+      // When nothing is selected, F11 is also a no-op - use F12 to exit.
+      FMouseLeftHandled := True;
     end;
   end;
 
@@ -3956,7 +3858,6 @@ begin
     end;
   end;
 
-
   // ==========================================
   // SPACE LANDING & PLANETARY CAM (F8 / F9)
   // ==========================================
@@ -4054,7 +3955,6 @@ begin
       end;
     end;
   end;
-
 
   // ==========================================
   // PLANETARY SURFACE CAMERA (Active while landed)
@@ -5517,19 +5417,19 @@ begin
       var CtrlStr: AnsiString;
       case FAvatarControllerType of
         actVehicle:
-          CtrlStr := AnsiString('Avatar: Vehicle (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: Vehicle (F11=possess/rotate, Shift+F11=cycle, F12=exit)');
         actThirdPerson:
-          CtrlStr := AnsiString('Avatar: ThirdPerson (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: ThirdPerson (F11=possess, Shift+F11=cycle, F12=exit)');
         actFirstPerson:
-          CtrlStr := AnsiString('Avatar: FirstPerson (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: FirstPerson (F11=possess, Shift+F11=cycle, F12=exit)');
         actFlight:
-          CtrlStr := AnsiString('Avatar: Flight (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: Flight (F11=possess, Shift+F11=cycle, F12=exit)');
         actSpectator:
-          CtrlStr := AnsiString('Avatar: Spectator (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: Spectator (F11=possess, Shift+F11=cycle, F12=exit)');
         actOrbit:
-          CtrlStr := AnsiString('Avatar: Orbit (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: Orbit (F11=possess, Shift+F11=cycle, F12=exit)');
         actRigidBody:
-          CtrlStr := AnsiString('Avatar: RigidBody (F11=possess, Shift+F11=cycle)');
+          CtrlStr := AnsiString('Avatar: RigidBody (F11=possess, Shift+F11=cycle, F12=exit)');
       end;
       if FIsDriving then
         DrawText(PAnsiChar(CtrlStr), 10, GetScreenHeight() - 150, 20, GREEN)
@@ -5539,9 +5439,9 @@ begin
       // Split-screen status indicator. Bright purple so it stands out
       // from the regular controller-type line.
       if Assigned(FMultiPlayer) and FMultiPlayer.Active then
-        DrawText('SPLIT SCREEN: 2 players (F12 to exit)', 10, GetScreenHeight() - 180, 20, MAGENTA)
+        DrawText('SPLIT SCREEN: 2 players (F2 to exit)', 10, GetScreenHeight() - 180, 20, MAGENTA)
       else
-        DrawText('Single-player mode (F12 to start 2-player split)', 10, GetScreenHeight() - 180, 20, DARKGRAY);
+        DrawText('Single-player mode (F2 to start 2-player split)', 10, GetScreenHeight() - 180, 20, DARKGRAY);
     end;
   end;
 

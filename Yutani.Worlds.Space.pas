@@ -24,11 +24,9 @@ unit Yutani.Worlds.Space;
 {$Q-}
 {$R-}
 interface
-
 uses
   Winapi.Windows, System.SysUtils, System.Math, Raylib, RayMath, rlgl,
   Yutani.Worlds.Space.Textures;
-
 // ============================================================================
 // Inlined SQLite bindings + thin wrapper
 // ============================================================================
@@ -36,17 +34,14 @@ uses
 // (open, prepare, bind, step, column-read). Inlining the declarations
 // here keeps the dependency surface to one unit + one dll, no extra
 // .pas file floating around for ~50 lines of bindings.
-
 type
   // Opaque SQLite handles. Declared as distinct types so the compiler
   // can catch accidental mixing with other Pointer vars.
   TSQLiteDB = type Pointer;
   TSQLiteStmt = type Pointer;
-
   // Destructor callback signature for blob/text bindings. Matches the
   // C signature `void (*)(void*)` with cdecl calling convention.
   TSQLiteDestructor = procedure(p: Pointer); cdecl;
-
 const
   // Result codes we actually check.
   SQLITE_OK       = 0;
@@ -65,7 +60,6 @@ const
   // Pass -1 for the SQL length to have SQLite read until the null
   // terminator.
   SQLITE_SQL_LENGTH_NULLTERM = -1;
-
 // Native sqlite3.dll imports (cdecl). The DLL must be on the
 // executable search path - drop it next to your .exe.
 function sqlite3_open_v2(filename: PAnsiChar; out db: TSQLiteDB;
@@ -98,7 +92,6 @@ function sqlite3_column_text(stmt: TSQLiteStmt;
 function sqlite3_column_bytes(stmt: TSQLiteStmt;
   idx: Integer): Integer; cdecl; external 'sqlite3.dll';
 function sqlite3_errmsg(db: TSQLiteDB): PAnsiChar; cdecl; external 'sqlite3.dll';
-
 type
   /// <summary>
   /// Thin ergonomic wrapper around a sqlite3 connection. Owns the handle
@@ -139,7 +132,6 @@ type
     property LastError: string read FLastError;
     property DllAvailable: Boolean read FDllAvailable;
   end;
-
 type
   TSpaceStar = record
     Dir: TVector3;
@@ -149,7 +141,6 @@ type
     TwinkleSpeed: Single;
     ColorTint: Byte;
   end;
-
   TNearStar = record
     Position: TVector3;
     Size: Single;
@@ -158,13 +149,11 @@ type
     TwinkleSpeed: Single;
     ColorTint: Byte;
   end;
-
   TNebula = record
     Position: TVector3;
     Size: Single;
     Color: TColorB;
   end;
-
   TSpacePlanet = record
     Position: TVector3;
     Radius: Single;
@@ -183,13 +172,11 @@ type
     ParentPlanetIndex: Integer;
     IsLocked: Boolean;
   end;
-
   TSun = record
     Position: TVector3;
     Radius: Single;
     Color: TColorB;
   end;
-
   TSpaceComet = record
     Position: TVector3;
     Velocity: TVector3;
@@ -199,7 +186,6 @@ type
     Color: TColorB;
     ParticleTimer: Single;
   end;
-
   TCometParticle = record
     Position: TVector3;
     Velocity: TVector3;
@@ -208,7 +194,6 @@ type
     Size: Single;
     Active: Boolean;
   end;
-
   // Small drifting rock/dust particle for ambient space detail.
   // Distinct from the bright star sprites - these are dark gray /
   // brown specks that float around the camera at close range so the
@@ -220,10 +205,8 @@ type
     Size: Single;
     ColorR, ColorG, ColorB: Byte;
   end;
-
   // Galaxy lifecycle phases. See the unit header for a description.
   TGalaxyPhase = (gpAtSystem, gpDeparting, gpTraveling, gpApproaching);
-
   TSpaceWorld = class
   private
     FDistantStars: array of TSpaceStar;
@@ -384,7 +367,6 @@ type
     function GetLandedPlanetPos: TVector3;
     function GetLandedPlanetRadius: Single;
     procedure GetPlanetInfo(const Index: Integer; out OutPos: TVector3; out OutRadius: Single);
-
     // Galaxy lifecycle - exposed for HUD / settings dialogs.
     property Phase: TGalaxyPhase read FPhase;
     property CurrentVisibility: Single read FCurrentVis;
@@ -399,11 +381,8 @@ type
     property ArriveDistance: Single read FArriveDistance write FArriveDistance;
     property MinTravelTime: Single read FMinTravelTime write FMinTravelTime;
   end;
-
 implementation
-
 { TYutaniSQLiteDB }
-
 constructor TYutaniSQLiteDB.Create;
 begin
   inherited Create;
@@ -418,13 +397,11 @@ begin
   // sqlite3 itself.
   FDllAvailable := True;
 end;
-
 destructor TYutaniSQLiteDB.Destroy;
 begin
   Close;
   inherited;
 end;
-
 procedure TYutaniSQLiteDB.CaptureLastError;
 begin
   if FDB <> nil then
@@ -432,7 +409,6 @@ begin
   else
     FLastError := 'Database is not open';
 end;
-
 function TYutaniSQLiteDB.Open(const AFileName: string; CreateIfMissing: Boolean): Boolean;
 var
   Flags: Integer;
@@ -466,7 +442,6 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniSQLiteDB.Close;
 begin
   if FDB <> nil then
@@ -476,7 +451,6 @@ begin
   end;
   FFileName := '';
 end;
-
 function TYutaniSQLiteDB.Execute(const SQL: AnsiString): Boolean;
 var
   Stmt: TSQLiteStmt;
@@ -505,7 +479,6 @@ begin
     Finalize(Stmt);
   end;
 end;
-
 function TYutaniSQLiteDB.Prepare(const SQL: AnsiString; out Stmt: TSQLiteStmt): Boolean;
 begin
   Stmt := nil;
@@ -524,22 +497,18 @@ begin
     CaptureLastError;
   end;
 end;
-
 class procedure TYutaniSQLiteDB.BindInt(Stmt: TSQLiteStmt; Idx: Integer; Val: Integer);
 begin
   sqlite3_bind_int(Stmt, Idx, Val);
 end;
-
 class procedure TYutaniSQLiteDB.BindInt64(Stmt: TSQLiteStmt; Idx: Integer; Val: Int64);
 begin
   sqlite3_bind_int64(Stmt, Idx, Val);
 end;
-
 class procedure TYutaniSQLiteDB.BindDouble(Stmt: TSQLiteStmt; Idx: Integer; Val: Double);
 begin
   sqlite3_bind_double(Stmt, Idx, Val);
 end;
-
 class procedure TYutaniSQLiteDB.BindText(Stmt: TSQLiteStmt; Idx: Integer; const Val: AnsiString);
 begin
   // SQLITE_TRANSIENT tells SQLite to make a private copy of the text
@@ -547,7 +516,6 @@ begin
   // the safe default for short-lived string buffers.
   sqlite3_bind_text(Stmt, Idx, PAnsiChar(Val), Length(Val), SQLITE_TRANSIENT);
 end;
-
 class procedure TYutaniSQLiteDB.BindTextW(Stmt: TSQLiteStmt; Idx: Integer; const Val: string);
 var
   AnsiVal: AnsiString;
@@ -555,44 +523,36 @@ begin
   AnsiVal := AnsiString(Val);
   sqlite3_bind_text(Stmt, Idx, PAnsiChar(AnsiVal), Length(AnsiVal), SQLITE_TRANSIENT);
 end;
-
 class procedure TYutaniSQLiteDB.BindNull(Stmt: TSQLiteStmt; Idx: Integer);
 begin
   sqlite3_bind_null(Stmt, Idx);
 end;
-
 class function TYutaniSQLiteDB.Step(Stmt: TSQLiteStmt): Integer;
 begin
   Result := sqlite3_step(Stmt);
 end;
-
 class procedure TYutaniSQLiteDB.Finalize(Stmt: TSQLiteStmt);
 begin
   if Stmt <> nil then
     sqlite3_finalize(Stmt);
 end;
-
 class procedure TYutaniSQLiteDB.Reset(Stmt: TSQLiteStmt);
 begin
   if Stmt <> nil then
     sqlite3_reset(Stmt);
 end;
-
 class function TYutaniSQLiteDB.ColumnInt(Stmt: TSQLiteStmt; Idx: Integer): Integer;
 begin
   Result := sqlite3_column_int(Stmt, Idx);
 end;
-
 class function TYutaniSQLiteDB.ColumnInt64(Stmt: TSQLiteStmt; Idx: Integer): Int64;
 begin
   Result := sqlite3_column_int64(Stmt, Idx);
 end;
-
 class function TYutaniSQLiteDB.ColumnDouble(Stmt: TSQLiteStmt; Idx: Integer): Double;
 begin
   Result := sqlite3_column_double(Stmt, Idx);
 end;
-
 class function TYutaniSQLiteDB.ColumnText(Stmt: TSQLiteStmt; Idx: Integer): AnsiString;
 var
   P: PAnsiChar;
@@ -608,12 +568,10 @@ begin
   else
     Result := '';
 end;
-
 class function TYutaniSQLiteDB.ColumnTextW(Stmt: TSQLiteStmt; Idx: Integer): string;
 begin
   Result := string(ColumnText(Stmt, Idx));
 end;
-
 const
   DISTANT_STAR_COUNT = 3000;
   CHUNK_SIZE = 2000.0;
@@ -639,20 +597,27 @@ const
   // "ressources" subfolder so it stays organized alongside other data.
   GALAXY_DB_FILENAME = 'ressources\galaxy.sqlite';
   // Ambient dust particle system tuning.
-  DUST_PARTICLE_COUNT = 600;        // how many specks to maintain
-  DUST_SHELL_INNER = 200.0;           // closest spawn distance from camera
-  DUST_SHELL_OUTER = 1000.0;          // farthest spawn distance
-  DUST_RESPAWN_DIST = 1500.0;         // distance at which a speck wraps
-  DUST_MIN_SIZE = 0.5;
-  DUST_MAX_SIZE = 3.0;
-  DUST_MIN_SPEED = 0.5;
-  DUST_MAX_SPEED = 4.0;
+  // Tuned for visibility against black space + bright suns/planets.
+  // The previous values (600 / 200-1000 / 0.5-3.0 / 0.5-4.0) produced
+  // mostly sub-pixel specks even after the spawn-init bug was fixed -
+  // at 1000u distance a 0.5u billboard is ~0.7px and a 3.0u billboard
+  // is only ~4px. The new values pull the shell much closer, double
+  // the particle count, scale up sizes and bump the drift speed so the
+  // player actually sees rocks drifting past the cockpit instead of
+  // static invisible pinpricks.
+  DUST_PARTICLE_COUNT = 1200;
+  DUST_SHELL_INNER = 30.0;
+  DUST_SHELL_OUTER = 250.0;
+  DUST_RESPAWN_DIST = 400.0;
+  DUST_MIN_SIZE = 0.1;
+  DUST_MAX_SIZE = 0.2;
+  DUST_MIN_SPEED = 3.0;
+  DUST_MAX_SPEED = 12.0;
   // Minimap tuning.
   MINIMAP_SIZE = 200;                 // pixel size of the square overlay
   MINIMAP_MARGIN = 20;                // pixel gap from screen edge
   MINIMAP_RANGE = 10000.0;            // world units shown across the minimap
   MINIMAP_CACHE_TTL = 10.0;           // seconds between DB refreshes
-
 function MakeCol(r, g, b: Byte): TColorB;
 begin
   Result.r := r;
@@ -661,7 +626,6 @@ begin
   Result.a := 255;
 end;
 { TSpaceWorld }
-
 constructor TSpaceWorld.Create(const ALightShader: TShader);
 var
   Mesh: TMesh;
@@ -753,7 +717,6 @@ begin
   // so a re-load reproduces the exact same home layout.
   SaveCurrentSystemToDB;
 end;
-
 destructor TSpaceWorld.Destroy;
 begin
   DestroyPlanetAssets;
@@ -776,14 +739,12 @@ begin
   FreeAndNil(FGalaxyDB);
   inherited;
 end;
-
 procedure TSpaceWorld.SeedRand(Seed: Cardinal);
 begin
   if Seed = 0 then
     Seed := 1;
   FRngState := Seed;
 end;
-
 function TSpaceWorld.NextRand: Single;
 begin
   FRngState := FRngState xor (FRngState shl 13);
@@ -791,7 +752,6 @@ begin
   FRngState := FRngState xor (FRngState shl 5);
   Result := (FRngState and $00FFFFFF) / $00FFFFFF;
 end;
-
 function TSpaceWorld.HashChunk(cx, cy, cz: Integer): Cardinal;
 var
   h: Cardinal;
@@ -804,7 +764,6 @@ begin
   h := h xor (h shr 16);
   Result := h;
 end;
-
 function TSpaceWorld.GetStarColor(Tint: Byte; Alpha: Byte): TColorB;
 begin
   // Expanded color palette: White, Blue, Red, Yellow, Orange, Purple, Cyan
@@ -828,7 +787,6 @@ end;
 {==============================================================================*
  *  STAR SPRITE & CIRCULAR BILLBOARD
  *==============================================================================}
-
 procedure TSpaceWorld.DrawStarSprite(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
 var
   H: Single;
@@ -860,7 +818,6 @@ begin
   rlVertex3f(LeftV.x, LeftV.y, LeftV.z);
   rlVertex3f(TopV.x, TopV.y, TopV.z);
 end;
-
 procedure TSpaceWorld.DrawCircularBillboard(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
 var
   i: Integer;
@@ -893,7 +850,6 @@ end;
 {==============================================================================*
  *  PLANET ASSETS & LIGHTING
  *==============================================================================}
-
 procedure TSpaceWorld.GeneratePlanetAssets(const ALightShader: TShader);
 var
   i: Integer;
@@ -916,7 +872,6 @@ begin
       FPlanetModels[i].materials[0].shader := ALightShader;
   end;
 end;
-
 procedure TSpaceWorld.DestroyPlanetAssets;
 var
   i: Integer;
@@ -929,7 +884,6 @@ begin
       UnloadModel(FPlanetModels[i]);
   end;
 end;
-
 procedure TSpaceWorld.SetupPlanetLighting(const CameraPos: TVector3);
 var
   NearestSun: TSun;
@@ -999,7 +953,6 @@ end;
 {==============================================================================*
  *  STARTER PLANETS (Home Solar System) & CHUNK GEN
  *==============================================================================}
-
 procedure TSpaceWorld.SpawnStarterPlanets;
 var
   i, SunIdx, idx: Integer;
@@ -1070,7 +1023,6 @@ begin
     FPlanets[idx].Position := Vector3Add(SystemOffset, Vector3Create(Cos(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius, 0, Sin(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius));
   end;
 end;
-
 procedure TSpaceWorld.RegenerateNearContent(const CameraPos: TVector3);
 var
   cx, cy, cz, dx, dy, dz: Integer;
@@ -1157,7 +1109,6 @@ end;
 {==============================================================================*
  *  COMET SYSTEM & COLLISIONS
  *==============================================================================}
-
 procedure TSpaceWorld.SpawnComet(const CameraPos: TVector3);
 var
   idx: Integer;
@@ -1188,7 +1139,6 @@ begin
   else
     C^.Color := ColorAlpha(Fade(ORANGE, 0.9), 230);
 end;
-
 procedure TSpaceWorld.SpawnCometParticle(const Pos, Vel: TVector3; Size: Single);
 var
   i: Integer;
@@ -1209,7 +1159,6 @@ begin
     end;
   end;
 end;
-
 procedure TSpaceWorld.UpdateComets(const dt: Single; const CameraPos: TVector3);
 var
   i, j: Integer;
@@ -1237,7 +1186,6 @@ begin
     end;
   end;
 end;
-
 procedure TSpaceWorld.UpdateCometParticles(const dt: Single);
 var
   i: Integer;
@@ -1258,7 +1206,6 @@ begin
     P^.Position := Vector3Add(P^.Position, Vector3Scale(P^.Velocity, dt));
   end;
 end;
-
 procedure TSpaceWorld.CheckCometCollisions;
 var
   i, j: Integer;
@@ -1291,7 +1238,6 @@ end;
 {==============================================================================*
  *  ORBIT UPDATE
  *==============================================================================}
-
 procedure TSpaceWorld.UpdateOrbits(const dt: Single);
 var
   i: Integer;
@@ -1323,7 +1269,6 @@ end;
 {==============================================================================*
  *  MAIN UPDATE
  *==============================================================================}
-
 procedure TSpaceWorld.Update(const dt: Single; const CameraPos: TVector3; const TimeScale: Single);
 var
   cx, cy, cz: Integer;
@@ -1396,7 +1341,6 @@ end;
 {==============================================================================*
  *  RENDERERS
  *==============================================================================}
-
 procedure TSpaceWorld.RenderDistantStars(const CameraPos, CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -1430,7 +1374,6 @@ begin
   rlEnableBackfaceCulling;
   rlEnableDepthTest;
 end;
-
 procedure TSpaceWorld.RenderNearStars(const CameraPos, CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -1469,7 +1412,6 @@ begin
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
 end;
-
 procedure TSpaceWorld.RenderNebulae(const CameraPos, CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -1507,11 +1449,9 @@ begin
   rlEnableBackfaceCulling;
   rlEnableDepthTest;
 end;
-
 {==============================================================================*
  *  GALAXY MANAGER - One-System-At-A-Time Lifecycle
  *==============================================================================}
-
 function TSpaceWorld.HashGalaxyPos(x, y, z: Double): Cardinal;
 var
   h: Cardinal;
@@ -1533,7 +1473,6 @@ begin
   h := h xor (h shr 16);
   Result := h;
 end;
-
 procedure TSpaceWorld.EnsureGalaxySchema;
 const
   SQL_CREATE: AnsiString =
@@ -1560,7 +1499,6 @@ begin
   FGalaxyDB.Execute(SQL_CREATE);
   FGalaxyDB.Execute(SQL_INDEX);
 end;
-
 procedure TSpaceWorld.SaveCurrentSystemToDB;
 const
   SQL_UPSERT: AnsiString =
@@ -1606,7 +1544,6 @@ begin
     TYutaniSQLiteDB.Finalize(Stmt);
   end;
 end;
-
 function TSpaceWorld.LoadSystemSeedFromDB(const GalaxyPos: TVector3;
   out OutSeed: Cardinal): Boolean;
 const
@@ -1641,7 +1578,6 @@ begin
     TYutaniSQLiteDB.Finalize(Stmt);
   end;
 end;
-
 procedure TSpaceWorld.GenerateSystemAt(var Suns: TArray<TSun>;
   var Planets: TArray<TSpacePlanet>;
   const SunPos: TVector3; Seed: Cardinal; Append: Boolean);
@@ -1651,7 +1587,6 @@ var
   HasMoon: Boolean;
   SunIdx: Integer;
   LocalRng: Cardinal;
-
   function Rand: Single;
   begin
     LocalRng := LocalRng xor (LocalRng shl 13);
@@ -1659,7 +1594,6 @@ var
     LocalRng := LocalRng xor (LocalRng shl 5);
     Result := (LocalRng and $00FFFFFF) / $00FFFFFF;
   end;
-
 begin
   // We use a private RNG seeded with the supplied value so the call
   // does not perturb the global FRngState used by the rest of the
@@ -1760,7 +1694,6 @@ begin
         Sin(Planets[idx].OrbitAngle) * Planets[idx].OrbitRadius));
   end;
 end;
-
 procedure TSpaceWorld.PickNextSystem(const CameraPos, CameraForward: TVector3);
 var
   TargetPos, RoundedPos: TVector3;
@@ -1787,7 +1720,6 @@ begin
   // invisible until FNextVis rises above zero in the approaching phase.
   GenerateSystemAt(FNextSuns, FNextPlanets, RoundedPos, FNextSeed, False);
 end;
-
 procedure TSpaceWorld.SwapToNextSystem;
 var
   i: Integer;
@@ -1813,7 +1745,6 @@ begin
   FPhase := gpAtSystem;
   FTravelTimer := 0.0;
 end;
-
 procedure TSpaceWorld.UpdateSystemVisibilities(const CameraPos: TVector3);
 var
   CurDist, NextDist, FadeT: Single;
@@ -1855,7 +1786,6 @@ begin
   else
     FNextVis := 0.0;
 end;
-
 procedure TSpaceWorld.UpdateGalaxyPhase(dt: Single; const CameraPos, CameraForward: TVector3);
 var
   CurDist, NextDist: Single;
@@ -1864,7 +1794,6 @@ begin
   // every frame regardless of phase, so they must be current even
   // during transitions where we are between two systems.
   UpdateSystemVisibilities(CameraPos);
-
   case FPhase of
     gpAtSystem:
     begin
@@ -1878,7 +1807,6 @@ begin
           FPhase := gpDeparting;
       end;
     end;
-
     gpDeparting:
     begin
       // Hold in departure until the current system is fully faded out,
@@ -1889,7 +1817,6 @@ begin
         FTravelTimer := 0.0;
       end;
     end;
-
     gpTraveling:
     begin
       // Accumulate the empty-void timer so the user gets a clear
@@ -1902,7 +1829,6 @@ begin
           FPhase := gpApproaching;
       end;
     end;
-
     gpApproaching:
     begin
       // Wait until the camera is close enough to the next sun, then
@@ -1923,7 +1849,6 @@ begin
     end;
   end;
 end;
-
 procedure TSpaceWorld.RenderSuns;
 var
   i, j: Integer;
@@ -1944,7 +1869,6 @@ begin
   // and it keeps the code path identical between phases.
   CurAlpha := Trunc(EnsureRange(FCurrentVis, 0, 1) * 255);
   NextAlpha := Trunc(EnsureRange(FNextVis, 0, 1) * 255);
-
   // 1. Sort current suns by distance (far to near) to prevent aura
   //    overlap bugs. We only sort FSuns here - FNextSuns has at most
   //    one sun so sorting is pointless.
@@ -1965,7 +1889,6 @@ begin
           FSuns[j + 1] := TempSun;
         end;
   end;
-
   // PHASE 1: Render solid cores (Far to near).
   rlEnableDepthTest;
   rlEnableDepthMask;
@@ -2001,7 +1924,6 @@ begin
     end;
   end;
   rlDrawRenderBatchActive;
-
   // PHASE 2: Render additive Glow.
   // CRITICAL FIX: Keep Depth TEST enabled so the aura checks if it's closer
   // than a background planet. We only disable Depth MASK so the aura doesn't
@@ -2037,7 +1959,6 @@ begin
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableDepthMask;
 end;
-
 procedure TSpaceWorld.RenderPlanets(const CameraPos, CamRight, CamUp: TVector3);
 var
   i, j: Integer;
@@ -2159,7 +2080,6 @@ begin
   rlDrawRenderBatchActive;
   rlDisableDepthMask;
 end;
-
 procedure TSpaceWorld.RenderCometParticles(const CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -2228,7 +2148,6 @@ begin
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
 end;
-
 procedure TSpaceWorld.RenderComets;
 var
   i: Integer;
@@ -2245,11 +2164,9 @@ begin
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
 end;
-
 {==============================================================================*
  *  AMBIENT DUST SYSTEM
  *==============================================================================}
-
 procedure TSpaceWorld.SpawnDustShell(const CameraPos: TVector3);
 var
   i: Integer;
@@ -2278,19 +2195,23 @@ begin
     D^.Velocity := Vector3Scale(Dir, Speed);
     // Random size within the rock range
     D^.Size := DUST_MIN_SIZE + Random * (DUST_MAX_SIZE - DUST_MIN_SIZE);
-    // Pick from a small palette of grays / browns so the dust reads
-    // as "rocks" rather than "white pixels".
+    // Pick from a small palette of bright grays / browns so the dust
+    // reads as actual rocks against black space. The previous palette
+    // (50-130) was so dark that BLEND_ALPHA against black produced
+    // (43, 43, 47) - basically indistinguishable from the background
+    // unless silhouetted against a bright sun/planet. The new palette
+    // keeps the earth-tone feel but is bright enough to read against
+    // pure black so the player actually sees drifting rocks.
     ColorPick := Trunc(Random * 5);
     case ColorPick of
-      0: begin D^.ColorR := 50;  D^.ColorG := 50;  D^.ColorB := 55;  end;  // dark gray
-      1: begin D^.ColorR := 90;  D^.ColorG := 90;  D^.ColorB := 95;  end;  // mid gray
-      2: begin D^.ColorR := 110; D^.ColorG := 90;  D^.ColorB := 70;  end;  // brownish
-      3: begin D^.ColorR := 70;  D^.ColorG := 55;  D^.ColorB := 40;  end;  // dark brown
-      4: begin D^.ColorR := 130; D^.ColorG := 115; D^.ColorB := 90;  end;  // tan
+      0: begin D^.ColorR := 140; D^.ColorG := 140; D^.ColorB := 145; end;  // bright gray
+      1: begin D^.ColorR := 175; D^.ColorG := 175; D^.ColorB := 180; end;  // light gray
+      2: begin D^.ColorR := 200; D^.ColorG := 170; D^.ColorB := 120; end;  // light tan
+      3: begin D^.ColorR := 165; D^.ColorG := 130; D^.ColorB := 90;  end;  // medium brown
+      4: begin D^.ColorR := 210; D^.ColorG := 190; D^.ColorB := 160; end;  // pale tan
     end;
   end;
 end;
-
 procedure TSpaceWorld.UpdateDust(const dt: Single; const CameraPos: TVector3);
 var
   i: Integer;
@@ -2300,7 +2221,16 @@ var
   NewDist, NewTheta, NewPhi: Single;
   NewDir: TVector3;
 begin
-  if Length(FDust) = 0 then
+  // Detect uninitialized dust: the constructor pre-allocates FDust with
+  // SetLength (so Length is never 0), but the entries start zero-filled
+  // with Size=0 / Position=(0,0,0). The original `Length(FDust) = 0`
+// check therefore never triggered and SpawnDustShell was never
+  // called, leaving 600 particles stuck at the origin with size 0 -
+  // the billboard collapses to a degenerate point and renders nothing.
+  // Checking the first entry's Size catches this case and spawns the
+  // shell lazily on the first UpdateDust call, which also gives us
+  // the real camera position instead of (0,0,0).
+  if (Length(FDust) = 0) or ((Length(FDust) > 0) and (FDust[0].Size = 0)) then
   begin
     SpawnDustShell(CameraPos);
     Exit;
@@ -2328,7 +2258,6 @@ begin
     end;
   end;
 end;
-
 procedure TSpaceWorld.RenderDust(const CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -2390,11 +2319,9 @@ begin
   rlDrawRenderBatchActive;
   rlEnableBackfaceCulling;
 end;
-
 {==============================================================================*
  *  MINIMAP - 2D overlay showing discovered systems + current flight state
  *==============================================================================}
-
 procedure TSpaceWorld.RefreshDiscoveredSystemsCache;
 const
   SQL_ALL: AnsiString =
@@ -2431,7 +2358,6 @@ begin
     TYutaniSQLiteDB.Finalize(Stmt);
   end;
 end;
-
 procedure TSpaceWorld.RenderMinimap(const Camera: TCamera3D);
 var
   ScreenW, ScreenH: Integer;
@@ -2453,26 +2379,21 @@ begin
   FDiscoveredCacheAge := FDiscoveredCacheAge + 0.016; // assume 60fps; close enough
   if FDiscoveredCacheAge >= MINIMAP_CACHE_TTL then
     RefreshDiscoveredSystemsCache;
-
   ScreenW := GetScreenWidth();
   ScreenH := GetScreenHeight();
   HalfSize := MINIMAP_SIZE div 2;
   MapX := ScreenW - MINIMAP_SIZE - MINIMAP_MARGIN;
   MapY := MINIMAP_MARGIN;
-
   // Background: dark semi-transparent square.
   Bg.r := 0; Bg.g := 0; Bg.b := 0; Bg.a := 200;
   DrawRectangle(MapX, MapY, MINIMAP_SIZE, MINIMAP_SIZE, Bg);
   // Border: bright frame so the minimap stands out against the scene.
   DrawRectangleLines(MapX, MapY, MINIMAP_SIZE, MINIMAP_SIZE, WHITE);
-
   // Center of the minimap = player position.
   PlayerX := MapX + HalfSize;
   PlayerY := MapY + HalfSize;
-
   // Scale: MINIMAP_RANGE world units span MINIMAP_SIZE pixels.
   // We display the XZ plane (top-down view); Y is ignored.
-
   // Discovered systems as small gray dots.
   for i := 0 to High(FDiscoveredSystemsCache) do
   begin
@@ -2486,7 +2407,6 @@ begin
     DotY := PlayerY + Trunc(RelZ * MINIMAP_SIZE);
     DrawCircle(DotX, DotY, 2, Fade(GRAY, 0.7));
   end;
-
   // Current system: green dot. Only drawn if within minimap range.
   if Length(FSuns) > 0 then
   begin
@@ -2501,7 +2421,6 @@ begin
       DrawLine(PlayerX, PlayerY, CurX, CurY, Fade(GREEN, 0.4));
     end;
   end;
-
   // Next (target) system: yellow dot + connecting line. Only drawn
   // when the phase machine actually has a target staged.
   if (Length(FNextSuns) > 0) and (FPhase = gpApproaching) then
@@ -2517,7 +2436,6 @@ begin
       DrawLine(PlayerX, PlayerY, NextX, NextY, Fade(YELLOW, 0.6));
     end;
   end;
-
   // Player: white dot in the center with a small arrow pointing in
   // the flight direction so the user can see which way they're
   // heading at a glance.
@@ -2526,18 +2444,15 @@ begin
   DotX := PlayerX + Trunc(FCamForward.x * 12);
   DotY := PlayerY + Trunc(FCamForward.z * 12);
   DrawLine(PlayerX, PlayerY, DotX, DotY, WHITE);
-
   // Title + scale label.
   TextBuf := AnsiString('GALAXY MAP');
   DrawText(PAnsiChar(TextBuf), MapX + 4, MapY + 4, 12, RAYWHITE);
   TextBuf := AnsiString(Format('%.0f u range', [MINIMAP_RANGE]));
   DrawText(PAnsiChar(TextBuf), MapX + 4, MapY + MINIMAP_SIZE - 16, 10, GRAY);
 end;
-
 {==============================================================================*
  *  SHADOW MAP RENDERING
  *==============================================================================}
-
 procedure TSpaceWorld.RenderShadows;
 var
   i: Integer;
@@ -2562,7 +2477,6 @@ begin
     DrawSphere(C^.Position, C^.Size * 0.5, BLACK);
   end;
 end;
-
 procedure TSpaceWorld.Render(const Camera: TCamera3D);
 var
   CamForward, CamRight, CamUp: TVector3;
@@ -2602,7 +2516,6 @@ end;
 {==============================================================================*
  *  LANDING & FLOATING ORIGIN SYSTEM
  *==============================================================================}
-
 function TSpaceWorld.FindNearestPlanet(const CameraPos: TVector3; out OutIndex: Integer; out OutDistance: Single): Boolean;
 var
   i: Integer;
@@ -2625,7 +2538,6 @@ begin
   OutDistance := Nearest;
   Result := (OutIndex >= 0);
 end;
-
 procedure TSpaceWorld.InitiateLanding(const TargetIndex: Integer; var CameraTarget: TVector3; var CameraPos: TVector3);
 var
   TargetPos, Shift: TVector3;
@@ -2658,7 +2570,6 @@ begin
   CameraPos := Vector3Add(FPlanets[TargetIndex].Position, Vector3Scale(SurfDir, FPlanets[TargetIndex].Radius + 5.0));
   CameraTarget := FPlanets[TargetIndex].Position;
 end;
-
 procedure TSpaceWorld.ReleaseLanding;
 begin
   if not FIsLanded then
@@ -2668,12 +2579,10 @@ begin
   FIsLanded := False;
   FLandingTargetIndex := -1;
 end;
-
 function TSpaceWorld.IsLanded: Boolean;
 begin
   Result := FIsLanded;
 end;
-
 function TSpaceWorld.GetLandedPlanetPos: TVector3;
 begin
   if FIsLanded and (FLandingTargetIndex >= 0) then
@@ -2681,7 +2590,6 @@ begin
   else
     Result := Vector3Create(0, 0, 0);
 end;
-
 function TSpaceWorld.GetLandedPlanetRadius: Single;
 begin
   if FIsLanded and (FLandingTargetIndex >= 0) then
@@ -2689,7 +2597,6 @@ begin
   else
     Result := 0;
 end;
-
 procedure TSpaceWorld.GetPlanetInfo(const Index: Integer; out OutPos: TVector3; out OutRadius: Single);
 begin
   if (Index >= 0) and (Index <= High(FPlanets)) then
@@ -2706,7 +2613,6 @@ end;
 {==============================================================================*
  *  Initialize distant stars with true cluster distribution (no rings)
  *==============================================================================}
-
 procedure TSpaceWorld.InitializeDistantStars;
 var
   i, c, j: Integer;
@@ -2763,6 +2669,5 @@ begin
     end;
   end;
 end;
-
 end.
 

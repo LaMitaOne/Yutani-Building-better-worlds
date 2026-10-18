@@ -1447,7 +1447,10 @@ begin
     FPitch := EnsureRange(FPitch + (FInputLookY * 0.05 * FSensitivity), -1.4, 1.4)
   else
     FPitch := EnsureRange(FPitch - (FInputLookY * 0.05 * FSensitivity), -1.4, 1.4);
-  FYaw := FYaw + (FInputLookX * 0.05 * FSensitivity);
+  // Inverted horizontal look: moving the mouse right turns the view left
+  // and vice versa. This matches the requested "natural" feel for the
+  // first-person controller. Other controllers keep the standard mapping.
+  FYaw := FYaw - (FInputLookX * 0.05 * FSensitivity);
   // Mirror to the base class so external code reading CamYaw/CamPitch still
   // works (e.g. the existing camera HUD or save-load routines).
   FCamYaw := FYaw;
