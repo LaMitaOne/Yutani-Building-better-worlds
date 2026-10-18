@@ -1,4 +1,4 @@
-# Yutani-Building-better-worlds (Alpha v0.647)    
+# Yutani-Building-better-worlds (Alpha v0.648)    
 A high-performance, multi-threaded 3D Sandbox &amp; Multimedia Framework for Delphi.    
 Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, RecastNavigation, VerySimpleLua, GameNetworkingSockets, and Skia4delphi.    
           
@@ -99,6 +99,117 @@ slowly getting ready to explore the new universe
   Exe and sample project included    
       
 Latest Changes:    
+      
+v0.648:        
+
+  - Warp core stability improved, interstellar space flight now safer.
+  - Replaced the chunk-based distant-solar-system generation with a
+    strict one-system-at-a-time galaxy lifecycle. The player can never
+    see two star systems fully rendered at the same time anymore -
+    departure, empty void and approach are now distinct phases.
+  - Star systems fade out smoothly as the camera leaves, an empty void
+    pause gives the player a clear "crossing space" moment, then a new
+    system fades in directly in the flight direction. Total hop time
+    ~30 seconds, not minutes.
+  - Visited star systems are persisted to SQLite so revisits
+    reproduce the exact same layout.
+    Deterministic procedural gen keyed off a 3D hash of the galaxy
+    cell ensures the same coordinates always yield the same system.
+  - Ambient dust / rock particle system: 600 small drifting specks in
+    a shell around the camera, dark gray / brown palette so they read
+    as actual debris instead of pixel noise. Drift slowly and respawn
+    when they wander too far so the layer is always present.
+  - Galaxy minimap overlay (top-right): shows the player as a white
+    dot with a flight-direction arrow, the current system in green,
+    the next target system in yellow during approach, and every
+    previously discovered system as a gray dot. 10000u range, 10s DB
+    cache so the overlay does not query SQLite every frame.
+  - All galaxy lifecycle distances exposed as published properties on
+    TSpaceWorld for runtime tuning from a settings dialog (FadeStart,
+    FadeEnd, TargetPickDistance, TargetApproachFadeStart, ArriveDistance,
+    MinTravelTime, plus Phase / CurrentVisibility / NextVisibility /
+    CurrentSeed / NextSeed for HUD readouts).
+  - HUD shows the currently selected controller type (green while driving)
+  - Successfully defeated some Evil self replicating space thread-Bugs
+  - Improved Terraforming Planetary Surface textures
+  - Space now pauses on pause too
+  - Eliminated startup window flash by teleporting the Raylib window
+    off-screen during creation before reparenting it into the VCL control.
+  - Save/Load Scene now works for 3d models too, (only full path atm)
+  - Stabilized nanofog and bomb
+  - Slowmotion can do now fastmotion too (Trackbar max 200 now)
+  - Pressing F11 again changes direction 45 degrees, click somewhere
+    outside and then F11 to leave
+  - Loading screen now shows on mainform center, not screen center
+  - Added mass rain spawn spinedit and btns in form and removed ugly
+    internal test hud
+  - Added checkbox to show/hide infos internal and on form
+  - Space has now 0 Gravity and no more ground, except 4x4 block for
+    spacestation later
+  - Moved MiniAudio to Yutani.Audio
+  - Added Yutani.Avatar.Controls unit
+  - Connected audio engines (MiniAudio & TinySoundFont) to slow motion too
+    (try the audio tab test btn in slowmotion :D)
+  - Fixed spawn not showing while pause, caused by new materialize spawn effect (now no effect on pause)
+  - Fixed loadscene spawned everything while pause first at 0,0,0, now ..on pause already correct
+  - Added units Yutani.Chaos.Skia, Yutani.Avatar.Animations, Yutani.Render.PlanarReflections
+  - Added First Person, Spectator, Orbit and RigidBody avatar controllers
+    on top of the existing ThirdPerson / Flight / Vehicle trio
+  - Shift+F11 cycles through all 7 controller types live, rebuilds the
+    active controller in place and keeps CamYaw/Pitch
+  - F11 now possesses with whatever controller type is selected
+    (default is still Vehicle so old muscle memory keeps working)
+  - Added Mouselook via TYutaniInputManager (Start/Stop/PollMouseLook),
+    cursor hides and snaps to viewport center, combines with gamepad look
+  - Camera smoothing on the base controller: CamSmoothing for soft chase
+    feel and BeginCameraTransition for cinematic swaps on possess and
+    Shift+F11 (no more zack, camera flies to the new spot)
+  - Camera collision on the base controller raycasts from the look anchor
+    towards the desired camera position and pulls the camera in to just
+    before the hit so it never clips through walls
+  - Avatar facing rotates the body to match the movement direction so
+    the avatar no longer slides in place - enabled by default on
+    ThirdPerson, FirstPerson and RigidBody
+  - Mouse wheel zoom on every controller with adjustable CamDist; clamp
+    via MinCamDist / MaxCamDist so settings dialogs can tweak the range
+  - First Person ADS: hold right mouse to zoom, wheel adjusts ADS target
+    FOV live so the player can swap magnification tiers while aiming
+  - Velocity-driven footstep audio trigger fires OnFootstep at an
+    interval inversely proportional to horizontal speed - wire to
+    MiniAudio from the sandbox to actually play the sample
+  - TYutaniAvatarSettings record (sensitivity, deadzones, FOV, pitch
+    clamps) ready to be wired into a settings dialog later
+  - RigidBody controller is force/torque based instead of
+    SetLinearVelocity, uses RayCast ground check so jumping works on
+    ramps and stairs
+  - Orbit controller auto-rotates around the avatar for showcase scenes,
+    manual look overrides auto-rotation while the stick is touched
+  - HUD shows the currently selected controller type (green while driving)
+  - Per-pad input API on TYutaniInputManager (GetInputsForPad /
+    GetPlayerState) so each gamepad's state can be read in isolation
+  - TYutaniMultiPlayerManager + TYutaniPlayerSlot enable 2-player local
+    couch-coop - slot 0 is keyboard/mouse, slot 1 is gamepad 1
+  - Split-screen rendering via rlViewport: scene is drawn twice per
+    frame, once per player's camera, clipped to left/right half of the
+    window
+  - F12 toggles split-screen on the fly using the first two items in the
+    scene as avatars (quick test) - for production call EnableSplitScreen
+    explicitly from the VCL
+  - HUD line shows SPLIT SCREEN status (purple) vs Single-player (gray)
+  - F11 possess is blocked while split-screen is active so the two modes
+    cannot fight over the camera pointer
+  - All camera / avatar / wheel / ADS / footstep settings exposed as
+    published properties so a VCL settings dialog can tweak them live
+  - Standalone factory function YutaniCreateAvatarController decouples
+    controller spawning from the sandbox so external tools and the
+    split-screen manager can build controllers without a sandbox reference
+  - Mouselook writes only into the per-pad slot 0 buffer so the mouse
+    (single physical device) does not leak into player 2's gamepad axis
+  - During split-screen, FCam1 is mirrored onto FCamera each frame so
+    shadow camera centering, distance culling and the existing render
+    pipeline see a valid view position without needing a separate pass
+  - Render3DScene split into Render3DSceneCore (the actual scene pipeline)
+    plus a thin wrapper that runs it twice with rlViewport for split-screen
       
 v0.647:        
      
