@@ -22,7 +22,8 @@ uses
   Yutani.Avatar.Animations in 'Yutani.Avatar.Animations.pas',
   Yutani.Audio in 'Yutani.Audio.pas',
   Yutani.Avatar.Controls.GamepadSettings in 'Yutani.Avatar.Controls.GamepadSettings.pas' {frmGamepadSettings},
-  Yutani.Video.MPV in 'Yutani.Video.MPV.pas';
+  Yutani.Video.MPV in 'Yutani.Video.MPV.pas',
+  Yutani.Render.PlanarReflections in 'Yutani.Render.PlanarReflections.pas';
 
 {$R *.res}
 

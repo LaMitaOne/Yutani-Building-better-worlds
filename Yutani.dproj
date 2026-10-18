@@ -161,6 +161,7 @@
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="Yutani.Video.MPV.pas"/>
+        <DCCReference Include="Yutani.Render.PlanarReflections.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -266,6 +267,12 @@
                 <DeployFile LocalName="Win64\Debug\Yutani.rsm" Configuration="Debug" Class="DebugSymbols">
                     <Platform Name="Win64">
                         <RemoteName>Yutani.rsm</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="Win64\Release\Yutani.exe" Configuration="Release" Class="ProjectOutput">
+                    <Platform Name="Win64">
+                        <RemoteName>Yutani.exe</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

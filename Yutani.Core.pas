@@ -1,5 +1,6 @@
 ﻿unit Yutani.Core;
 
+
 {==============================================================================*
  *  Yutani.Core v0.648 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
@@ -81,6 +82,34 @@
 
 v0.648
 
+ - Warp core stability improved, interstellar space flight now safer.
+ - Replaced the chunk-based distant-solar-system generation with a
+   strict one-system-at-a-time galaxy lifecycle. The player can never
+   see two star systems fully rendered at the same time anymore -
+   departure, empty void and approach are now distinct phases.
+ - Star systems fade out smoothly as the camera leaves, an empty void
+   pause gives the player a clear "crossing space" moment, then a new
+   system fades in directly in the flight direction. Total hop time
+   ~30 seconds, not minutes.
+ - Visited star systems are persisted to SQLite so revisits
+   reproduce the exact same layout.
+   Deterministic procedural gen keyed off a 3D hash of the galaxy
+   cell ensures the same coordinates always yield the same system.
+ - Ambient dust / rock particle system: 600 small drifting specks in
+   a shell around the camera, dark gray / brown palette so they read
+   as actual debris instead of pixel noise. Drift slowly and respawn
+   when they wander too far so the layer is always present.
+ - Galaxy minimap overlay (top-right): shows the player as a white
+   dot with a flight-direction arrow, the current system in green,
+   the next target system in yellow during approach, and every
+   previously discovered system as a gray dot. 10000u range, 10s DB
+   cache so the overlay does not query SQLite every frame.
+ - All galaxy lifecycle distances exposed as published properties on
+   TSpaceWorld for runtime tuning from a settings dialog (FadeStart,
+   FadeEnd, TargetPickDistance, TargetApproachFadeStart, ArriveDistance,
+   MinTravelTime, plus Phase / CurrentVisibility / NextVisibility /
+   CurrentSeed / NextSeed for HUD readouts).
+ - HUD shows the currently selected controller type (green while driving)
  - Successfully defeated some Evil self replicating space thread-Bugs
  - Improved Terraforming Planetary Surface textures
  - Space now pauses on pause too
@@ -104,8 +133,67 @@ v0.648
  - Fixed spawn not showing while pause, caused by new materialize spawn effect (now no effect on pause)
  - Fixed loadscene spawned everything while pause first at 0,0,0, now ..on pause already correct
  - Added units Yutani.Chaos.Skia, Yutani.Avatar.Animations, Yutani.Render.PlanarReflections
+ - Added First Person, Spectator, Orbit and RigidBody avatar controllers
+   on top of the existing ThirdPerson / Flight / Vehicle trio
+ - Shift+F11 cycles through all 7 controller types live, rebuilds the
+   active controller in place and keeps CamYaw/Pitch
+ - F11 now possesses with whatever controller type is selected
+   (default is still Vehicle so old muscle memory keeps working)
+ - Added Mouselook via TYutaniInputManager (Start/Stop/PollMouseLook),
+   cursor hides and snaps to viewport center, combines with gamepad look
+ - Camera smoothing on the base controller: CamSmoothing for soft chase
+   feel and BeginCameraTransition for cinematic swaps on possess and
+   Shift+F11 (no more zack, camera flies to the new spot)
+ - Camera collision on the base controller raycasts from the look anchor
+   towards the desired camera position and pulls the camera in to just
+   before the hit so it never clips through walls
+ - Avatar facing rotates the body to match the movement direction so
+   the avatar no longer slides in place - enabled by default on
+   ThirdPerson, FirstPerson and RigidBody
+ - Mouse wheel zoom on every controller with adjustable CamDist; clamp
+   via MinCamDist / MaxCamDist so settings dialogs can tweak the range
+ - First Person ADS: hold right mouse to zoom, wheel adjusts ADS target
+   FOV live so the player can swap magnification tiers while aiming
+ - Velocity-driven footstep audio trigger fires OnFootstep at an
+   interval inversely proportional to horizontal speed - wire to
+   MiniAudio from the sandbox to actually play the sample
+ - TYutaniAvatarSettings record (sensitivity, deadzones, FOV, pitch
+   clamps) ready to be wired into a settings dialog later
+ - RigidBody controller is force/torque based instead of
+   SetLinearVelocity, uses RayCast ground check so jumping works on
+   ramps and stairs
+ - Orbit controller auto-rotates around the avatar for showcase scenes,
+   manual look overrides auto-rotation while the stick is touched
+ - HUD shows the currently selected controller type (green while driving)
+ - Per-pad input API on TYutaniInputManager (GetInputsForPad /
+   GetPlayerState) so each gamepad's state can be read in isolation
+ - TYutaniMultiPlayerManager + TYutaniPlayerSlot enable 2-player local
+   couch-coop - slot 0 is keyboard/mouse, slot 1 is gamepad 1
+ - Split-screen rendering via rlViewport: scene is drawn twice per
+   frame, once per player's camera, clipped to left/right half of the
+   window
+ - F12 toggles split-screen on the fly using the first two items in the
+   scene as avatars (quick test) - for production call EnableSplitScreen
+   explicitly from the VCL
+ - HUD line shows SPLIT SCREEN status (purple) vs Single-player (gray)
+ - F11 possess is blocked while split-screen is active so the two modes
+   cannot fight over the camera pointer
+ - All camera / avatar / wheel / ADS / footstep settings exposed as
+   published properties so a VCL settings dialog can tweak them live
+ - Standalone factory function YutaniCreateAvatarController decouples
+   controller spawning from the sandbox so external tools and the
+   split-screen manager can build controllers without a sandbox reference
+ - Mouselook writes only into the per-pad slot 0 buffer so the mouse
+   (single physical device) does not leak into player 2's gamepad axis
+ - During split-screen, FCam1 is mirrored onto FCamera each frame so
+   shadow camera centering, distance culling and the existing render
+   pipeline see a valid view position without needing a separate pass
+ - Render3DScene split into Render3DSceneCore (the actual scene pipeline)
+   plus a thin wrapper that runs it twice with rlViewport for split-screen
+
 
  *==============================================================================}
+
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
@@ -158,7 +246,9 @@ type
     Color: TColorB;
     IsSmoke: Boolean; // True = Smoke, False = Explosion
   end;
-  // NEW: Thread-safe Dematerialize Request
+  // Thread-safe Dematerialize Request record - queued from VCL threads
+  // and processed inside the render thread to avoid touching Jolt from
+  // outside.
 
   TDematerializeRequest = record
     Actor: TA3DComponent;
@@ -420,11 +510,47 @@ type
 
    // ====================================================================
     // Centralized Avatar Controls & Input Manager
-    // Replaces the old hardcoded F11 + Enter Vehicle logic.
+    // Bridges keyboard, SDL3 gamepad and mouselook input to the active
+    // controller instance. The selected controller type lives in
+    // FAvatarControllerType and is swapped at runtime via Shift+F11.
     // ====================================================================
     FAvatarController: TYutaniAvatarController;
     FPlayerVehicle: TA3DComponent;
     FIsDriving: Boolean;
+    // Currently selected controller type. F11 uses this when possessing.
+    // Shift+F11 cycles it. Defaults to actVehicle so the existing
+    // behaviour is preserved without any user action.
+    FAvatarControllerType: TYutaniAvatarControllerType;
+    // Split-screen manager for 2-player local couch-coop. When Active,
+    // this takes over driving duties from FAvatarController. Mutually
+    // exclusive with the single-player F11 possess flow.
+    FMultiPlayer: TYutaniMultiPlayerManager;
+    // Per-player camera records used only when split-screen is active.
+    // Each player's controller is wired to one of these; the sandbox
+    // swaps FCamera with the relevant slot's pointer during the
+    // split-screen render passes.
+    FCam1: TCamera3D;
+    FCam2: TCamera3D;
+    // Active split-screen viewport dimensions. Set by Render3DScene
+    // before calling Render3DSceneCore so the core pass knows what
+    // aspect ratio to feed into the perspective matrix. Zero when
+    // split-screen is not active - the core pass then leaves the
+    // projection alone and BeginMode3D uses the full-window aspect.
+    FSplitScreenVPW: Integer;
+    FSplitScreenVPH: Integer;
+    // --- Camera blend state ---
+    // Smooth lerp back to the editor orbit view after the user exits
+    // avatar driving mode. Without this the camera snaps in one frame
+    // from the avatar controller's chase-cam math to the editor's
+    // orbit-cam math, which are different formulas even when fed the
+    // same CamYaw/Pitch/Dist values.
+    FCamBlendActive: Boolean;
+    FCamBlendStartPos: TVector3;
+    FCamBlendStartTarget: TVector3;
+    FCamBlendStartUp: TVector3;
+    FCamBlendStartFOV: Single;
+    FCamBlendProgress: Single;
+    FCamBlendDuration: Single;
 
     // Dematerialize Queue
     FDematerializeQueue: TArray<TDematerializeRequest>;
@@ -451,10 +577,25 @@ type
     procedure InitLightingAndEnvironment;
     procedure ProcessSpawnQueue(dt: Single);
     procedure HandleCameraInput;
+    // Starts a smooth camera blend from the current FCamera state to
+    // the editor orbit position. Call from any code path that releases
+    // an avatar controller (F11 exit, F12 split-screen teardown, etc.).
+    procedure StartCameraBlendToEditor(Duration: Single = 0.8);
+    // Advances the active camera blend by dt. No-op when inactive.
+    procedure UpdateCameraBlend(dt: Single);
+    // Handles the F12 split-screen toggle. Extracted into its own
+    // method so we get a clean var block (no inline vars) and can wrap
+    // the whole thing in try/except to keep the render thread alive
+    // even if anything goes wrong during split-screen setup.
+    procedure HandleF12SplitScreenToggle;
     procedure HandleDesktopInput;
     procedure UpdateGame;
     procedure RenderGame;
     procedure Render3DScene;
+    // Internal core pass that does the actual 3D rendering. Render3DScene
+    // wraps this so the split-screen path can run it twice with swapped
+    // viewport + camera without duplicating the entire scene pipeline.
+    procedure Render3DSceneCore;
     procedure RenderShadowMap;
     procedure DrawSceneShadows;
     procedure DrawGUI;
@@ -567,10 +708,23 @@ type
     procedure MorphSelectedToFog;
     procedure KillNanoFog;
 
-    // NEW: External Dematerialize Triggers
+    // External Dematerialize Triggers - safe to call from VCL/UI thread;
+    // they queue a request that the render thread drains inside UpdateGame.
     procedure DematerializeSelectedObject;
     procedure DematerializeActor(Actor: TA3DComponent);
     procedure ExecuteMaterializeActor(Actor: TA3DComponent);
+
+    // Factory that maps TYutaniAvatarControllerType to the matching
+    // controller class. Used by the F11 possess path and the Shift+F11
+    // controller-swap path so the spawn logic lives in exactly one place.
+    function CreateAvatarControllerOfType(AType: TYutaniAvatarControllerType; Avatar: TA3DComponent): TYutaniAvatarController;
+
+    // Split-screen lifecycle. EnableSplitScreen spawns two controllers
+    // (one per avatar/camera pair) and switches the sandbox from
+    // single-player mode into 2-player mode. DisableSplitScreen tears
+    // everything down and returns to single-player.
+    procedure EnableSplitScreen(Avatar1, Avatar2: TA3DComponent; ControllerType1: TYutaniAvatarControllerType = actThirdPerson; ControllerType2: TYutaniAvatarControllerType = actThirdPerson);
+    procedure DisableSplitScreen;
   published
     property Align;
     property Anchors;
@@ -647,6 +801,67 @@ begin
   Result.a := 255;
 end;
 { TYutaniRaylibSandbox }
+
+// Factory that maps the TYutaniAvatarControllerType enum to the matching
+// controller class. Spawns the controller with @FCamera so the new
+// instance is immediately wired to the sandbox camera. Caller is
+// responsible for freeing the returned instance (typically by assigning
+// it to FAvatarController and letting FreeAndNil clean it up).
+
+function TYutaniRaylibSandbox.CreateAvatarControllerOfType(AType: TYutaniAvatarControllerType; Avatar: TA3DComponent): TYutaniAvatarController;
+begin
+  case AType of
+    actVehicle:
+      Result := TYutaniVehicleController.Create(Avatar, @FCamera);
+    actThirdPerson:
+      Result := TYutaniThirdPersonController.Create(Avatar, @FCamera);
+    actFirstPerson:
+      Result := TYutaniFirstPersonController.Create(Avatar, @FCamera);
+    actFlight:
+      Result := TYutaniFlightController.Create(Avatar, @FCamera);
+    actSpectator:
+      Result := TYutaniSpectatorController.Create(Avatar, @FCamera);
+    actOrbit:
+      Result := TYutaniOrbitController.Create(Avatar, @FCamera);
+    actRigidBody:
+      Result := TYutaniRigidBodyController.Create(Avatar, @FCamera);
+  else
+    Result := TYutaniVehicleController.Create(Avatar, @FCamera);
+  end;
+end;
+
+procedure TYutaniRaylibSandbox.EnableSplitScreen(Avatar1, Avatar2: TA3DComponent; ControllerType1: TYutaniAvatarControllerType = actThirdPerson; ControllerType2: TYutaniAvatarControllerType = actThirdPerson);
+var
+  Cam1, Cam2: TCamera3D;
+begin
+  // Refuse to start split-screen while the single-player possess flow is
+  // still active - the two modes would fight over the FCamera pointer.
+  if FIsDriving then
+  begin
+    if Assigned(FInputManager) then
+      FInputManager.StopMouseLook;
+    FIsDriving := False;
+    FPlayerVehicle := nil;
+    FreeAndNil(FAvatarController);
+  end;
+  // Each player gets their own camera record. We initialise them with
+  // sane defaults; the controllers will overwrite position/target/up
+  // every frame anyway, so the initial values only matter for the very
+  // first rendered frame.
+  Cam1 := FCamera;
+  Cam2 := FCamera;
+  // We hand the manager pointers to the camera records. The sandbox
+  // owns FCamera1 / FCamera2 (added as fields below) so the pointer
+  // stays valid for the controller's lifetime.
+  FCam1 := Cam1;
+  FCam2 := Cam2;
+  FMultiPlayer.EnableSplitScreen(Avatar1, Avatar2, @FCam1, @FCam2, ControllerType1, ControllerType2);
+end;
+
+procedure TYutaniRaylibSandbox.DisableSplitScreen;
+begin
+  FMultiPlayer.DisableSplitScreen;
+end;
 
 constructor TYutaniRaylibSandbox.Create(AOwner: TComponent);
 begin
@@ -739,6 +954,11 @@ begin
   FPlayerVehicle := nil;
   FIsDriving := False;
   FAvatarController := nil;
+  // Default to vehicle so the existing F11 behaviour is unchanged.
+  FAvatarControllerType := actVehicle;
+  // Split-screen manager is created lazily-idle; EnableSplitScreen must be
+  // called explicitly before it does any work.
+  FMultiPlayer := TYutaniMultiPlayerManager.Create;
 
   //init audio engines
   FYutaniAudio := TYutaniAudioEngine.Create;
@@ -749,8 +969,16 @@ end;
 destructor TYutaniRaylibSandbox.Destroy;
 begin
   StopThread;
+  // Restore the OS cursor in case the sandbox is destroyed while
+  // mouselook is still active - otherwise the user is left with an
+  // invisible cursor after the window closes.
+  if Assigned(FInputManager) then
+    FInputManager.StopMouseLook;
   FreeAndNil(FPiano);
   FreeAndNil(FAvatarController);
+  // Tear down split-screen explicitly so the controllers are freed and
+  // the avatars get their gravity factor reset to 1.0.
+  FreeAndNil(FMultiPlayer);
   FreeAndNil(FLock);
   if Assigned(FYutaniAudio) then
     FreeAndNil(FYutaniAudio);
@@ -1536,12 +1764,66 @@ begin
   DoActorSpawned(Obj, oldLen);
 end;
 
+procedure TYutaniRaylibSandbox.StartCameraBlendToEditor(Duration: Single);
+begin
+  // Capture the avatar controller's last camera state so we can smoothly
+  // lerp from there to the editor orbit position. We read FCamera as-is
+  // (the controller has just written it via WriteCameraTransform with
+  // its own smoothing still partially in flight).
+  FCamBlendStartPos := FCamera.position;
+  FCamBlendStartTarget := FCamera.target;
+  FCamBlendStartUp := FCamera.up;
+  FCamBlendStartFOV := FCamera.fovy;
+  // Reset the blend progress. Duration is clamped to a tiny minimum so
+  // external callers can pass user-configurable values without risking
+  // a divide-by-zero in UpdateCameraBlend.
+  if Duration < 0.001 then
+    Duration := 0.001;
+  FCamBlendDuration := Duration;
+  FCamBlendProgress := 0.0;
+  FCamBlendActive := True;
+end;
+
+procedure TYutaniRaylibSandbox.UpdateCameraBlend(dt: Single);
+const
+  EDITOR_DEFAULT_FOV: Single = 45.0;
+var
+  Alpha: Single;
+  DesiredPos: TVector3;
+begin
+  if not FCamBlendActive then
+    Exit;
+  // Advance the blend. We use the same smoothstep curve as the avatar
+  // controller's one-shot transitions so the feel is consistent.
+  FCamBlendProgress := FCamBlendProgress + (dt / FCamBlendDuration);
+  if FCamBlendProgress >= 1.0 then
+  begin
+    FCamBlendProgress := 1.0;
+    FCamBlendActive := False;
+  end;
+  Alpha := FCamBlendProgress * FCamBlendProgress * (3.0 - 2.0 * FCamBlendProgress);
+  // Compute the editor's orbit position for the current FCamera.target
+  // + FCamYaw/Pitch/Dist. This is exactly what HandleCameraInput would
+  // set on the next frame, so we lerp FCamera.position towards that
+  // value to make the handoff seamless.
+  DesiredPos := Vector3Create(FCamera.target.x + Cos(FCamPitch) * Sin(FCamYaw) * FCamDist, FCamera.target.y + Sin(FCamPitch) * FCamDist, FCamera.target.z + Cos(FCamPitch) * Cos(FCamYaw) * FCamDist);
+  FCamera.position := Vector3Lerp(FCamBlendStartPos, DesiredPos, Alpha);
+  // Lerp the FOV back to the editor default. The First Person controller
+  // may have left it at 60 (walk) or 30 (ADS); restoring to 45 here
+  // prevents a visible FOV snap when the blend ends.
+  FCamera.fovy := Lerp(FCamBlendStartFOV, EDITOR_DEFAULT_FOV, Alpha);
+end;
+
 procedure TYutaniRaylibSandbox.HandleCameraInput;
 var
   p: TPoint;
   dt, panSpeed: Single;
   fwdX, fwdZ, rightX, rightZ: Single;
 begin
+  // If a camera blend is running we let it drive FCamera exclusively so
+  // the editor's regular orbit logic does not snap the camera mid-blend.
+  if FCamBlendActive then
+    Exit;
   // If we are landed or in planetary cam, we handle the camera entirely in SpaceLandingCamUpdate.
   // CRITICAL: Skip ALL of this if we are driving our own vehicle!
   if FIsDriving and Assigned(FPlayerVehicle) then
@@ -1738,6 +2020,80 @@ begin
     end;
     // Resize the array to fit only the surviving projectiles
     SetLength(FProjectiles, CurrIdx);
+  end;
+end;
+
+procedure TYutaniRaylibSandbox.HandleF12SplitScreenToggle;
+var
+  JPos: JPH_RVec3;
+  JRot: JPH_Quat;
+  Idx: Integer;
+  CubeSize: TVector3;
+  Cube: TA3DComponent;
+  NewData: PItemData;
+begin
+  OutputDebugString('F12 detected - entering HandleF12SplitScreenToggle.');
+  // Defensive: if the manager was never created (e.g. constructor failed
+  // silently), bail out so we do not dereference a nil pointer below.
+  if not Assigned(FMultiPlayer) then
+  begin
+    OutputDebugString('F12: FMultiPlayer is nil, aborting.');
+    Exit;
+  end;
+  try
+    if FMultiPlayer.Active then
+    begin
+      DisableSplitScreen;
+      OutputDebugString('F12: Split-screen disabled.');
+      Exit;
+    end;
+    // Make sure we have at least 2 avatars to drive. If the scene is
+    // empty or only has one dynamic item, spawn fresh test cubes at
+    // distinct positions so the user immediately sees the split.
+    while Length(FItems) < 2 do
+    begin
+      Idx := Length(FItems);
+      // Place them next to each other along the X axis so each player
+      // starts with a clearly different view.
+      JPos.x := (Idx - 0.5) * 6.0;
+      JPos.y := 5.0;
+      JPos.z := 0.0;
+      JRot.x := 0;
+      JRot.y := 0;
+      JRot.z := 0;
+      JRot.w := 1;
+      CubeSize := Vector3Create(1, 1, 1);
+      Cube := TA3DComponent.Create('', FEngine, stBox, CubeSize, False, False, @JPos, @JRot);
+      Cube.Name := 'SplitScreen_Avatar_' + IntToStr(Idx);
+      Cube.Friction := 0.4;
+      Cube.Restitution := 0.2;
+      Cube.Visible := True;
+      New(NewData);
+      FillChar(NewData^, SizeOf(TItemData), 0);
+      NewData^.SpawnTime := GetTime();
+      NewData^.IsProjectile := False;
+      NewData^.Name := Cube.Name;
+      Cube.UserData := NewData;
+      SetLength(FItems, Length(FItems) + 1);
+      FItems[High(FItems)] := Cube;
+      DoActorSpawned(Cube, High(FItems));
+    end;
+    OutputDebugString(PChar(Format('F12: Enabling split-screen (%d items in scene).', [Length(FItems)])));
+    EnableSplitScreen(FItems[0], FItems[1], FAvatarControllerType, FAvatarControllerType);
+    // Activate both avatars so Jolt does not keep them asleep on the
+    // very first frame after spawning.
+    FItems[0].ActivateBody;
+    FItems[1].ActivateBody;
+    OutputDebugString('F12: Split-screen enabled successfully.');
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('F12 EXCEPTION: ' + E.Message));
+      // If anything went wrong during setup, force the manager inactive
+      // so subsequent frames do not try to drive a half-set-up state.
+      if Assigned(FMultiPlayer) then
+        FMultiPlayer.DisableSplitScreen;
+    end;
   end;
 end;
 
@@ -1984,44 +2340,146 @@ begin
     FCtrlWasPressed := False;
 
   // ====================================================================
-  // VEHICLE FLIGHT CONTROL (F11)
+  // Split-Screen Toggle (F12)
+  // --------------------------------------------------------------------
+  // Toggles 2-player local couch-coop. When enabling, the first two
+  // items in the scene become the avatars - useful for quick testing.
+  // For production use, call EnableSplitScreen explicitly from your
+  // VCL with the specific avatars you want.
   // ====================================================================
-  if (GetAsyncKeyState(VK_F11) and $1) <> 0 then
+  if (GetAsyncKeyState(VK_F12) and $1) <> 0 then
   begin
-    if Assigned(FItemSelected) then
+    HandleF12SplitScreenToggle;
+    FMouseLeftHandled := True;
+  end;
+
+  // ====================================================================
+  // Avatar Flight Control (F11)
+  // --------------------------------------------------------------------
+  // F11 possesses the selected object using the controller type stored
+  // in FAvatarControllerType. Shift+F11 cycles the type without
+  // possessing. The 45-degree rotate on the second F11 press is
+  // preserved for the vehicle controller; for all other controllers the
+  // second F11 press simply exits driving so the user has an obvious
+  // way out without having to deselect first.
+  // ====================================================================
+
+  // Shift+F11: cycle the selected controller type. Always allowed, even
+  // while driving - the current controller is rebuilt in place so yaw
+  // and pitch are preserved and the camera transition feels seamless.
+  if ((GetAsyncKeyState(VK_SHIFT) and $8000) <> 0) and ((GetAsyncKeyState(VK_F11) and $1) <> 0) then
+  begin
+    case FAvatarControllerType of
+      actVehicle:
+        FAvatarControllerType := actThirdPerson;
+      actThirdPerson:
+        FAvatarControllerType := actFirstPerson;
+      actFirstPerson:
+        FAvatarControllerType := actFlight;
+      actFlight:
+        FAvatarControllerType := actSpectator;
+      actSpectator:
+        FAvatarControllerType := actOrbit;
+      actOrbit:
+        FAvatarControllerType := actRigidBody;
+      actRigidBody:
+        FAvatarControllerType := actVehicle;
+    end;
+    // Rebuild the controller in place if we are already driving so the
+    // new type takes effect immediately without forcing a re-possess.
+    if FIsDriving and Assigned(FAvatarController) and Assigned(FPlayerVehicle) then
     begin
-      FGizmoMode := gmNone;
-      // MODE 1: Not driving yet -> Possess the object!
-      if not FIsDriving then
-      begin
-        FIsDriving := True;
-        FPlayerVehicle := FItemSelected;
-        FPlayerVehicle.ActivateBody;
-        FAvatarController := TYutaniVehicleController.Create(FPlayerVehicle, @FCamera);
-      end
-      // MODE 2: Already driving -> Rotate OURSELVES (Camera & Flight Direction) by 45 Deg!
-      else
-      begin
-        // Rotate 45 degrees further (Camera and Flight Direction)
-        FAvatarController.CamYaw := FAvatarController.CamYaw + (Pi / 4.0);
-
-        // SIMULTANEOUSLY: Adjust model offset by -45 degrees,
-        // so the model itself stays exactly where it is in the world!
-        if FAvatarController is TYutaniVehicleController then
-          TYutaniVehicleController(FAvatarController).FVehicleModelOffset := TYutaniVehicleController(FAvatarController).FVehicleModelOffset - (Pi / 4.0);
-
-        // Stop the vehicle immediately so it doesn't drift into the old direction
-        FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
-        FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
-      end;
+      var SavedYaw := FAvatarController.CamYaw;
+      var SavedPitch := FAvatarController.CamPitch;
+      var SavedDist := FAvatarController.CamDist;
+      FreeAndNil(FAvatarController);
+      FAvatarController := CreateAvatarControllerOfType(FAvatarControllerType, FPlayerVehicle);
+      FAvatarController.CamYaw := SavedYaw;
+      FAvatarController.CamPitch := SavedPitch;
+      FAvatarController.CamDist := SavedDist;
+      // Trigger a smooth cinematic transition so the camera flies from
+      // the old controller's view to the new controller's view instead
+      // of snapping in a single frame.
+      FAvatarController.BeginCameraTransition(0.6);
+    end;
+    FMouseLeftHandled := True;
+  end
+  else if (GetAsyncKeyState(VK_F11) and $1) <> 0 then
+  begin
+    // Refuse to start the single-player possess flow while split-screen
+    // is active - the two modes share the FCamera pointer and would
+    // fight over it. The user must call DisableSplitScreen first.
+    if Assigned(FMultiPlayer) and FMultiPlayer.Active then
+    begin
       FMouseLeftHandled := True;
     end
     else
     begin
-      // MODE 3: Nothing selected -> Force exit vehicle mode safely
-      FIsDriving := False;
-      FPlayerVehicle := nil;
-      FreeAndNil(FAvatarController);
+      if Assigned(FItemSelected) then
+      begin
+        FGizmoMode := gmNone;
+      // MODE 1: Not driving yet -> possess the selected object using
+      // the currently selected controller type.
+        if not FIsDriving then
+        begin
+          FIsDriving := True;
+          FPlayerVehicle := FItemSelected;
+          FPlayerVehicle.ActivateBody;
+          FAvatarController := CreateAvatarControllerOfType(FAvatarControllerType, FPlayerVehicle);
+        // Smooth cinematic fly-in from the editor orbit position to
+        // the avatar chase position. Slightly longer than the swap
+        // transition because the camera typically has further to go.
+          FAvatarController.BeginCameraTransition(0.8);
+        // Start mouselook so cursor deltas are converted to look input
+        // for the freshly spawned controller.
+          FInputManager.StartMouseLook(FRaylibWnd);
+        end
+      // MODE 2: Already driving -> rotate ourselves by 45 deg. This is
+      // only meaningful for the vehicle controller; for every other
+      // controller type we just exit driving so the user has an escape.
+        else
+        begin
+          if FAvatarController is TYutaniVehicleController then
+          begin
+            FAvatarController.CamYaw := FAvatarController.CamYaw + (Pi / 4.0);
+          // Adjust model offset by -45 degrees so the model itself
+          // stays exactly where it is in the world.
+            TYutaniVehicleController(FAvatarController).FVehicleModelOffset := TYutaniVehicleController(FAvatarController).FVehicleModelOffset - (Pi / 4.0);
+          // Stop the vehicle immediately so it doesn't drift into the
+          // old direction while the camera swings around.
+            FPlayerVehicle.SetAngularVelocity(Vector3Create(0, 0, 0));
+            FPlayerVehicle.SetLinearVelocity(Vector3Create(0, 0, 0));
+          end
+          else
+          begin
+          // Non-vehicle controllers have no meaningful 45-degree
+          // behaviour, so the second F11 press is the exit gesture.
+            FInputManager.StopMouseLook;
+          // Start a smooth blend from the avatar's chase cam back to
+          // the editor orbit view before we tear down the controller,
+          // otherwise the camera snaps in a single frame.
+            StartCameraBlendToEditor(0.8);
+            FIsDriving := False;
+            FPlayerVehicle := nil;
+            FreeAndNil(FAvatarController);
+          end;
+        end;
+        FMouseLeftHandled := True;
+      end
+      else
+      begin
+      // MODE 3: Nothing selected -> force exit driving mode safely.
+      // Also restores the cursor in case mouselook was still active.
+        if Assigned(FInputManager) then
+          FInputManager.StopMouseLook;
+      // Start a smooth blend from the avatar's chase cam back to
+      // the editor orbit view before we tear down the controller,
+      // otherwise the camera snaps in a single frame.
+        StartCameraBlendToEditor(0.8);
+        FIsDriving := False;
+        FPlayerVehicle := nil;
+        FreeAndNil(FAvatarController);
+      end;
     end;
   end;
 
@@ -2814,7 +3272,7 @@ begin
     else if FGizmoAxis = 3 then
       WorldAxis := Vector3Create(0, 0, 1);
     WorldAxis := Vector3RotateByQuaternion(WorldAxis, FItemSelected.Quaternion);
-    // --- KORREKTE 3D-PROJEKTION FÜR ALLE ACHSEN ---
+    // --- Correct 3D projection for every axis ---
     CamRight := Vector3Normalize(Vector3CrossProduct(CamForward, FCamera.up));
     CamUp := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
     MoveDir := Vector3Add(Vector3Scale(CamRight, MouseDeltaX * 0.1), Vector3Scale(CamUp, -MouseDeltaY * 0.1));
@@ -3394,6 +3852,12 @@ begin
     end;
   end;
 
+  // Poll mouselook every frame so cursor deltas are converted into look
+  // input for whichever avatar controller is currently active. The call
+  // is a no-op when mouselook has not been started via StartMouseLook.
+  if Assigned(FInputManager) then
+    FInputManager.PollMouseLook;
+
   // Process Thread-safe Dematerialize Queue
   if Length(FDematerializeQueue) > 0 then
   begin
@@ -3639,12 +4103,15 @@ begin
       Dist := EnsureRange(Dist - Wheel * 10.0, MinDist, MinDist + 500.0);
       FCamera.position := Vector3Add(PlanetPos, Vector3Scale(Vector3Normalize(ToCam), Dist));
     end;
-    // 3. Force Camera Target: Schaut immer auf einen Punkt vor uns auf der Kugel
+    // 3. Force Camera Target: always look at a point slightly ahead of
+    //    us on the sphere surface so the horizon stays level while we
+    //    walk along the planet.
     var SurfDir := Vector3Normalize(Vector3Subtract(FCamera.position, PlanetPos));
     if not IsNan(SurfDir.x) then
     begin
       FCamera.up := SurfDir;
-      // Berechne einen Vorwärts-Vektor basierend auf der aktuellen Blickrichtung
+      // Compute a forward vector based on the current view direction so
+      // the camera keeps facing where the player was already looking.
       var CurrentForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
       var DotP := Vector3DotProduct(CurrentForward, SurfDir);
       var ForwardOnTangent := Vector3Subtract(CurrentForward, Vector3Scale(SurfDir, DotP));
@@ -3672,7 +4139,11 @@ begin
   end;
 
   // ====================================================================
-  // NEW: Update Avatar Controller (Replaces hardcoded flight logic)
+  // Update Avatar Controller
+  // Drives the currently active controller if we are possessing an
+  // object; otherwise releases it so the sandbox falls back to the
+  // editor camera. The controller type is selected externally via
+  // Shift+F11 and applied on the next F11 possess.
   // ====================================================================
   if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
   begin
@@ -3688,6 +4159,38 @@ begin
     FreeAndNil(FAvatarController);
   end;
 
+  // ====================================================================
+  // Update Split-Screen Manager
+  // Drives both player slots when split-screen is active. Mutually
+  // exclusive with the single-player FAvatarController path above -
+  // EnableSplitScreen refuses to start while FIsDriving, and the
+  // single-player path is skipped here while split-screen is active
+  // so the two never fight over the camera.
+  // ====================================================================
+  if Assigned(FMultiPlayer) and FMultiPlayer.Active then
+  begin
+    try
+      FMultiPlayer.Update(dt, FInputManager);
+      // Mirror player 0's camera onto FCamera so the rest of UpdateGame
+      // (shadow camera centering, distance culling, etc) sees a sensible
+      // view position even though we are not in the single-player flow.
+      FCamera := FCam1;
+      FCameraMoved := True;
+    except
+      on E: Exception do
+      begin
+        OutputDebugString(PChar('Split-screen UPDATE exception: ' + E.Message));
+        // Tear down split-screen so subsequent frames do not keep
+        // hitting the same exception.
+        FMultiPlayer.DisableSplitScreen;
+      end;
+    end;
+  end;
+
+  // Advance the camera blend if it is active. This lerps FCamera from
+  // a captured start state to the editor orbit position over a fixed
+  // duration so the exit from avatar driving mode feels cinematic.
+  UpdateCameraBlend(dt);
   HandleCameraInput;
   HandleDesktopInput;
   ProcessSpawnQueue(dt);
@@ -3870,11 +4373,13 @@ begin
 
   FSunPos := Vector3Create(Cos(SunAngle) * 100.0, Sin(SunAngle) * 100.0, 50.0);
 
-  // Wenn ein Objekt verschoben wurde (Gizmo), Schatten updaten!
+  // If an object was moved via a gizmo this frame, the shadow map must
+  // be re-rendered so the shadow stays in sync with the new transform.
   if FGizmoDragging or FDragging then
     ShadowNeedsUpdate := True;
 
-  // 2. Das Dirty-Flag an RenderShadowMap übergeben
+  // Hand the dirty flag down to RenderShadowMap so it can skip the
+  // expensive depth pass when nothing relevant changed this frame.
   FShadowMapDirty := ShadowNeedsUpdate;
 
   // Center the shadow camera between all active objects
@@ -3981,6 +4486,18 @@ begin
   if Assigned(FMPVPlayer) then
     FMPVPlayer.Render;
   Render3DScene;
+  // Draw a vertical divider line down the middle when split-screen is
+  // active so the user can immediately see that the screen is split,
+  // even if both halves happen to show a similar view.
+  if Assigned(FMultiPlayer) and FMultiPlayer.Active then
+  begin
+    var MidX: Single := GetScreenWidth() / 2.0;
+    var ScrH: Integer := GetScreenHeight();
+    // A bright 2px-wide line so it stands out against any background.
+    DrawRectangle(Trunc(MidX) - 1, 0, 3, ScrH, Fade(WHITE, 0.85));
+    DrawText('P1', Trunc(MidX) - 30, ScrH - 30, 20, WHITE);
+    DrawText('P2', Trunc(MidX) + 10, ScrH - 30, 20, WHITE);
+  end;
   DrawGUI;
   DrawNativePopup;
   EndDrawing();
@@ -4101,6 +4618,65 @@ end;
 
 procedure TYutaniRaylibSandbox.Render3DScene;
 var
+  SavedCam: TCamera3D;
+  FullW, HalfW, FullH: Integer;
+begin
+  // If split-screen is active, render the scene twice - once for each
+  // player's camera, clipped to the left/right half of the window via
+  // rlViewport. The viewport is restored to full screen afterwards so
+  // subsequent 2D passes (DrawGUI, DrawNativePopup) cover the whole
+  // window.
+  if (not Assigned(FMultiPlayer)) or (not FMultiPlayer.Active) then
+  begin
+    // Single-player mode - clear the override flags so the core pass
+    // uses the full-window aspect (BeginMode3D's default).
+    FSplitScreenVPW := 0;
+    FSplitScreenVPH := 0;
+    Render3DSceneCore;
+    Exit;
+  end;
+  SavedCam := FCamera;
+  try
+    try
+      FullW := GetScreenWidth();
+      HalfW := FullW div 2;
+      FullH := GetScreenHeight();
+      // --- Player 0: left half of the screen ---
+      // Set the viewport dims so Render3DSceneCore can override the
+      // perspective projection with the correct half-width aspect.
+      // Without this override, BeginMode3D uses the full-window
+      // aspect and the scene looks horizontally compressed in the
+      // half-width viewport.
+      FSplitScreenVPW := HalfW;
+      FSplitScreenVPH := FullH;
+      rlViewport(0, 0, HalfW, FullH);
+      FCamera := FCam1;
+      Render3DSceneCore;
+      // --- Player 1: right half of the screen ---
+      rlViewport(HalfW, 0, FullW - HalfW, FullH);
+      FCamera := FCam2;
+      Render3DSceneCore;
+    except
+      on E: Exception do
+      begin
+        OutputDebugString(PChar('Split-screen RENDER exception: ' + E.Message));
+        // Tear down so we do not keep crashing on subsequent frames.
+        FMultiPlayer.DisableSplitScreen;
+      end;
+    end;
+    // Restore full-screen viewport for the 2D UI passes that follow.
+    rlViewport(0, 0, FullW, FullH);
+    // Clear the override flags so the rest of the frame uses the
+    // full-window aspect again.
+    FSplitScreenVPW := 0;
+    FSplitScreenVPH := 0;
+  finally
+    FCamera := SavedCam;
+  end;
+end;
+
+procedure TYutaniRaylibSandbox.Render3DSceneCore;
+var
   i: Integer;
   Actor: TA3DComponent;
   Dist, MaxDist: Single;
@@ -4176,6 +4752,20 @@ var
 begin
   ActorColorLoc := GetShaderLocation(FLightShader, 'diffuse');
   BeginMode3D(FCamera);
+
+  // Split-screen projection override. BeginMode3D always uses the
+  // full-window aspect (CORE.Window.screen.width / height) for its
+  // perspective matrix, so when we've clipped the viewport to half
+  // width via rlViewport the scene looks horizontally compressed
+  // (everything reads as "too tall / stretched"). When the
+  // FSplitScreenVP* fields are non-zero we replace the top of the
+  // projection stack with a matrix computed from the correct aspect.
+  // EndMode3D's popMatrix later cleans up our replacement cleanly.
+  if FSplitScreenVPW > 0 then
+  begin
+    var OverrideProj: TMatrix := MatrixPerspective(FCamera.fovy * DEG2RAD, FSplitScreenVPW / FSplitScreenVPH, 0.01, 10000.0);
+    rlSetMatrixProjection(OverrideProj);
+  end;
 
   if FIsLoadingWorld then
   begin
@@ -4921,8 +5511,47 @@ begin
         ModeStr := 'Mode: None (UI Interaction)';
       end;
       DrawText(PAnsiChar(ModeStr), 10, GetScreenHeight() - 120, 20, RAYWHITE);
+
+      // Show the currently selected avatar controller type so the user
+      // knows what F11 will possess. Highlight it green while driving.
+      var CtrlStr: AnsiString;
+      case FAvatarControllerType of
+        actVehicle:
+          CtrlStr := AnsiString('Avatar: Vehicle (F11=possess, Shift+F11=cycle)');
+        actThirdPerson:
+          CtrlStr := AnsiString('Avatar: ThirdPerson (F11=possess, Shift+F11=cycle)');
+        actFirstPerson:
+          CtrlStr := AnsiString('Avatar: FirstPerson (F11=possess, Shift+F11=cycle)');
+        actFlight:
+          CtrlStr := AnsiString('Avatar: Flight (F11=possess, Shift+F11=cycle)');
+        actSpectator:
+          CtrlStr := AnsiString('Avatar: Spectator (F11=possess, Shift+F11=cycle)');
+        actOrbit:
+          CtrlStr := AnsiString('Avatar: Orbit (F11=possess, Shift+F11=cycle)');
+        actRigidBody:
+          CtrlStr := AnsiString('Avatar: RigidBody (F11=possess, Shift+F11=cycle)');
+      end;
+      if FIsDriving then
+        DrawText(PAnsiChar(CtrlStr), 10, GetScreenHeight() - 150, 20, GREEN)
+      else
+        DrawText(PAnsiChar(CtrlStr), 10, GetScreenHeight() - 150, 20, GRAY);
+
+      // Split-screen status indicator. Bright purple so it stands out
+      // from the regular controller-type line.
+      if Assigned(FMultiPlayer) and FMultiPlayer.Active then
+        DrawText('SPLIT SCREEN: 2 players (F12 to exit)', 10, GetScreenHeight() - 180, 20, MAGENTA)
+      else
+        DrawText('Single-player mode (F12 to start 2-player split)', 10, GetScreenHeight() - 180, 20, DARKGRAY);
     end;
   end;
+
+  // Galaxy minimap overlay - drawn last so it sits on top of every
+  // other 2D element. Only shown in space mode where the galaxy
+  // manager is actually running. Drawn with Raylib's 2D primitives
+  // so the call must happen here in DrawGUI (after EndMode3D) rather
+  // than from inside TSpaceWorld.Render which is still in 3D mode.
+  if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) then
+    FSpaceWorld.RenderMinimap(FCamera);
 end;
 
 procedure TYutaniRaylibSandbox.DoViewportReady;

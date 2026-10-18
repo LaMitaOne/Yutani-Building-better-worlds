@@ -12,8 +12,11 @@ const
 
 type
   mpv_handle = Pointer;
+
   Pmpv_handle = ^mpv_handle;
+
   mpv_render_context = Pointer;
+
   Pmpv_render_context = ^mpv_render_context;
 
   mpv_format = (MPV_FORMAT_NONE = 0, MPV_FORMAT_STRING = 1, MPV_FORMAT_OSD_STRING = 2, MPV_FORMAT_FLAG = 3, MPV_FORMAT_INT64 = 4, MPV_FORMAT_DOUBLE = 5, MPV_FORMAT_NODE = 6, MPV_FORMAT_NODE_ARRAY = 7, MPV_FORMAT_NODE_MAP = 8, MPV_FORMAT_BYTE_ARRAY = 9);
@@ -24,6 +27,7 @@ type
     get_proc_address: function(ctx: Pointer; name: PAnsiChar): Pointer; cdecl;
     get_proc_address_ctx: Pointer;
   end;
+
   Pmpv_opengl_init_params = ^mpv_opengl_init_params;
 
   mpv_opengl_fbo = record
@@ -32,12 +36,14 @@ type
     h: Integer;
     internal_format: Integer;
   end;
+
   Pmpv_opengl_fbo = ^mpv_opengl_fbo;
 
   mpv_render_param = record
     _type: mpv_render_param_type;
     data: Pointer;
   end;
+
   Pmpv_render_param = ^mpv_render_param;
 
   mpv_render_update_fn = procedure(cb_ctx: Pointer); cdecl;
@@ -82,6 +88,7 @@ var
   MPVLibHandle: THandle = 0;
 
 function LoadMPV: Boolean;
+
 procedure UnloadMPV;
 
 implementation
@@ -110,11 +117,9 @@ begin
   Result := False;
   if MPVLibHandle <> 0 then
     Exit(True);
-
   MPVLibHandle := LoadLibrary(LIBMPV_DLL);
   if MPVLibHandle = 0 then
     Exit;
-
   try
     mpv_create := GetProcAddr(MPVLibHandle, 'mpv_create');
     mpv_initialize := GetProcAddr(MPVLibHandle, 'mpv_initialize');
@@ -122,13 +127,11 @@ begin
     mpv_set_option_string := GetProcAddr(MPVLibHandle, 'mpv_set_option_string');
     mpv_command := GetProcAddr(MPVLibHandle, 'mpv_command');
     mpv_wait_event := GetProcAddr(MPVLibHandle, 'mpv_wait_event');
-
     mpv_render_context_create := GetProcAddr(MPVLibHandle, 'mpv_render_context_create');
     mpv_render_context_set_update_callback := GetProcAddr(MPVLibHandle, 'mpv_render_context_set_update_callback');
     mpv_render_context_update := GetProcAddr(MPVLibHandle, 'mpv_render_context_update');
     mpv_render_context_render := GetProcAddr(MPVLibHandle, 'mpv_render_context_render');
     mpv_render_context_free := GetProcAddr(MPVLibHandle, 'mpv_render_context_free');
-
     Result := True;
   except
     on E: Exception do
@@ -148,21 +151,17 @@ begin
     MPVLibHandle := 0;
   end;
 end;
-
 { TMPVPlayer }
 
 constructor TMPVPlayer.Create(W, H: Integer);
 begin
   if not LoadMPV then
     raise Exception.Create('mpv-2.dll not found or failed to load');
-
   FTarget := LoadRenderTexture(W, H);
   SetTextureFilter(FTarget.texture, TEXTURE_FILTER_TRILINEAR);
-
   FMPV := mpv_create();
   if FMPV = nil then
     raise Exception.Create('Failed to create mpv handle');
-
   mpv_set_option_string(FMPV, 'vo', 'libmpv');
   mpv_set_option_string(FMPV, 'hwdec', 'auto');
   mpv_set_option_string(FMPV, 'opengl', 'yes');
@@ -172,27 +171,21 @@ begin
   mpv_set_option_string(FMPV, 'vid', '1');
   mpv_set_option_string(FMPV, 'video-sync', 'audio');
   mpv_set_option_string(FMPV, 'audio-buffer', '0.2');
-
   if mpv_initialize(FMPV) < 0 then
     raise Exception.Create('Failed to initialize mpv');
-
   FInitParams.get_proc_address := @get_proc_address;
   FInitParams.get_proc_address_ctx := nil;
-
   FParams[0]._type := MPV_RENDER_PARAM_OPENGL_INIT_PARAMS;
   FParams[0].data := @FInitParams;
   FParams[1]._type := MPV_RENDER_PARAM_API_TYPE;
   FParams[1].data := MPV_RENDER_API_TYPE_OPENGL;
   FParams[2]._type := MPV_RENDER_PARAM_INVALID;
   FParams[2].data := nil;
-
   FRenderCtx := nil;
   if mpv_render_context_create(@FRenderCtx, FMPV, @FParams[0]) < 0 then
     raise Exception.Create('Failed to create mpv render context');
-
   mpv_render_context_set_update_callback(FRenderCtx, mpv_update_callback, nil);
   FHasRenderContext := True;
-
   if FPendingFile <> '' then
     LoadFile(FPendingFile);
 end;
@@ -203,7 +196,6 @@ begin
     mpv_render_context_free(FRenderCtx);
   if FMPV <> nil then
     mpv_terminate_destroy(FMPV);
-
   UnloadRenderTexture(FTarget);
   inherited;
 end;
@@ -247,25 +239,22 @@ var
 begin
   if FRenderCtx = nil then
     Exit;
-
   UpdateFlags := mpv_render_context_update(FRenderCtx);
   if (UpdateFlags and MPV_RENDER_UPDATE_FRAME) = 0 then
     Exit;
-
   FFBO.fbo := FTarget.id;
   FFBO.w := FTarget.texture.width;
   FFBO.h := FTarget.texture.height;
   FFBO.internal_format := 0;
   FFlipY := 0;
-
   FFBOParams[0]._type := MPV_RENDER_PARAM_OPENGL_FBO;
   FFBOParams[0].data := @FFBO;
   FFBOParams[1]._type := MPV_RENDER_PARAM_FLIP_Y;
   FFBOParams[1].data := @FFlipY;
   FFBOParams[2]._type := MPV_RENDER_PARAM_INVALID;
   FFBOParams[2].data := nil;
-
   mpv_render_context_render(FRenderCtx, @FFBOParams[0]);
 end;
 
 end.
+

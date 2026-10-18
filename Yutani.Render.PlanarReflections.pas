@@ -1,7 +1,7 @@
 unit Yutani.Render.PlanarReflections;
 
 {==============================================================================*
- *  Yutani Render PlanarReflections v0.1
+ *  Yutani Render PlanarReflections
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
