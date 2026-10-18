@@ -1,6 +1,5 @@
 ﻿unit Yutani.Core;
 
-
 {==============================================================================*
  *  Yutani.Core v0.649 - Multi-threaded Raylib + Jolt 3D Editor
  *------------------------------------------------------------------------------
@@ -77,23 +76,16 @@
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
  * Apache-2.0 license
-
  Latest Changes:
-
 v0.648
-
  - F11 posess item, but F12 now leave, split screen moved to F2
  -
 
-
  *==============================================================================}
-
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
-
 interface
-
 uses
   Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Math,
   System.SyncObjs, Vcl.Controls, Raylib, RayMath, rlgl, Yutani.Core.ModelEngine,
@@ -104,12 +96,9 @@ uses
   Yutani.Avatar.Controls, Yutani.Video.MPV, Yutani.Chaos.Skia;
   //RN_InputGeom, RN_Recast, RN_SampleInterfaces, RN_Sample, RN_SampleSoloMesh, RN_SampleTileMesh,
   //dglOpenGL, KromOGLUtils;
-
 type
   PItemData = ^TItemData;
-
   TObjectSelectedEvent = procedure(Sender: TObject; Actor: TA3DComponent) of object;
-
   TItemData = record
     SpawnTime: Double;
     LastHitTime: Double;
@@ -118,7 +107,6 @@ type
     OldVelocity: TVector3;
   end;
   // Custom Spawn Request record for external tools like Yutani.VCL3D.pas
-
   TSpawnRequest = record
     Shape: TShapeType;
     Pos: TVector3;
@@ -133,7 +121,6 @@ type
     OnClick: TNotifyEvent;
     GenerateTestTexture: Boolean;
   end;
-
   TParticleSpawnRequest = record
     Pos: TVector3;
     Count: Integer;
@@ -143,17 +130,13 @@ type
   // Thread-safe Dematerialize Request record - queued from VCL threads
   // and processed inside the render thread to avoid touching Jolt from
   // outside.
-
   TDematerializeRequest = record
     Actor: TA3DComponent;
   end;
-
   TWorldBaseType = (wbLand, wbSpace, wbHolodeck, wbIsland);
   // Spawn effect types for manual and scripted spawns
-
   TSpawnEffectType = (spefNone, spefBeam, spefFade);
   // Record to track an active spawn effect
-
   TSpawnEffect = record
     Position: TVector3;
     StartTime: Double;
@@ -161,30 +144,22 @@ type
     EffectType: TSpawnEffectType;
     TargetActor: TA3DComponent;
   end;
-
   TYutaniRaylibSandbox = class;
-
   TActorEventArgs = record
     Actor: TA3DComponent;
     Index: Integer;
   end;
-
   TEngineExceptionEventArgs = record
     Message: string;
     Context: string;
     Timestamp: TDateTime;
   end;
-
   TActorEvent = procedure(Sender: TObject; const Args: TActorEventArgs) of object;
-
   TNotifyEngineEvent = procedure(Sender: TObject) of object;
-
   TEngineExceptionEvent = procedure(Sender: TObject; const Args: TEngineExceptionEventArgs) of object;
-
   TGizmoMode = (gmNone, gmTranslate, gmRotate, gmScale, gmUniformScale, gmDragAndThrow);
   // Independent Piano Component
   // Encapsulates the piano base and all keys as a single logical unit
-
   TPiano = class
   private
     FSandbox: TYutaniRaylibSandbox;
@@ -199,7 +174,6 @@ type
     function KeyCount: Integer;
     property Base: TA3DComponent read FBase;
   end;
-
   TYutaniRaylibSandbox = class(TWinControl)
   private
     FThread: TThread;
@@ -235,7 +209,6 @@ type
     FCapsuleModel: TModel;
     FPyramidModel: TModel;
     FPrismModel: TModel;
-
     // Lighting & Shadow Map
     FLightShader: TShader;
     FLightPos: TVector3;
@@ -256,10 +229,8 @@ type
     FUnitBox: TMesh;
     FUnitSphere: TMesh;
     FCameraMoved: Boolean;
-
     // Optimization: Cached default shader for shadow map rendering
     FDefaultShader: TShader;
-
     // Skybox & Environment
     FSkyboxModel: TModel;
     FSkyboxShader: TShader;
@@ -267,21 +238,18 @@ type
     FSkyboxViewLoc: Integer;
     FSkyboxProjLoc: Integer;
     FSkyboxTex: TTexture2D;
-
     FCloudModel: TModel;
     FCloudShader: TShader;
     FCloudTex: TTexture2D;
     FCloudMoveFactor: Single;
     FCloudMoveFactorLoc: Integer;
     FCloudDaytimeLoc: Integer;
-
     FAmbientGradientTex: TTexture2D;
     FDayTime: Single;
     FDaySpeed: Single;
     FSunPos: TVector3;
     FSunColor: TVector4;
     FAmbientColor: TVector4;
-
     FProjectiles: TArray<TA3DComponent>;
     FShootCooldown: Single;
     FRightClickWasPressed: Boolean;
@@ -319,50 +287,39 @@ type
     FQueuedModelPath: string;
     FLastLoadedModelPath: string;
     FNavIndex: Integer;
-
     // Manual Day/Night Properties
     FDayNightRhythmActive: Boolean;
-
     // Distance Culling customizable property
     FMaxRenderDistance: Single;
-
     // Thread-safe Custom Spawn Queue
     FCustomSpawnQueue: TArray<TSpawnRequest>;
     FCustomSpawnTimer: Single;
     FIsMaterializingActor: Boolean;
-
     // Bomb System Variables
     FBombActor: TA3DComponent;
     FBombTimer: Single;
     FBombExploded: Boolean;
-
     // Particle Engine
     FParticleEngine: TYutaniParticleEngine;
     FParticleSpawnQueue: TArray<TParticleSpawnRequest>;
-
   // NanoFog Engine
     FNanoFog: TNanoFogEngine;
     FNanoFogAvatarID: Integer;
-
     // Slow Motion System Variables
     FTimeScale: Single;
     FSavedTimeScale: Single;  // 1.0 = Normal speed, 0.2 = 20% speed (Slow Motion)
     FSlowMotionActive: Boolean;
-
     // Scene Save/Load Queues
     FSaveSceneQueued: Boolean;
     FQueuedSavePath: string;
     FLoadSceneQueued: Boolean;
     FQueuedLoadPath: string;
-
     // AV System
     FMPVPlayer: TMPVPlayer;
-
     //base world
     FCurrentWorldBase: TWorldBaseType;
     FIslandWorld: TIslandWorld;
     FSpaceWorld: TSpaceWorld;
-
     // Space Landing & Cam Modes
     FSpaceLandingState: Integer; // 0 = Free Fly, 1 = Approach, 2 = Landed, 3 = Takeoff
     FSpaceLandingTargetPos: TVector3;
@@ -373,35 +330,28 @@ type
     FSpacePlanetaryCam: Boolean;
     FSpaceLandingCamTargetCenter: TVector3;
     FSpaceLandingTargetIndex: Integer;
-
     // Spawn Effect System
     FSpawnEffectType: TSpawnEffectType;
     FActiveSpawnEffects: TArray<TSpawnEffect>;
     FAntiAliasing: Boolean;
     FGravity: Single;
-
     // Independent Piano Component
     FPiano: TPiano;
-
     // Voronoi Fracture System
     FFractureQueue: TArray<TFragment>;
     FFractureTimer: Single;
-
     // AliveHighlighter3D
     FAliveHighlighter3D: TAliveHighlighter3D;
     FMouseWorldPos: TVector3;
-
     // Async Loading State
     FIsLoadingWorld: Boolean;
     FPendingWorldBase: TWorldBaseType;
     FPendingSpaceShader: TShader;
     FLoadWorldQueued: Boolean;
     FLoadingScreen: TYutaniLoadingScreen;
-
     // Second Life style Camera Focus tracking variables
     FFocusTrackingActor: TA3DComponent;
     FAltWasPressed: Boolean;
-
    // ====================================================================
     // Centralized Avatar Controls & Input Manager
     // Bridges keyboard, SDL3 gamepad and mouselook input to the active
@@ -445,25 +395,19 @@ type
     FCamBlendStartFOV: Single;
     FCamBlendProgress: Single;
     FCamBlendDuration: Single;
-
     // Dematerialize Queue
     FDematerializeQueue: TArray<TDematerializeRequest>;
     procedure ExecuteDematerializeActor(Actor: TA3DComponent);
-
     // Voronoi Fracture System
     procedure ProcessFractureQueue(dt: Single);
     procedure TriggerFracture(Actor: TA3DComponent; ImpactForce: Single);
-
     procedure UpdateBomb(dt: Single);
     procedure ExplodeBomb;
-
     procedure ProcessCustomSpawnQueue(dt: Single);
-
     procedure SetDayNightTime(const Value: Single);
     procedure SetDayNightRhythmActive(const Value: Boolean);
     procedure SetDayNightSpeed(const Value: Single);
     procedure SetWorldBase(const Value: TWorldBaseType);
-
     procedure LoadModelInThread(const FilePath: string);
     procedure ShootBall;
     procedure UpdateProjectiles(dt: Single);
@@ -518,16 +462,13 @@ type
     procedure SetFrustumCulling(const Value: Boolean);
     procedure SetDistanceCulling(const Value: Boolean);
     procedure SetMaxRenderDistance(const Value: Single);
-
     // Internal execution in the main thread
     procedure ExecuteSceneSave(const FileName: string);
     procedure ExecuteSceneLoad(const FileName: string);
-
     procedure DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
    // Spawn Effect Methods
     procedure TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
     procedure DrawSpawnEffects;
-
     procedure SetAntiAliasing(const Value: Boolean);
     procedure SetGravity(const Value: Single);
     procedure SetTimeScale(const Value: Single);
@@ -561,10 +502,8 @@ type
     procedure SpawnPiano;
     procedure SelectNextObject;
     procedure SelectPrevObject;
-
     // Exposes the custom spawn queue to external threads/UI
     procedure QueueCustomSpawn(const Request: TSpawnRequest);
-
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     property OnViewportReady: TNotifyEngineEvent read FOnViewportReady write FOnViewportReady;
@@ -584,35 +523,28 @@ type
     property MaxRenderDistance: Single read FMaxRenderDistance write SetMaxRenderDistance;
     procedure ReattachLoadedActor(Actor: TA3DComponent);
     procedure ClearDynamicItemsOnly;
-
     // Called from VCL to safely queue save/load in the render thread
     procedure SaveSceneToFile(const FileName: string);
     procedure LoadSceneFromFile(const FileName: string);
-
    // Control the 3D Alive Highlighter
     procedure SetHighlighterActive(Active: Boolean);
     procedure SendHighlighterToActor(Actor: TA3DComponent);
-
     // External Particle Triggers
     procedure TriggerFogEffect;
     procedure TriggerExplosionEffect;
-
     // Nanofog
     procedure TriggerNanoFogDuplicate;
     procedure MorphSelectedToFog;
     procedure KillNanoFog;
-
     // External Dematerialize Triggers - safe to call from VCL/UI thread;
     // they queue a request that the render thread drains inside UpdateGame.
     procedure DematerializeSelectedObject;
     procedure DematerializeActor(Actor: TA3DComponent);
     procedure ExecuteMaterializeActor(Actor: TA3DComponent);
-
     // Factory that maps TYutaniAvatarControllerType to the matching
     // controller class. Used by the F11 possess path and the Shift+F11
     // controller-swap path so the spawn logic lives in exactly one place.
     function CreateAvatarControllerOfType(AType: TYutaniAvatarControllerType; Avatar: TA3DComponent): TYutaniAvatarController;
-
     // Split-screen lifecycle. EnableSplitScreen spawns two controllers
     // (one per avatar/camera pair) and switches the sandbox from
     // single-player mode into 2-player mode. DisableSplitScreen tears
@@ -639,9 +571,7 @@ type
     property TimeScale: Single read FTimeScale write SetTimeScale;
     property IsLoadingWorld: Boolean read FIsLoadingWorld write FIsLoadingWorld;
   end;
-
 implementation
-
 const
   COL_PRISM: TColorB = (
     r: 102;
@@ -650,7 +580,6 @@ const
     A: 255
   );
 // Helper function to render text into a texture so it can be applied to 3D meshes
-
 function DrawTextToTexture(const AText: string; FontSize: Integer; TextColor, BGColor: TColorB): TTexture2D;
 var
   Img: TImage;
@@ -660,29 +589,21 @@ begin
   Txt := AnsiString(' ' + AText + ' ');
   if Length(Txt) = 0 then
     Txt := ' ';
-
   // Calculate width and height for the image canvas
   W := MeasureText(PAnsiChar(Txt), FontSize) + 4;
   H := FontSize + 4;
-
   // Generate an image filled with the BUTTON COLOR (not transparent!)
   Img := GenImageColor(W, H, BGColor);
-
   // Draw the text onto the image
   ImageDrawText(@Img, PAnsiChar(Txt), 2, 2, FontSize, TextColor);
-
   ImageFlipVertical(@Img);
-
   // Convert the image to a GPU texture
   Result := LoadTextureFromImage(Img);
-
   // Set trilinear filter so the text doesn't look pixelated up close
   SetTextureFilter(Result, TEXTURE_FILTER_TRILINEAR);
-
   // Free the CPU-side image data
   UnloadImage(Img);
 end;
-
 function GetCollisionHighlightingColor(intensity: Single): TColorB;
 begin
   if intensity < 0 then
@@ -695,13 +616,11 @@ begin
   Result.a := 255;
 end;
 { TYutaniRaylibSandbox }
-
 // Factory that maps the TYutaniAvatarControllerType enum to the matching
 // controller class. Spawns the controller with @FCamera so the new
 // instance is immediately wired to the sandbox camera. Caller is
 // responsible for freeing the returned instance (typically by assigning
 // it to FAvatarController and letting FreeAndNil clean it up).
-
 function TYutaniRaylibSandbox.CreateAvatarControllerOfType(AType: TYutaniAvatarControllerType; Avatar: TA3DComponent): TYutaniAvatarController;
 begin
   case AType of
@@ -723,7 +642,6 @@ begin
     Result := TYutaniVehicleController.Create(Avatar, @FCamera);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.EnableSplitScreen(Avatar1, Avatar2: TA3DComponent; ControllerType1: TYutaniAvatarControllerType = actThirdPerson; ControllerType2: TYutaniAvatarControllerType = actThirdPerson);
 var
   Cam1, Cam2: TCamera3D;
@@ -751,12 +669,10 @@ begin
   FCam2 := Cam2;
   FMultiPlayer.EnableSplitScreen(Avatar1, Avatar2, @FCam1, @FCam2, ControllerType1, ControllerType2);
 end;
-
 procedure TYutaniRaylibSandbox.DisableSplitScreen;
 begin
   FMultiPlayer.DisableSplitScreen;
 end;
-
 constructor TYutaniRaylibSandbox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -806,40 +722,31 @@ begin
   FFocusTrackingActor := nil;
   FAltWasPressed := False;
   FShowInfosGUi := False;
-
   // Optimization: Initialize default shader ID to 0
   FDefaultShader.id := 0;
-
   // Default render culling distance
   FMaxRenderDistance := 300.0;
-
   // Initialize Custom Spawn Queue
   FCustomSpawnQueue := nil;
   FCustomSpawnTimer := 0.0;
-
   // Initialize Slow Motion System
   FTimeScale := 1.0; // Default to normal speed
   FSavedTimeScale := 0.2;
   FSlowMotionActive := False;
-
   // Init Scene Load/Save flags
   FSaveSceneQueued := False;
   FLoadSceneQueued := False;
   FQueuedSavePath := '';
   FQueuedLoadPath := '';
-
   // BASE WORLD INITIALIZATION: Default to wbHolodeck
   FCurrentWorldBase := wbHolodeck;
-
   // Initialize Spawn Effect System
   FSpawnEffectType := spefBeam;
   FActiveSpawnEffects := nil;
   FAntiAliasing := True;
   FGravity := -9.81;
-
   // Piano Component init
   FPiano := nil;
-
    // ====================================================================
     // Initialize Avatar Controls
     // ====================================================================
@@ -853,13 +760,11 @@ begin
   // Split-screen manager is created lazily-idle; EnableSplitScreen must be
   // called explicitly before it does any work.
   FMultiPlayer := TYutaniMultiPlayerManager.Create;
-
   //init audio engines
   FYutaniAudio := TYutaniAudioEngine.Create;
   FYutaniAudio.InitAudio;
   FYutaniAudio.LoadSoundfont(ExtractFilePath(ParamStr(0)) + 'ressources\audio\8bitsf.sf2');
 end;
-
 destructor TYutaniRaylibSandbox.Destroy;
 begin
   StopThread;
@@ -882,25 +787,21 @@ begin
     FreeAndNil(FAliveHighlighter3D);
   inherited;
 end;
-
 procedure TYutaniRaylibSandbox.CreateWindowHandle(const Params: TCreateParams);
 begin
   inherited;
 end;
-
 procedure TYutaniRaylibSandbox.DestroyWindowHandle;
 begin
   StopThread;
   inherited;
 end;
-
 procedure TYutaniRaylibSandbox.Resize;
 begin
   inherited;
   if FInitialized and (FRaylibWnd <> 0) then
     SetWindowPos(FRaylibWnd, 0, 0, 0, ClientWidth, ClientHeight, SWP_NOZORDER);
 end;
-
 procedure TYutaniRaylibSandbox.SetActive(const Value: Boolean);
 begin
   if FActive <> Value then
@@ -916,13 +817,11 @@ begin
       FPaused := True;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetTargetFPS(const Value: Integer);
 begin
   if FTargetFPS <> Value then
     FTargetFPS := Value;
 end;
-
 procedure TYutaniRaylibSandbox.SetHighlightCollision(const Value: Boolean);
 var
   i: Integer;
@@ -940,26 +839,22 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetDayNightRhythmActive(const Value: Boolean);
 begin
   if FDayNightRhythmActive <> Value then
     FDayNightRhythmActive := Value;
 end;
-
 procedure TYutaniRaylibSandbox.SetDayNightTime(const Value: Single);
 begin
   // Clamp the value between 0.0 and 1.0 to represent a full 24h cycle
   FDayTime := EnsureRange(Value, 0.0, 1.0);
 end;
-
 procedure TYutaniRaylibSandbox.SetDayNightSpeed(const Value: Single);
 begin
   // Clamp the value to a reasonable range (e.g., 0.0 to pause, up to 1.0 for very fast)
   // Ensure the speed cannot be negative to prevent time going backwards unintentionally
   FDaySpeed := EnsureRange(Value, 0.0, 1.0);
 end;
-
 procedure TYutaniRaylibSandbox.SetSlowMotionActive(const Value: Boolean);
 begin
   if FSlowMotionActive <> Value then
@@ -977,7 +872,6 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetTimeScale(const Value: Single);
 begin
   FSavedTimeScale := EnsureRange(Value, 0.05, 2.0);
@@ -992,16 +886,13 @@ begin
     FYutaniAudio.SetTSFPitch(FTimeScale);     // TinySoundFont Piano
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetWorldBase(const Value: TWorldBaseType);
 begin
   if FCurrentWorldBase = Value then
     Exit;
   if FIsLoadingWorld then
     Exit;
-
   FIsLoadingWorld := True;
-
   if (Value = wbSpace) and (not Assigned(FSpaceWorld)) then
   begin
     if not Assigned(FLoadingScreen) then
@@ -1013,7 +904,6 @@ begin
   begin
     // 1. Detach from Jolt so we can safely change the shape size
     FFloorActor.DetachFromPhysics;
-
     // 2. Change the size and visibility
     if Value = wbSpace then
     begin
@@ -1052,13 +942,11 @@ begin
   FPendingSpaceShader := FLightShader;
   FLoadWorldQueued := True;
 end;
-
 procedure TYutaniRaylibSandbox.SetAntiAliasing(const Value: Boolean);
 begin
   if FAntiAliasing <> Value then
   begin
     FAntiAliasing := Value;
-
     // Anti-Aliasing requires re-creating the Raylib window,
     // so we restart the thread if the engine is already running.
     if FInitialized then
@@ -1070,7 +958,6 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetGravity(const Value: Single);
 var
   GravVec: JPH_Vec3;
@@ -1078,7 +965,6 @@ begin
   if FGravity <> Value then
   begin
     FGravity := Value;
-
     // Apply gravity live to Jolt Physics if engine is running
     if Assigned(FEngine) then
     begin
@@ -1089,38 +975,31 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetBrush(AShape: TShapeType);
 begin
   FBrushShape := AShape;
   FIsBrushActive := True;
 end;
-
 procedure TYutaniRaylibSandbox.SetSimulationRunning(AValue: Boolean);
 begin
   FSimulationRunning := AValue;
 end;
-
 function TYutaniRaylibSandbox.GetSimulationRunning: Boolean;
 begin
   Result := FSimulationRunning;
 end;
-
 procedure TYutaniRaylibSandbox.SetGizmoMode(AMode: TGizmoMode);
 begin
   FGizmoMode := AMode;
 end;
-
 procedure TYutaniRaylibSandbox.SetFrustumCulling(const Value: Boolean);
 begin
   FFrustumCulling := Value;
 end;
-
 procedure TYutaniRaylibSandbox.SetDistanceCulling(const Value: Boolean);
 begin
   FDistanceCulling := Value;
 end;
-
 procedure TYutaniRaylibSandbox.SetMaxRenderDistance(const Value: Single);
 begin
   // Allow custom distance culling ranges, enforcing a sane minimum
@@ -1129,7 +1008,6 @@ begin
   else
     FMaxRenderDistance := 10.0;
 end;
-
 procedure TYutaniRaylibSandbox.InitLightingAndEnvironment;
 var
   SkyMesh, CloudMesh: TMesh;
@@ -1139,10 +1017,8 @@ begin
   var WhiteImg := GenImageColor(1, 1, WHITE);
   FDefaultWhiteTex := LoadTextureFromImage(WhiteImg);
   UnloadImage(WhiteImg);
-
   // Initialize Main Lighting Shader (Uses constants from Yutani.Render.Shaders unit)
   FLightShader := LoadShaderFromMemory(PAnsiChar(VERT), PAnsiChar(FRAG));
-
   // Get uniform variable locations from the shader for later updates per frame
   FLightPosLoc := GetShaderLocation(FLightShader, 'lightPos');
   FViewPosLoc := GetShaderLocation(FLightShader, 'viewPos');
@@ -1151,39 +1027,31 @@ begin
   FShadowMapLoc := GetShaderLocation(FLightShader, 'shadowMap');
   FLightViewLoc := GetShaderLocation(FLightShader, 'lightView');
   FLightProjLoc := GetShaderLocation(FLightShader, 'lightProj');
-
   // Optimization: Create the default shader once to prevent loading/unloading it every frame in RenderShadowMap
   FDefaultShader := LoadShader(nil, nil);
-
   // Create a 2048x2048 render texture to store the shadow map depth buffer
   FShadowMap := LoadRenderTexture(2048, 2048);
   SetTextureFilter(FShadowMap.texture, TEXTURE_FILTER_TRILINEAR);
-
   // Initialize main light position and mark camera as moved to force first update
   FLightPos := Vector3Create(50, 80, 30);
   FCameraMoved := True;
-
   // Setup the orthographic camera looking down from the light's perspective for shadow mapping
   FLightCam.position := Vector3Create(0, 80, 0);
   FLightCam.target := Vector3Create(0, 0, 0);
   FLightCam.up := Vector3Create(0, 1, 0);
   FLightCam.fovy := 20.0;
   FLightCam.projection := CAMERA_ORTHOGRAPHIC;
-
   // Apply trilinear filter to the generated default white texture
   SetTextureFilter(FDefaultWhiteTex, TEXTURE_FILTER_TRILINEAR);
-
   // Create a default material and assign our custom lighting shader to it
   FDefaultMat := LoadMaterialDefault();
   FDefaultMat.shader := FLightShader;
   FDefaultMat.maps[MATERIAL_MAP_ALBEDO].Color := WHITE;
-
   // Generate standard unit meshes for solid drawing (cached for performance)
   FUnitBox := GenMeshCube(1.0, 1.0, 1.0);
   UploadMesh(@FUnitBox, False);
   FUnitSphere := GenMeshSphere(1.0, 16, 16);
   UploadMesh(@FUnitSphere, False);
-
   // Generate standard meshes for solid drawing
   FUnitCylinder := GenMeshCylinder(0.5, 1.0, 24);
   UploadMesh(@FUnitCylinder, False);
@@ -1191,43 +1059,36 @@ begin
   UploadMesh(@FUnitCone, False);
   FUnitPrism := GenMeshCylinder(0.5, 1.0, 3);
   UploadMesh(@FUnitPrism, False);
-
   // Generate models for all primitive shapes to ensure consistent shader handling
   FBoxModel := LoadModelFromMesh(GenMeshCube(1.0, 1.0, 1.0));
   FSphereModel := LoadModelFromMesh(GenMeshSphere(1.0, 16, 16));
   FCapsuleModel := LoadModelFromMesh(GenMeshCylinder(0.5, 1.0, 24));
   FPyramidModel := LoadModelFromMesh(GenMeshCone(0.5, 1.0, 4));
   FPrismModel := LoadModelFromMesh(GenMeshCylinder(0.5, 1.0, 3));
-
   // Assign the lighting shader to all generated primitive models
   FBoxModel.materials[0].shader := FLightShader;
   FSphereModel.materials[0].shader := FLightShader;
   FCapsuleModel.materials[0].shader := FLightShader;
   FPyramidModel.materials[0].shader := FLightShader;
   FPrismModel.materials[0].shader := FLightShader;
-
   // Apply rotation transforms so the shader knows the normals rotate with the object
   FPyramidModel.transform := MatrixRotateY(45.0 * DEG2RAD);
   FPrismModel.transform := MatrixRotateY(120.0 * DEG2RAD);
-
   // Set the safe default white texture for ALL models so they don't render black without a custom texture
   FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
   FSphereModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
   FCapsuleModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
   FPyramidModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
   FPrismModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
-
   // Initialize Skybox (Uses constants from Yutani.Render.Shaders unit)
   FSkyboxShader := LoadShaderFromMemory(PAnsiChar(SKYBOX_VERT), PAnsiChar(SKYBOX_FRAG));
   FSkyboxDaytimeLoc := GetShaderLocation(FSkyboxShader, 'daytime');
   FSkyboxViewLoc := GetShaderLocation(FSkyboxShader, 'view');
   FSkyboxProjLoc := GetShaderLocation(FSkyboxShader, 'projection');
-
   // Create a cube mesh and invert it to act as the skybox interior
   SkyMesh := GenMeshCube(1.0, 1.0, 1.0);
   FSkyboxModel := LoadModelFromMesh(SkyMesh);
   FSkyboxModel.materials[0].shader := FSkyboxShader;
-
   // Load Skybox textures
   FilePath := ExtractFilePath(ParamStr(0)) + 'ressources/';
   if FileExists(PAnsiChar(AnsiString(FilePath + 'skyGradient.png'))) then
@@ -1236,18 +1097,15 @@ begin
     SetTextureFilter(FSkyboxTex, TEXTURE_FILTER_TRILINEAR);
     // The procedural shader handles the actual rendering, this texture might be used for lookup if needed
   end;
-
   // Initialize Clouds (Uses constants from Yutani.Render.Shaders unit)
   FCloudShader := LoadShaderFromMemory(PAnsiChar(CLOUD_VERT), PAnsiChar(CLOUD_FRAG));
   FCloudMoveFactorLoc := GetShaderLocation(FCloudShader, 'moveFactor');
   FCloudDaytimeLoc := GetShaderLocation(FCloudShader, 'daytime');
-
   // Generate a large 2000x2000 plane for the clouds and place it high up
   CloudMesh := GenMeshPlane(2000, 2000, 1, 1);
   FCloudModel := LoadModelFromMesh(CloudMesh);
   FCloudModel.transform := MatrixTranslate(0, 150, 0);
   FCloudModel.materials[0].shader := FCloudShader;
-
   // Load cloud texture if it exists, set it to repeat for seamless scrolling
   if FileExists(PAnsiChar(AnsiString(FilePath + 'clouds.png'))) then
   begin
@@ -1256,7 +1114,6 @@ begin
     SetTextureWrap(FCloudTex, TEXTURE_WRAP_REPEAT);
     FCloudModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FCloudTex;
   end;
-
   // Load Ambient Gradient texture for dynamic lighting color lookup
   if FileExists(PAnsiChar(AnsiString(FilePath + 'ambientGradient.png'))) then
   begin
@@ -1264,7 +1121,6 @@ begin
     SetTextureFilter(FAmbientGradientTex, TEXTURE_FILTER_TRILINEAR);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.StartThread;
 begin
   if FThreadActive then
@@ -1301,7 +1157,6 @@ begin
             // 5. Finally, position and size it perfectly inside our VCL parent
             SetWindowPos(FRaylibWnd, 0, 0, 0, Self.ClientWidth, Self.ClientHeight, SWP_NOZORDER);
           end;
-
           FEngine := TModelEngine.Create;
           // Apply initial Gravity
           var InitGravVec: JPH_Vec3;
@@ -1332,15 +1187,11 @@ begin
           FHUDAnimY := -150.0;
           InitScene;
           JPH_PhysicsSystem_OptimizeBroadPhase(FEngine.PhysicsSystem);
-
           InitLightingAndEnvironment;
-
           FParticleEngine := TYutaniParticleEngine.Create;
-
           // Init NanoFog Engine
           FNanoFog := TNanoFogEngine.Create;
           FNanoFogAvatarID := 1;
-
           FInitialized := True;
           FSceneStartTime := GetTime();
           DoViewportReady;
@@ -1352,7 +1203,6 @@ begin
               QueryPerformanceCounter(FrameStart);
               if WindowShouldClose() then
                 Break;
-
               // ==========================================
               // WORLD LOADING (RAYLIB STAYS VISIBLE BUT BLACK)
               // ==========================================
@@ -1360,7 +1210,6 @@ begin
               begin
                 FLoadWorldQueued := False;
                 FIsLoadingWorld := True;
-
                 // 1. Start the loading screen
                 if (FPendingWorldBase = wbSpace) and (not Assigned(FSpaceWorld)) then
                 begin
@@ -1368,10 +1217,8 @@ begin
                     FLoadingScreen := TYutaniLoadingScreen.Create;
                   FLoadingScreen.Start;
                 end;
-
                 // 2. Render one frame to Raylib so it immediately switches to black
                 RenderGame;
-
                 // 3. Perform the heavy lifting (this blocks the thread)
                 try
                   if FPendingWorldBase = wbSpace then
@@ -1388,7 +1235,6 @@ begin
                   on E: Exception do
                     DoEngineException(E.Message, 'AsyncWorldLoad');
                 end;
-
                 // 4. Apply world settings
                 FCurrentWorldBase := FPendingWorldBase;
                 case FCurrentWorldBase of
@@ -1411,7 +1257,6 @@ begin
                     FDayNightRhythmActive := True;
                 end;
                 FShadowMapDirty := True;
-
                 // 5. Tell the loading screen to stop.
                 // It will gracefully fade out itself!
                 if Assigned(FLoadingScreen) then
@@ -1419,7 +1264,6 @@ begin
                   FLoadingScreen.AsyncStop;
                   FLoadingScreen := nil;
                 end;
-
                 FIsLoadingWorld := False;
               end
               else
@@ -1427,7 +1271,6 @@ begin
                 UpdateGame;
                 RenderGame;
               end;
-
               if FTargetFPS > 0 then
               begin
                 FrameTicks := Freq div FTargetFPS;
@@ -1478,11 +1321,9 @@ begin
             UnloadModel(FCustomModel);
           if FLightShader.id > 0 then
             UnloadShader(FLightShader);
-
           // Optimization: Unload cached default shader used for shadow mapping
               if FDefaultShader.id > 0 then
             UnloadShader(FDefaultShader);
-
           if FSkyboxShader.id > 0 then
           begin
             UnloadShader(FSkyboxShader);
@@ -1505,7 +1346,6 @@ begin
             UnloadTexture(FDefaultWhiteTex);
           UnloadMesh(FUnitBox);
           UnloadMesh(FUnitSphere);
-
           if Assigned(FIslandWorld) then
             FreeAndNil(FIslandWorld);
           if Assigned(FSpaceWorld) then
@@ -1523,7 +1363,6 @@ begin
   FThread.FreeOnTerminate := True;
   FThread.Start;
 end;
-
 procedure TYutaniRaylibSandbox.StopThread;
 begin
   if not FThreadActive then
@@ -1534,7 +1373,6 @@ begin
     Sleep(100);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.InitScene;
 begin
   // Standard giant floor for the first start
@@ -1542,15 +1380,12 @@ begin
   FFloorActor.SetPosition(Vector3Create(0, -0.5, 0));
   FFloorActor.Visible := False;
   FFloorActor.Friction := 0.5;
-
   FItems := nil;
 end;
-
 function TYutaniRaylibSandbox.ItemCount: Integer;
 begin
   Result := Length(FItems);
 end;
-
 procedure TYutaniRaylibSandbox.ClearItems;
 begin
   FLock.Enter;
@@ -1569,7 +1404,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SpawnObjects(Count: Integer; ShapeType: TShapeType);
 begin
   FLock.Enter;
@@ -1580,7 +1414,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.QueueCustomSpawn(const Request: TSpawnRequest);
 begin
   // Thread-safe addition to the custom spawn queue
@@ -1592,7 +1425,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ProcessSpawnQueue(dt: Single);
 var
   Obj: TA3DComponent;
@@ -1653,11 +1485,9 @@ begin
   Obj.Restitution := 0.2;
   Obj.UserData := Data;
   Obj.Visible := True;
-
   FItems[oldLen] := Obj;
   DoActorSpawned(Obj, oldLen);
 end;
-
 procedure TYutaniRaylibSandbox.StartCameraBlendToEditor(Duration: Single);
 begin
   // Capture the avatar controller's last camera state so we can smoothly
@@ -1677,7 +1507,6 @@ begin
   FCamBlendProgress := 0.0;
   FCamBlendActive := True;
 end;
-
 procedure TYutaniRaylibSandbox.UpdateCameraBlend(dt: Single);
 const
   EDITOR_DEFAULT_FOV: Single = 45.0;
@@ -1707,7 +1536,6 @@ begin
   // prevents a visible FOV snap when the blend ends.
   FCamera.fovy := Lerp(FCamBlendStartFOV, EDITOR_DEFAULT_FOV, Alpha);
 end;
-
 procedure TYutaniRaylibSandbox.HandleCameraInput;
 var
   p: TPoint;
@@ -1722,16 +1550,13 @@ begin
   // CRITICAL: Skip ALL of this if we are driving our own vehicle!
   if FIsDriving and Assigned(FPlayerVehicle) then
     Exit;
-
   if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) and ((FSpaceLandingState > 0) or FSpaceWorld.IsLanded) then
     Exit;
-
   // CRITICAL: Skip normal camera logic entirely while driving a vehicle!
   if FIsDriving and Assigned(FPlayerVehicle) and (not FPlayerVehicle.FIsDead) then
   begin
     Exit;
   end;
-
   dt := GetFrameTime();
   if dt <= 0 then
     dt := 1 / 60;
@@ -1797,12 +1622,10 @@ begin
   end;
   FCamera.position := Vector3Create(FCamera.target.x + Cos(FCamPitch) * Sin(FCamYaw) * FCamDist, FCamera.target.y + Sin(FCamPitch) * FCamDist, FCamera.target.z + Cos(FCamPitch) * Cos(FCamYaw) * FCamDist);
 end;
-
 procedure TYutaniRaylibSandbox.PublicShootBall;
 begin
   ShootBall;
 end;
-
 procedure TYutaniRaylibSandbox.ShootBall;
 var
   Obj: TA3DComponent;
@@ -1841,7 +1664,6 @@ begin
   Obj.SetLinearVelocity(ThrowVel);
   FProjectiles[oldLen] := Obj;
 end;
-
 procedure TYutaniRaylibSandbox.UpdateProjectiles(dt: Single);
 var
   i: Integer;
@@ -1854,14 +1676,11 @@ begin
   begin
     Exit; // Do absolutely nothing until the background thread is done
   end;
-
   for i := High(FProjectiles) downto 0 do
   begin
     if FProjectiles[i] = nil then
       Continue;
-
     Actor := FProjectiles[i];
-
     // If the projectile is already marked as dead, free its memory and nil the pointer
     if Actor.FIsDead then
     begin
@@ -1871,7 +1690,6 @@ begin
       FProjectiles[i] := nil;
       Continue;
     end;
-
     if Actor.UserData <> nil then
     begin
       // Lifespan check: Destroy the projectile after 5 seconds
@@ -1880,26 +1698,21 @@ begin
         Actor.FIsDead := True;
         Continue;
       end;
-
       // Velocity check: Destroy the projectile if it slows down too much
       CurrVel := Actor.GetLinearVelocity;
-
       // We calculate the squared length of the velocity vector (Speed * Speed).
       // This is much faster than using Vector3Length as it avoids a square root operation.
       // We compare it against 25.0, which means the projectile dies if its speed drops below 5.0 units/sec.
       SpeedSq := (CurrVel.x * CurrVel.x) + (CurrVel.y * CurrVel.y) + (CurrVel.z * CurrVel.z);
-
       if SpeedSq < 25.0 then
       begin
         Actor.FIsDead := True;
         Continue;
       end;
-
       // Store the current velocity for the next frame (useful for debugging or future logic)
       PItemData(Actor.UserData)^.OldVelocity := CurrVel;
     end;
   end;
-
   // Compress the array: Remove all nil pointers so the array doesn't grow infinitely
   if Length(FProjectiles) > 0 then
   begin
@@ -1916,7 +1729,6 @@ begin
     SetLength(FProjectiles, CurrIdx);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.HandleF12SplitScreenToggle;
 var
   JPos: JPH_RVec3;
@@ -1990,7 +1802,6 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.HandleDesktopInput;
 var
   ray: TRay;
@@ -2025,7 +1836,6 @@ begin
     FDragging := False;
     Exit;
   end;
-
   // ==========================================
   // SPACE LANDING & PLANETARY CAM (F8 / F9)
   // ==========================================
@@ -2133,7 +1943,6 @@ begin
       end;
     end;
   end;
-
   // Handle Delete Key directly inside the sandbox thread
   if (GetAsyncKeyState(VK_DELETE) and $1) <> 0 then
   begin
@@ -2146,14 +1955,12 @@ begin
       Exit;
     end;
   end;
-
   // Prevent background clicks and accidental brushing when the popup menu is open
   if FPopupOpen then
   begin
     HandlePopupInput;
     Exit;
   end;
-
   // F10: Toggle the 3D Alive Highlighter
   if (GetAsyncKeyState(VK_F10) and $1) <> 0 then
   begin
@@ -2177,7 +1984,6 @@ begin
     end;
     FMouseLeftHandled := True;
   end;
-
   // Select next/prev object
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
   begin
@@ -2192,7 +1998,6 @@ begin
       Exit;
     end;
   end;
-
   dt := GetFrameTime();
   if FShootCooldown > 0 then
     FShootCooldown := FShootCooldown - dt;
@@ -2209,7 +2014,6 @@ begin
   bLeftMouseDown := (GetAsyncKeyState(VK_LBUTTON) and $8000) <> 0;
   bLeftMouseClicked := bLeftMouseDown and not FMouseLeftPressed;
   FMouseLeftPressed := bLeftMouseDown;
-
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
   begin
     if not FCtrlWasPressed then
@@ -2232,7 +2036,6 @@ begin
   end
   else
     FCtrlWasPressed := False;
-
   // ====================================================================
   // Split-Screen Toggle (F2)
   // --------------------------------------------------------------------
@@ -2251,7 +2054,6 @@ begin
     HandleF12SplitScreenToggle;
     FMouseLeftHandled := True;
   end;
-
   // ====================================================================
   // Exit Driving Mode (F12)
   // --------------------------------------------------------------------
@@ -2280,7 +2082,6 @@ begin
     end;
     FMouseLeftHandled := True;
   end;
-
   // ====================================================================
   // Avatar Flight Control (F11)
   // --------------------------------------------------------------------
@@ -2296,7 +2097,6 @@ begin
   // fixes the unreliability where mouselook hid the cursor and the
   // "click outside + F11" gesture could not be performed.
   // ====================================================================
-
   // Shift+F11: cycle the selected controller type. Always allowed, even
   // while driving - the current controller is rebuilt in place so yaw
   // and pitch are preserved and the camera transition feels seamless.
@@ -2384,9 +2184,7 @@ begin
       FMouseLeftHandled := True;
     end;
   end;
-
   ray := GetScreenToWorldRay(FMousePos, FCamera);
-
   // ====================================================================
   // SECOND LIFE STYLE CAMERA FOCUS (ALT + Left Click)
   // Holding ALT and clicking an object sets the camera target to it.
@@ -2397,7 +2195,6 @@ begin
   begin
     if not FAltWasPressed then
       FAltWasPressed := True;
-
     if bLeftMouseClicked then
     begin
       // Find the closest object under the mouse to focus on
@@ -2419,7 +2216,6 @@ begin
           ClosestFocusActor := FItems[i];
         end;
       end;
-
       if Assigned(ClosestFocusActor) then
         FFocusTrackingActor := ClosestFocusActor
       else
@@ -2445,7 +2241,6 @@ begin
       FFocusTrackingActor := nil;
     end;
   end;
-
   // AliveHighlighter3d
   var GroundRayBox: TBoundingBox;
   GroundRayBox.min := Vector3Create(-1000, -0.1, -1000);
@@ -2453,19 +2248,16 @@ begin
   var GroundHit := GetRayCollisionBox(ray, GroundRayBox);
   if GroundHit.hit then
     FMouseWorldPos := Vector3Create(GroundHit.point.x, 2.0, GroundHit.point.z);
-
   // ====================================================================
   // 3D BUTTON INTERACTION LOGIC (Hover & Click)
   // Handles UI clicks independent from physics tools
   // ====================================================================
   var ClosestButtonDist: Single := 1e9;
   var HoveredButton: TA3DComponent := nil;
-
   // Reset hover states for all buttons
   for i := 0 to High(FItems) do
     if Assigned(FItems[i]) and ((FItems[i].ShapeType = stButton) or (FItems[i].IsPianoKey)) then
       FItems[i].IsHovered := False;
-
   // Find the closest button under the mouse cursor
   for i := 0 to High(FItems) do
   begin
@@ -2484,10 +2276,8 @@ begin
         HalfY := FItems[i].Scale.y * 0.5;
         HalfZ := FItems[i].Scale.z * 0.5;
       end;
-
       itemBox.min := Vector3Create(FItems[i].position.x - HalfX, FItems[i].position.y - HalfY, FItems[i].position.z - HalfZ);
       itemBox.max := Vector3Create(FItems[i].position.x + HalfX, FItems[i].position.y + HalfY, FItems[i].position.z + HalfZ);
-
       hitInfo := GetRayCollisionBox(ray, itemBox);
       if hitInfo.hit and (hitInfo.distance < ClosestButtonDist) then
       begin
@@ -2496,11 +2286,9 @@ begin
       end;
     end;
   end;
-
   if Assigned(HoveredButton) then
   begin
     HoveredButton.IsHovered := True;
-
     if bLeftMouseClicked then
     begin
       HoveredButton.IsPressed := True;
@@ -2513,16 +2301,13 @@ begin
       // Mouse released -> Trigger OnClick!
       HoveredButton.IsPressed := False;
       FMouseLeftHandled := True;
-
       // Fire Event thread-safe to avoid VCL cross-thread exceptions
       if Assigned(HoveredButton.OnClick) then
       begin
         var Callback := HoveredButton.OnClick;
         var BtnRef := HoveredButton;
-
         // CRITICAL: Set to nil to prevent spam firing in the next frames!
         HoveredButton.OnClick := nil;
-
         TThread.Queue(nil,
           procedure
           begin
@@ -2532,7 +2317,6 @@ begin
           end);
       end;
     end;
-
     Exit; // Prevent selecting 3D objects behind the button
   end
   else
@@ -2545,7 +2329,6 @@ begin
           FItems[i].IsPressed := False;
     end;
   end;
-
   if (GetAsyncKeyState(VK_RBUTTON) and $8000) <> 0 then
   begin
     if not FRightClickWasPressed then
@@ -2554,11 +2337,9 @@ begin
       begin
         FPopupOpen := True;
         FPopupPos := FMousePos;
-
         // If gmNone is active, we do strictly nothing else (no object dragging)
         if FGizmoMode = gmNone then
           Exit;
-
         groundBox.min := Vector3Create(-1000, -0.1, -1000);
         groundBox.max := Vector3Create(1000, 0.1, 1000);
         hitInfo := GetRayCollisionBox(ray, groundBox);
@@ -2568,7 +2349,6 @@ begin
           FGhostPos.y := 0;
           FGhostPos.z := hitInfo.point.z;
         end;
-
         if Assigned(FItemSelected) then
         begin
           SetLength(FPopupSegments, 2);
@@ -2587,15 +2367,12 @@ begin
   end
   else
     FRightClickWasPressed := False;
-
   if (GetAsyncKeyState(VK_MBUTTON) and $8000) <> 0 then
   begin
     FGhostVisible := False;
     Exit;
   end;
-
   ray := GetScreenToWorldRay(FMousePos, FCamera);
-
   if FGizmoMode = gmDragAndThrow then
   begin
     if FDragging and Assigned(FItemSelected) then
@@ -2643,7 +2420,6 @@ begin
     end;
     Exit;
   end;
-
   if FGizmoDragging then
   begin
     UpdateGizmoInteraction;
@@ -2663,7 +2439,6 @@ begin
     // CRITICAL: DO NOT update FGizmoStartMouse here!
     Exit;
   end;
-
   if Assigned(FItemSelected) and not FIsBrushActive then
   begin
     if bLeftMouseDown then
@@ -2672,10 +2447,8 @@ begin
       GScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 1.0, 1.0, 100.0);
       GScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 1.0, 1.0, 100.0);
       GScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 1.0, 1.0, 100.0);
-
       // Increase the thickness of the invisible click-box for primitives
       var ClickRadius: Single := 0.4;
-
       if FItemSelected.ShapeType = stModel then
       begin
         // Use Actor.Scale directly so the gizmo arms match the visual mesh size perfectly
@@ -2685,7 +2458,6 @@ begin
         // Make the invisible click-box thicker so the mouse ray definitely hits the arrow before the mesh!
         ClickRadius := 1.0;
       end;
-
       if FGizmoMode = gmTranslate then
       begin
         if CheckGizmoAxisHit(FItemSelected.Position, Vector3Create(GScaleX, GScaleY, GScaleZ), ClickRadius, ray, FGizmoAxis) then
@@ -2744,7 +2516,6 @@ begin
       end;
     end;
   end;
-
   bIsModelBrush := FIsBrushActive and (FBrushShape = stModel);
   if FIsBrushActive then
   begin
@@ -2791,10 +2562,8 @@ begin
   end
   else
     FGhostVisible := False;
-
   if FShootCooldown > 0 then
     Exit;
-
   // CRITICAL OBJECT SELECTION BLOCK
   if bLeftMouseDown then
   begin
@@ -2803,19 +2572,15 @@ begin
       // Find the CLOSEST object to the camera under the mouse cursor
       var ClosestActor: TA3DComponent := nil;
       var ClosestDist: Single := 1e9;
-
       for i := 0 to High(FItems) do
       begin
         if FItems[i] = nil then
           Continue;
-
         HalfX := FItems[i].Scale.x * 0.5;
         HalfY := FItems[i].Scale.y * 0.5;
         HalfZ := FItems[i].Scale.z * 0.5;
-
         itemBox.min := Vector3Create(FItems[i].Position.x - HalfX, FItems[i].Position.y - HalfY, FItems[i].Position.z - HalfZ);
         itemBox.max := Vector3Create(FItems[i].Position.x + HalfX, FItems[i].Position.y + HalfY, FItems[i].Position.z + HalfZ);
-
         TempHit := GetRayCollisionBox(ray, itemBox);
         if TempHit.hit then
         begin
@@ -2826,7 +2591,6 @@ begin
           end;
         end;
       end;
-
       // After checking all objects, select the closest one
       if Assigned(ClosestActor) then
       begin
@@ -2851,7 +2615,6 @@ begin
   else
     FDragging := False;
 end;
-
 procedure TYutaniRaylibSandbox.HandlePopupInput;
 var
   I: Integer;
@@ -2861,7 +2624,6 @@ var
 begin
   FMousePos := GetMousePosition();
   NewHover := -1;
-
   for I := 0 to 4 do
   begin
     IconRect.x := FPopupPos.x + 4 + (I * 34);
@@ -2889,17 +2651,14 @@ begin
       end;
     end;
   end;
-
   if FPopupHoverIndex <> NewHover then
     FPopupHoverIndex := NewHover;
-
   if FPopupCloseLock then
   begin
     if (GetAsyncKeyState(VK_RBUTTON) and $8000) = 0 then
       FPopupCloseLock := False;
     Exit;
   end;
-
   if (GetAsyncKeyState(VK_LBUTTON) and $8000) <> 0 then
   begin
     if FPopupHoverIndex >= 0 then
@@ -2909,13 +2668,11 @@ begin
       else
         ExecutePopupAction(FPopupHoverIndex - 100);
     end;
-
     FPopupOpen := False;
     // Prevents the click that closed the popup from selecting/deselecting 3D objects in the background!
     FMouseLeftHandled := True;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ExecutePopupAction(Index: Integer);
 var
   NewActor: TA3DComponent;
@@ -2938,26 +2695,21 @@ begin
     begin
       if not Assigned(FItemSelected) then
         Exit;
-
       OldLen := Length(FItems);
       SetLength(FItems, OldLen + 1);
-
       NewPos.x := FItemSelected.Position.x + 1.0;
       NewPos.y := FItemSelected.Position.y + (FItemSelected.Scale.y * 0.5);
       NewPos.z := FItemSelected.Position.z;
-
       NewRot.x := FItemSelected.Quaternion.x;
       NewRot.y := FItemSelected.Quaternion.y;
       NewRot.z := FItemSelected.Quaternion.z;
       NewRot.w := FItemSelected.Quaternion.w;
       NewSize := FItemSelected.Scale;
-
       NewActor := TA3DComponent.Create('', FEngine, FItemSelected.ShapeType, NewSize, FSpawnStatic, FSpawnDestructable, @NewPos, @NewRot);
       NewActor.Friction := FItemSelected.Friction;
       NewActor.Restitution := FItemSelected.Restitution;
       NewActor.TargetColor := FItemSelected.TargetColor;
       NewActor.ActColor := FItemSelected.ActColor;
-
       New(NewData);
       FillChar(NewData^, SizeOf(TItemData), 0);
       NewData^.SpawnTime := GetTime();
@@ -2976,17 +2728,14 @@ begin
       end;
       NewActor.UserData := NewData;
       NewActor.Visible := True;
-
       FItems[OldLen] := NewActor;
       FYutaniAudio.PlaySoundEffect('ressources\audio\impactPlank_medium_000.wav', 1.0);
       DoActorSpawned(NewActor, OldLen);
       DoObjectSelected(NewActor);
       FItemSelected := NewActor;
-
       Exit;
     end;
   end;
-
   if (Index >= 0) and (Index <= 4) then
   begin
     case Index of
@@ -3022,11 +2771,9 @@ begin
         end;
     end;
   end;
-
   FMouseLeftPressed := True;
   FMouseLeftHandled := True;
 end;
-
 procedure TYutaniRaylibSandbox.DeleteSelectedActor;
 var
   SelectedIdx, I: Integer;
@@ -3056,7 +2803,6 @@ begin
     DoObjectSelected(nil);
   end;
 end;
-
 function TYutaniRaylibSandbox.CheckGizmoCornerHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
 var
   BBox: TBoundingBox;
@@ -3068,20 +2814,16 @@ var
 begin
   Result := False;
   Axis := 0;
-
   // Radius for the corner click-box
   R := RayRadius + 0.3;
-
   InvRot := QuaternionInvert(FItemSelected.Quaternion);
   LocalRay.position := Vector3RotateByQuaternion(Vector3Subtract(Ray.position, Pos), InvRot);
   LocalDir := Vector3RotateByQuaternion(Ray.direction, InvRot);
   LocalRay.direction := Vector3Normalize(LocalDir);
-
   // Check all 8 corners of the bounding box
   BBox.min := Vector3Create(-Scale.x - R, -Scale.y - R, -Scale.z - R);
   BBox.max := Vector3Create(Scale.x + R, Scale.y + R, Scale.z + R);
   Hit := GetRayCollisionBox(LocalRay, BBox);
-
   if Hit.hit then
   begin
     Result := True;
@@ -3090,7 +2832,6 @@ begin
     Exit;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.UpdateGizmoCornerInteraction;
 var
   MouseDeltaX, MouseDeltaY: Single;
@@ -3101,44 +2842,35 @@ var
 begin
   MouseDeltaX := FMousePos.x - FGizmoStartMouse.x;
   MouseDeltaY := FMousePos.y - FGizmoStartMouse.y;
-
   if Abs(MouseDeltaX) < 0.5 then
     MouseDeltaX := 0;
   if Abs(MouseDeltaY) < 0.5 then
     MouseDeltaY := 0;
-
   // Calculate proper 3D screen projection regardless of camera angle
   CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
   CamRight := Vector3Normalize(Vector3CrossProduct(CamForward, FCamera.up));
   CamUp := Vector3Normalize(Vector3CrossProduct(CamRight, CamForward));
-
   // Project mouse movement onto screen space directions
   MoveDir := Vector3Add(Vector3Scale(CamRight, MouseDeltaX * 0.1), Vector3Scale(CamUp, -MouseDeltaY * 0.1));
-
   // We want to scale outwards when pulling to the right/up, and inwards when pulling left/down
   // The magnitude of the movement defines the scale change
   ScaleChange := (MoveDir.x + MoveDir.y) * 0.05;
   // Fallback if movement is weird
   if ScaleChange = 0 then
     ScaleChange := (MouseDeltaX * 0.01) + (-MouseDeltaY * 0.01);
-
   EndScale := FGizmoStartVal;
-
   // Apply uniform scale equally to X, Y, and Z
   var NewSize := EnsureRange(EndScale.x + ScaleChange, 0.05, 100);
   EndScale.x := NewSize;
   EndScale.y := NewSize;
   EndScale.z := NewSize;
-
   FItemSelected.Scale := EndScale;
-
   // Y-LIFT STABILIZATION (Same logic as normal Scale)
   OldScaleY := FGizmoStartVal.y;
   NewScaleY := EndScale.y;
   YLift := (NewScaleY - OldScaleY) * 0.5;
   FItemSelected.SetPosition(Vector3Create(FGizmoStartPos.x, FGizmoStartPos.y + YLift, FGizmoStartPos.z));
 end;
-
 procedure TYutaniRaylibSandbox.UpdateGizmoInteraction;
 var
   MouseDeltaX, MouseDeltaY: Single;
@@ -3257,7 +2989,6 @@ begin
     UpdateGizmoCornerInteraction;
   end;
 end;
-
 function TYutaniRaylibSandbox.CheckGizmoAxisHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
 var
   Box: TBoundingBox;
@@ -3300,7 +3031,6 @@ begin
     Exit;
   end;
 end;
-
 function TYutaniRaylibSandbox.CheckGizmoRingHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
 var
   Box: TBoundingBox;
@@ -3343,7 +3073,6 @@ begin
     Exit;
   end;
 end;
-
 function TYutaniRaylibSandbox.CheckGizmoScaleHit(Pos, Scale: TVector3; RayRadius: Single; Ray: TRay; out Axis: Integer): Boolean;
 var
   Box: TBoundingBox;
@@ -3355,15 +3084,12 @@ var
 begin
   Result := False;
   Axis := 0;
-
   // Make the radius thicker by default to make it easily grabbable
   Radius := RayRadius + 0.2;
-
   InvRot := QuaternionInvert(FItemSelected.Quaternion);
   LocalRay.position := Vector3RotateByQuaternion(Vector3Subtract(Ray.position, Pos), InvRot);
   LocalDir := Vector3RotateByQuaternion(Ray.direction, InvRot);
   LocalRay.direction := Vector3Normalize(LocalDir);
-
   // X Axis: Full thick line on BOTH sides (negative and positive) including handle cubes
   Box.min := Vector3Create(-Scale.x - Radius, -Radius, -Radius);
   Box.max := Vector3Create(Scale.x + Radius, Radius, Radius);
@@ -3374,7 +3100,6 @@ begin
     Axis := 1;
     Exit;
   end;
-
   // Y Axis: Full thick line on BOTH sides
   Box.min := Vector3Create(-Radius, -Scale.y - Radius, -Radius);
   Box.max := Vector3Create(Radius, Scale.y + Radius, Radius);
@@ -3385,7 +3110,6 @@ begin
     Axis := 2;
     Exit;
   end;
-
   // Z Axis: Full thick line on BOTH sides
   Box.min := Vector3Create(-Radius, -Radius, -Scale.z - Radius);
   Box.max := Vector3Create(Radius, Radius, Scale.z + Radius);
@@ -3397,12 +3121,10 @@ begin
     Exit;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SetSelectedActor(AActor: TA3DComponent);
 begin
   FItemSelected := AActor;
 end;
-
 function TYutaniRaylibSandbox.GetActorBoundingBoxWS(Actor: TA3DComponent): TBoundingBox;
 var
   LocalBBox: TBoundingBox;
@@ -3417,7 +3139,6 @@ var
 begin
   Result.min := Vector3Create(0, 0, 0);
   Result.max := Vector3Create(0, 0, 0);
-
   if not Assigned(Actor) then
     Exit;
   if Actor.ShapeType = stModel then
@@ -3431,7 +3152,6 @@ begin
     LocalBBox.min := Vector3Create(-0.5, -0.5, -0.5);
     LocalBBox.max := Vector3Create(0.5, 0.5, 0.5);
   end;
-
   Sx := Actor.Scale.x;
   Sy := Actor.Scale.y;
   Sz := Actor.Scale.z;
@@ -3441,11 +3161,9 @@ begin
     Sy := 0.0001;
   if Sz <= 0 then
     Sz := 0.0001;
-
   InvScale := Vector3Create(1.0 / Sx, 1.0 / Sy, 1.0 / Sz);
   LocalBBox.min := Vector3Multiply(LocalBBox.min, InvScale);
   LocalBBox.max := Vector3Multiply(LocalBBox.max, InvScale);
-
   Corners[0] := Vector3Create(LocalBBox.min.x, LocalBBox.min.y, LocalBBox.min.z);
   Corners[1] := Vector3Create(LocalBBox.max.x, LocalBBox.min.y, LocalBBox.min.z);
   Corners[2] := Vector3Create(LocalBBox.min.x, LocalBBox.max.y, LocalBBox.min.z);
@@ -3454,9 +3172,7 @@ begin
   Corners[5] := Vector3Create(LocalBBox.max.x, LocalBBox.min.y, LocalBBox.max.z);
   Corners[6] := Vector3Create(LocalBBox.min.x, LocalBBox.max.y, LocalBBox.max.z);
   Corners[7] := Vector3Create(LocalBBox.max.x, LocalBBox.max.y, LocalBBox.max.z);
-
   RotQuat := Actor.Quaternion;
-
   HasSize := False;
   for i := 0 to 7 do
   begin
@@ -3483,11 +3199,9 @@ begin
         MaxV.z := RotatedCorners[i].z;
     end;
   end;
-
   Result.min := Vector3Add(MinV, Actor.Position);
   Result.max := Vector3Add(MaxV, Actor.Position);
 end;
-
 procedure TYutaniRaylibSandbox.SpawnAtMouse(Pos: TVector3);
 var
   Obj: TA3DComponent;
@@ -3526,40 +3240,31 @@ begin
         Data^.Name := 'Placed_Bomb_' + IntToStr(oldLen);
     end;
   end;
-
   Size := Vector3Create(1, 1, 1);
   if FBrushShape = stPrism then
     Size := Vector3Create(1, 1.5, 1)
   else if FBrushShape = stPyramid then
     Size := Vector3Create(1, 1.5, 1);
-
   if FBrushShape = stModel then
   begin
     BBox := GetModelBoundingBox(FCustomModel);
     MeshSize := Vector3Create(BBox.max.x - BBox.min.x, BBox.max.y - BBox.min.y, BBox.max.z - BBox.min.z);
-
     MaxDim := Max(MeshSize.x, Max(MeshSize.y, MeshSize.z));
     if MaxDim <= 0 then
       MaxDim := 1.0;
     UniformScale := 1.0 / MaxDim;
-
     // Pass size to Jolt Physics and add 0.1 to force Jolt to lift the object higher
     Size := Vector3Create((MeshSize.x * UniformScale) + 0.1, (MeshSize.y * UniformScale) + 0.1, (MeshSize.z * UniformScale) + 0.1);
   end;
-
   JPos.x := Pos.x;
-
   // Default Y-Offset for primitives (Cube etc. has height 1, so 0.5)
   YOffset := 0.5;
-
   // FOR CAPSULES: Because the engine code (Scale.y * 0.5 + 0.5) results in a 1.0 height
   // for a base scale of 1.0, we need to lift it by 1.0 to sit perfectly on the ground!
   if FBrushShape = stCapsule then
     YOffset := 1.0;
-
   if FBrushShape = stPrism then
     YOffset := 0.0;
-
   // FOR MODELS: Calculate exactly half the height of the scaled model!
   if FBrushShape = stModel then
   begin
@@ -3567,44 +3272,36 @@ begin
     // Half height of the model + half padding (0.05)
     YOffset := (MeshH * 0.5) + 0.05;
   end;
-
   JPos.y := Pos.y + YOffset;
   JPos.z := Pos.z;
   JRot.x := 0;
   JRot.y := 0;
   JRot.z := 0;
   JRot.w := 1;
-
   Obj := TA3DComponent.Create('', FEngine, FBrushShape, Size, FSpawnStatic, FSpawnDestructable, @JPos, @JRot);
   Obj.Name := Data^.Name;
-
   if FBrushShape = stModel then
   begin
     Obj.FModel := FCustomModel;
     Obj.FMeshSize := MeshSize;
     Obj.ModelPath := FLastLoadedModelPath;
-
     MeshH := BBox.max.y - BBox.min.y;
     MaxDim := Max(BBox.max.x - BBox.min.x, Max(MeshH, BBox.max.z - BBox.min.z));
     if MaxDim <= 0 then
       MaxDim := 1.0;
     UniformScale := 1.0 / MaxDim;
-
     // Shift the mesh so its origin sits perfectly in the center of the Jolt collider
     var NormMinY := BBox.min.y * UniformScale;
     var CenterX := ((BBox.max.x + BBox.min.x) / 2) * UniformScale;
     var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * UniformScale;
     // Push Y from bottom to center (Jolt standard goes from -0.5 to +0.5)
     Obj.FModelOffset := Vector3Create(-CenterX, -NormMinY - (MeshH * UniformScale * 0.5) + 0.5, -CenterZ);
-
     FCustomModel.meshes := nil;
   end;
-
   Obj.Friction := 0.4;
   Obj.Restitution := 0.2;
   Obj.UserData := Data;
   Obj.Visible := True;
-
   if FBrushShape = stBomb then
   begin
     Obj.Friction := 0.5;
@@ -3621,10 +3318,8 @@ begin
       DoObjectSelected(nil);
     end;
   end;
-
   Obj.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
   Obj.SetRotation(QuaternionFromEuler(0, 0, 0));
-
   // If Beam effect is active, force the object to be invisible from frame 1!
   // This prevents the object from flashing visible before the materialize effect triggers.
   if FSpawnEffectType = spefBeam then
@@ -3633,13 +3328,11 @@ begin
     Obj.ActAlpha := 0.0;
     Obj.TargetAlpha := 0.0;
   end;
-
   FItems[oldLen] := Obj;
   FYutaniAudio.PlaySoundEffect('ressources\audio\impactPlank_medium_000.wav', 1.0);
   TriggerSpawnEffect(Vector3Create(JPos.x, JPos.y, JPos.z), Obj);
   DoActorSpawned(Obj, oldLen);
 end;
-
 procedure TYutaniRaylibSandbox.LoadCustomModel(const FilePath: string);
 begin
   FLock.Enter;
@@ -3650,7 +3343,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.LoadModelInThread(const FilePath: string);
 var
   PathBuf: array[0..1023] of AnsiChar;
@@ -3698,7 +3390,6 @@ begin
     FGhostVisible := False;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.UpdateGame;
 var
   dt: single;
@@ -3729,7 +3420,6 @@ begin
       FLock.Leave;
     end;
   end;
-
   // Handle Scene Load
   if FLoadSceneQueued then
   begin
@@ -3742,7 +3432,6 @@ begin
       FLock.Leave;
     end;
   end;
-
   if FLoadModelQueued then
   begin
     FLock.Enter;
@@ -3753,13 +3442,11 @@ begin
       FLock.Leave;
     end;
   end;
-
   // Poll mouselook every frame so cursor deltas are converted into look
   // input for whichever avatar controller is currently active. The call
   // is a no-op when mouselook has not been started via StartMouseLook.
   if Assigned(FInputManager) then
     FInputManager.PollMouseLook;
-
   // Process Thread-safe Dematerialize Queue
   if Length(FDematerializeQueue) > 0 then
   begin
@@ -3771,12 +3458,10 @@ begin
     finally
       FLock.Leave;
     end;
-
     for var Req in LocalQueue do
       if Assigned(Req.Actor) then
         ExecuteDematerializeActor(Req.Actor);
   end;
-
   if FClearItemsQueued then
   begin
     FLock.Enter;
@@ -3816,19 +3501,15 @@ begin
     end;
   end;
   dt := GetFrameTime();
-
   if Assigned(FMPVPlayer) then
     FMPVPlayer.Update;
-
   // Slow Motion calculation: Scale time if active, otherwise normal speed
   if FSlowMotionActive then
     FTimeScale := FSavedTimeScale  //slowmotion
   else
     FTimeScale := 1.0; // Normal speed
-
   // Calculate physics delta time based on slow motion scale
   var PhysDt: Single := dt * FTimeScale;
-
   if Assigned(FNanoFog) then
     FNanoFog.Update(PhysDt);
   if FSimulationRunning then
@@ -3838,7 +3519,6 @@ begin
     if Assigned(FParticleEngine) then
       FParticleEngine.Update(PhysDt);
   end;
-
   if Assigned(FParticleEngine) and (Length(FParticleSpawnQueue) > 0) then
   begin
     FLock.Enter;
@@ -3847,7 +3527,6 @@ begin
       begin
         var Req := FParticleSpawnQueue[High(FParticleSpawnQueue)];
         SetLength(FParticleSpawnQueue, Length(FParticleSpawnQueue) - 1);
-
         if Req.IsSmoke then
           FParticleEngine.EmitSmoke(Req.Pos, Req.Count, Req.Color)
         else
@@ -3857,7 +3536,6 @@ begin
       FLock.Leave;
     end;
   end;
-
   // ==========================================
   // SPACE LANDING & PLANETARY CAM (F8 / F9)
   // ==========================================
@@ -3955,7 +3633,6 @@ begin
       end;
     end;
   end;
-
   // ==========================================
   // PLANETARY SURFACE CAMERA (Active while landed)
   // ==========================================
@@ -4027,7 +3704,6 @@ begin
       FCamera.target := Vector3Add(PlanetPos, Vector3Scale(TargetSurfDir, FSpaceWorld.GetLandedPlanetRadius() + 1.0));
     end;
   end;
-
   // Update Camera Target if we are tracking an actor (Second Life ALT focus)
   if Assigned(FFocusTrackingActor) then
   begin
@@ -4037,7 +3713,6 @@ begin
       FFocusTrackingActor := nil;
     FCameraMoved := True;
   end;
-
   // ====================================================================
   // Update Avatar Controller
   // Drives the currently active controller if we are possessing an
@@ -4058,7 +3733,6 @@ begin
     FPlayerVehicle := nil;
     FreeAndNil(FAvatarController);
   end;
-
   // ====================================================================
   // Update Split-Screen Manager
   // Drives both player slots when split-screen is active. Mutually
@@ -4086,7 +3760,6 @@ begin
       end;
     end;
   end;
-
   // Advance the camera blend if it is active. This lerps FCamera from
   // a captured start state to the editor orbit position over a fixed
   // duration so the exit from avatar driving mode feels cinematic.
@@ -4107,11 +3780,9 @@ begin
       // ====================================================================
       if Assigned(FAvatarController) then
         FAvatarController.Avatar.SetGravityFactor(0.0); // Handled internally by controllers now!
-
       QueryPerformanceCounter(StartTime);
       FEngine.Update(PhysDt); // Pass slowed down time to Jolt Physics
       QueryPerformanceCounter(EndTime);
-
       QueryPerformanceFrequency(Freq);
       FLastPhysicsTime := (EndTime - StartTime) * 1000.0 / Freq;
       FActiveBodies := 0;
@@ -4121,20 +3792,16 @@ begin
         begin
           var Vel := FItems[i].GetLinearVelocity;
           var SpeedSq := (Vel.x * Vel.x) + (Vel.y * Vel.y) + (Vel.z * Vel.z);
-
           if SpeedSq > 1.0 then
             Inc(FActiveBodies);
-
           // DESTRUCTION CHECK: Only fracture manually placed destructables!
           if FItems[i].IsDestructable and (FItems[i].Name <> 'Fragment') then
           begin
             // Only trigger fracture if it hits the ground really hard
             var HitGroundHard := (Vel.y < -15.0) and (FItems[i].Position.y <= 1.5);
-
             if HitGroundHard then
             begin
               TriggerFracture(FItems[i], Sqrt(SpeedSq));
-
               // Safely remove the old actor from Jolt Physics
               if FItems[i].FBodyID <> 0 then
               begin
@@ -4169,19 +3836,16 @@ begin
   if FInitialized and Assigned(FItemSelected) and not FGizmoDragging and not FDragging and not FPopupOpen and (FGizmoMode <> gmNone) then
   begin
     HoverRay := GetScreenToWorldRay(FMousePos, FCamera);
-
     // Calculate default hover scale
     HoverScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 1.0, 1.0, 100.0);
     HoverScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 1.0, 1.0, 100.0);
     HoverScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 1.0, 1.0, 100.0);
-
     if FItemSelected.ShapeType = stModel then
     begin
       HoverScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 5.0, 1.0, 150.0);
       HoverScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 5.0, 1.0, 150.0);
       HoverScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 5.0, 1.0, 150.0);
     end;
-
     if FGizmoMode = gmTranslate then
     begin
       if CheckGizmoAxisHit(FItemSelected.Position, Vector3Create(HoverScaleX, HoverScaleY, HoverScaleZ), 0.4, HoverRay, HoverAxis) then
@@ -4215,7 +3879,7 @@ begin
         if (Abs(ItemVel.x) > 2.0) or (Abs(ItemVel.y) > 2.0) or (Abs(ItemVel.z) > 2.0) then
           PItemData(FItems[i].UserData)^.LastHitTime := GetTime();
         IsTeal := (GetTime() - PItemData(FItems[i].UserData)^.LastHitTime) < 0.3;
-        FItems[i].CollisionHighlighting := IsTeal or (FItems[i] = FItemSelected);
+        FItems[i].CollisionHighlighting := IsTeal or (FItems[i] = FItemSelected) and not FIsDriving;
       end;
     end;
   end
@@ -4224,7 +3888,7 @@ begin
     for i := 0 to High(FItems) do
     begin
       if Assigned(FItems[i]) then
-        FItems[i].CollisionHighlighting := (FItems[i] = FItemSelected);
+        FItems[i].CollisionHighlighting := (FItems[i] = FItemSelected) and not FIsDriving;
     end;
   end;
   if FDragging and Assigned(FItemSelected) and (FGizmoMode = gmDragAndThrow) then
@@ -4254,10 +3918,8 @@ begin
       FItemSelected.SetLinearVelocity(NewVel);
     end;
   end;
-
   // Only advance day/night cycle if the rhythm is active
   ShadowNeedsUpdate := False;
-
   if FDayNightRhythmActive then
   begin
     FDayTime := FDayTime + (FDaySpeed * dt);
@@ -4267,21 +3929,16 @@ begin
       FDayTime := FDayTime + 1.0;
     ShadowNeedsUpdate := True; // Sonne bewegt sich!
   end;
-
   SunAngle := Lerp(-90, 270, FDayTime) * DEG2RAD;
   nDaytime := Sin(SunAngle);
-
   FSunPos := Vector3Create(Cos(SunAngle) * 100.0, Sin(SunAngle) * 100.0, 50.0);
-
   // If an object was moved via a gizmo this frame, the shadow map must
   // be re-rendered so the shadow stays in sync with the new transform.
   if FGizmoDragging or FDragging then
     ShadowNeedsUpdate := True;
-
   // Hand the dirty flag down to RenderShadowMap so it can skip the
   // expensive depth pass when nothing relevant changed this frame.
   FShadowMapDirty := ShadowNeedsUpdate;
-
   // Center the shadow camera between all active objects
   FLightCam.target := FCamera.target; // Fallback: Look where the camera looks
   if Length(FItems) > 0 then
@@ -4292,10 +3949,8 @@ begin
         FLightCam.target := Vector3Add(FLightCam.target, FItems[i].Position);
     FLightCam.target := Vector3Scale(FLightCam.target, 1.0 / Length(FItems));
   end;
-
   // Position the light camera high up along the sun ray
   FLightCam.position := Vector3Add(FLightCam.target, Vector3Scale(FLightPos, 50.0));
-
   if nDaytime < 0 then
   begin
     FSunColor := Vector4Create(0.1, 0.1, 0.2, 1.0);
@@ -4306,10 +3961,8 @@ begin
     FSunColor := Vector4Create(1.0, EnsureRange(nDaytime * 1.5, 0, 1), EnsureRange(nDaytime * 0.8, 0, 1), 1.0);
     FAmbientColor := Vector4Create(0.2 + nDaytime * 0.3, 0.2 + nDaytime * 0.3, 0.2 + nDaytime * 0.4, 1.0);
   end;
-
   if FSkyboxShader.id > 0 then
     SetShaderValue(FSkyboxShader, FSkyboxDaytimeLoc, @nDaytime, SHADER_UNIFORM_FLOAT);
-
   // Update Clouds
   FCloudMoveFactor := FCloudMoveFactor + 0.002 * dt;
   if FCloudMoveFactor > 1.0 then
@@ -4319,30 +3972,23 @@ begin
     SetShaderValue(FCloudShader, FCloudMoveFactorLoc, @FCloudMoveFactor, SHADER_UNIFORM_FLOAT);
     SetShaderValue(FCloudShader, FCloudDaytimeLoc, @nDaytime, SHADER_UNIFORM_FLOAT);
   end;
-
   // Update Lighting Uniforms EVERY FRAME
   CamPosArr[0] := FCamera.position.x;
   CamPosArr[1] := FCamera.position.y;
   CamPosArr[2] := FCamera.position.z;
   SetShaderValue(FLightShader, FViewPosLoc, @CamPosArr, SHADER_UNIFORM_VEC3);
-
   LightPosArr[0] := FLightPos.x;
   LightPosArr[1] := FLightPos.y;
   LightPosArr[2] := FLightPos.z;
   SetShaderValue(FLightShader, FLightPosLoc, @LightPosArr, SHADER_UNIFORM_VEC3);
-
   SetShaderValue(FLightShader, FAmbientLoc, @FAmbientColor, SHADER_UNIFORM_VEC4);
   SetShaderValue(FLightShader, FDiffuseLoc, @FSunColor, SHADER_UNIFORM_VEC4);
-
   var LightViewMat := GetCameraMatrix(FLightCam);
   // Increase the orthographic shadow view area to cover the map
   var LightProjMat := MatrixOrtho(-400, 400, -400, 400, 0.1, 2000.0);
-
   SetShaderValueMatrix(FLightShader, FLightViewLoc, LightViewMat);
   SetShaderValueMatrix(FLightShader, FLightProjLoc, LightProjMat);
-
   SetShaderValueTexture(FLightShader, FShadowMapLoc, FShadowMap.texture);
-
   // Bias to prevent shadow acne
   var TempBias: Single := 0.05;
   SetShaderValue(FLightShader, GetShaderLocation(FLightShader, 'shadowBias'), @TempBias, SHADER_UNIFORM_FLOAT);
@@ -4357,11 +4003,9 @@ begin
         FItemSelected := nil;
         DoObjectSelected(nil);
       end;
-
       // Free user data
       if FItems[i].UserData <> nil then
         Dispose(PItemData(FItems[i].UserData));
-
       FItems[i].Free;
       // Remove from array without leaving a gap
       for var j := i to High(FItems) - 1 do
@@ -4370,7 +4014,6 @@ begin
     end;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.RenderGame;
 begin
   // Render the Shadow Map from the light's perspective
@@ -4379,7 +4022,6 @@ begin
     RenderShadowMap;
     FShadowMapDirty := False;
   end;
-
   // Render the main scene
   BeginDrawing();
   ClearBackground(BLACK);
@@ -4401,34 +4043,25 @@ begin
   DrawGUI;
   DrawNativePopup;
   EndDrawing();
-
   if FRaylibWnd <> 0 then
     RedrawWindow(FRaylibWnd, nil, 0, RDW_INVALIDATE or RDW_UPDATENOW);
 end;
-
 procedure TYutaniRaylibSandbox.RenderShadowMap;
 begin
   if FShadowMap.id = 0 then
     Exit;
-
   BeginTextureMode(FShadowMap);
-
   // Optimization: Re-use the pre-allocated default shader instead of loading/unloading every frame
   BeginShaderMode(FDefaultShader);
-
   rlDrawRenderBatchActive();
-
   BeginMode3D(FLightCam);
   DrawSceneShadows;
   EndMode3D();
-
   // Disable default shader
   EndShaderMode();
-
   EndTextureMode();
 end;
 // Custom procedure to draw a Holodeck-style grid with a specific color
-
 procedure TYutaniRaylibSandbox.DrawHolodeckGrid(Slices: Integer; Spacing: Single; GridColor: TColorB);
 var
   I: Integer;
@@ -4437,23 +4070,18 @@ begin
   // Only draw grid if we are inside a 3D mode (camera is set)
   if FCamera.position.y = 0 then
     Exit;
-
   // Calculate the total size of the grid
   HalfSize := (Slices * Spacing) / 2.0;
-
   // Draw vertical and horizontal lines, slightly lifted (0.01) to prevent Z-Fighting
   for I := 0 to Slices do
   begin
     var Pos: Single := -HalfSize + (I * Spacing);
-
     // Draw X-axis lines (going into Z depth)
     DrawLine3D(Vector3Create(Pos, 0.01, -HalfSize), Vector3Create(Pos, 0.01, HalfSize), GridColor);
-
     // Draw Z-axis lines (going across X)
     DrawLine3D(Vector3Create(-HalfSize, 0.01, Pos), Vector3Create(HalfSize, 0.01, Pos), GridColor);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.DrawSceneShadows;
 var
   i: Integer;
@@ -4464,7 +4092,6 @@ var
 begin
   // Draw static floor to the shadow map
   DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), BLACK);
-
   // Draw all items to the shadow map
   for i := 0 to FEngine.Count - 1 do
   begin
@@ -4474,15 +4101,12 @@ begin
       rlPushMatrix();
       Pos := Actor.Position;
       rlTranslatef(Pos.x, Pos.y, Pos.z);
-
       Axis := Vector3Create(1, 1, 1);
       Angle := 0;
       if Actor.Quaternion.w < 1.0 then
         QuaternionToAxisAngle(Actor.Quaternion, @Axis, @Angle);
       rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
       rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
-
       if Actor.ShapeType = stBox then
         DrawCube(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK)
       else if Actor.ShapeType = stSphere then
@@ -4499,23 +4123,19 @@ begin
         var Segs: Integer := 4;
         if Actor.ShapeType = stPrism then
           Segs := 3;
-
         // Offset in Y to align with Jolt physics center of mass
         if Actor.ShapeType = stPyramid then
           rlTranslatef(0.0, -0.25, 0.0)
         else if Actor.ShapeType = stPrism then
           rlTranslatef(0.0, -0.5, 0.0);
-
         DrawCylinderEx(Vector3Create(0, 0.5, 0), Vector3Create(0, -0.5, 0), TopR, 0.5, Segs, BLACK);
       end;
-
       rlPopMatrix();
     end;
   end;
   if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) then
     FSpaceWorld.RenderShadows;
 end;
-
 procedure TYutaniRaylibSandbox.Render3DScene;
 var
   SavedCam: TCamera3D;
@@ -4574,7 +4194,6 @@ begin
     FCamera := SavedCam;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.Render3DSceneCore;
 var
   i: Integer;
@@ -4591,7 +4210,6 @@ var
   ModelMatLoc: Integer;
   ActorColorLoc: Integer;
   ColorShaderVec: array[0..3] of Single;
-
   function GetActorColor(A: TA3DComponent): TColorB;
   const
     COL_CUBE: TColorB = (
@@ -4648,11 +4266,9 @@ var
       Exit(WHITE);
     end;
   end;
-
 begin
   ActorColorLoc := GetShaderLocation(FLightShader, 'diffuse');
   BeginMode3D(FCamera);
-
   // Split-screen projection override. BeginMode3D always uses the
   // full-window aspect (CORE.Window.screen.width / height) for its
   // perspective matrix, so when we've clipped the viewport to half
@@ -4666,7 +4282,6 @@ begin
     var OverrideProj: TMatrix := MatrixPerspective(FCamera.fovy * DEG2RAD, FSplitScreenVPW / FSplitScreenVPH, 0.01, 10000.0);
     rlSetMatrixProjection(OverrideProj);
   end;
-
   if FIsLoadingWorld then
   begin
     // Just render the skybox if it exists, so we don't see a void
@@ -4680,7 +4295,6 @@ begin
   end
   else
   begin
-
   // 1. Draw Skybox (Infinite background)
     if FSkyboxModel.meshes <> nil then
     begin
@@ -4689,7 +4303,6 @@ begin
       ProjMat := MatrixPerspective(FCamera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
       SetShaderValueMatrix(FSkyboxShader, FSkyboxViewLoc, ViewMat);
       SetShaderValueMatrix(FSkyboxShader, FSkyboxProjLoc, ProjMat);
-
     // SPACE WORLD: Render the infinite procedural cosmos instead of a static texture
       if (FCurrentWorldBase = wbSpace) then
       begin
@@ -4707,19 +4320,15 @@ begin
       begin
         if FSkyboxTex.id > 0 then
           FSkyboxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSkyboxTex;
-
         rlDisableBackfaceCulling();
         DrawModel(FSkyboxModel, FCamera.position, 1.0, WHITE);
         rlEnableBackfaceCulling();
       end;
-
       rlEnableDepthMask();
     end;
-
   // 2. Draw Floor with Lighting Shader
     if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
       BeginShaderMode(FLightShader);
-
     if FCurrentWorldBase = wbLand then
       DrawPlane(Vector3Create(0, 0, 0), Vector2Create(1000, 1000), DARKGREEN)
     else if FCurrentWorldBase = wbHolodeck then
@@ -4730,12 +4339,9 @@ begin
         FIslandWorld.Draw(FCamera);
     end;
     // In Space, we draw NO giant plane, just the 4x4 pad is rendered by the actor loop!
-
     if (FCurrentWorldBase <> wbIsland) and (FCurrentWorldBase <> wbSpace) then
       EndShaderMode();
-
     EndShaderMode();
-
     if FCurrentWorldBase = wbHolodeck then
     begin
       var WarmOrange: TColorB;
@@ -4745,7 +4351,6 @@ begin
       WarmOrange.a := 255;
       DrawHolodeckGrid(200, 5.0, Fade(WarmOrange, 0.85));
     end;
-
   // 3. Draw Clouds
     if (FCloudModel.meshes <> nil) and ((FCurrentWorldBase = wbLand) or (FCurrentWorldBase = wbIsland)) then
     begin
@@ -4753,13 +4358,11 @@ begin
       DrawModel(FCloudModel, Vector3Create(FCamera.position.x, 150, FCamera.position.z), 1.0, WHITE);
       EndShaderMode();
     end;
-
   // 4. Draw Actors (Your physics objects)
     MaxDist := FMaxRenderDistance;
     CamForward := Vector3Normalize(Vector3Subtract(FCamera.target, FCamera.position));
     ModelMatLoc := GetShaderLocation(FLightShader, 'matModel');
     rlSetBlendMode(BLEND_ALPHA);
-
     for i := 0 to FEngine.Count - 1 do
     begin
       Actor := FEngine.Items[i];
@@ -4767,32 +4370,26 @@ begin
       begin
         if (Actor.UserData <> nil) and PItemData(Actor.UserData)^.IsProjectile then
           Continue;
-
         Dist := Vector3Distance(Actor.Position, FCamera.position);
         if FDistanceCulling and (Dist > MaxDist) then
           Continue;
-
         ToActor := Vector3Subtract(Actor.Position, FCamera.position);
         ToActorNorm := Vector3Normalize(ToActor);
         DotP := Vector3DotProduct(ToActorNorm, CamForward);
         if FFrustumCulling and (DotP < 0.5) then
           Continue;
-
         rlPushMatrix();
         Pos := Actor.Position;
         rlTranslatef(Pos.x, Pos.y, Pos.z);
-
         Axis := Vector3Create(1, 1, 1);
         Angle := 0;
         if Actor.Quaternion.w < 1.0 then
           QuaternionToAxisAngle(Actor.Quaternion, @Axis, @Angle);
         rlRotatef(Angle * RAD2DEG, Axis.x, Axis.y, Axis.z);
-
         rlDrawRenderBatchActive();
         BeginShaderMode(FLightShader);
         ModelMat := rlGetMatrixTransform();
         SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
         if Actor.ShapeType = stModel then
         begin
         // 1. Determine the exact mesh size using the original model matrix
@@ -4803,23 +4400,18 @@ begin
           var MaxDim := Max(MeshW, Max(MeshH, MeshD));
           if MaxDim <= 0 then
             MaxDim := 1.0;
-
         // 2. Calculate the base scale that the Ghost preview uses
           var BaseDrawScale := 1.0 / MaxDim;
-
         // 3. Calculate the offset so it sits perfectly centered in the Jolt collider
           var CenterX := ((BBox.max.x + BBox.min.x) / 2) * BaseDrawScale;
           var CenterZ := ((BBox.max.z + BBox.min.z) / 2) * BaseDrawScale;
           var NormMinY := BBox.min.y * BaseDrawScale;
           var OffsetY := -NormMinY - (MeshH * BaseDrawScale * 1.0) + 0.5;
-
         // 4. Apply translations
           rlTranslatef(-CenterX, OffsetY, -CenterZ);
-
         // 5. Update shader matrix (required for correct shadow mapping)
           ModelMat := rlGetMatrixTransform();
           SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
-
         // 6. Pass the diffuse color to the shader
           var TintCol: TColorB := GetActorColor(Actor);
           ColorShaderVec[0] := TintCol.r / 255.0;
@@ -4827,17 +4419,14 @@ begin
           ColorShaderVec[2] := TintCol.b / 255.0;
           ColorShaderVec[3] := Actor.ActAlpha;
           SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-
         // 7. EXACT GHOST LOGIC: Save matrix, set to Identity, draw, restore!
           var OldTransform: TMatrix := Actor.FModel.transform;
           Actor.FModel.transform := MatrixIdentity();
-
         // 8. Draw the model with DrawModelEx.
           var FinalScaleX := (BaseDrawScale * Actor.Scale.x) + 1;
           var FinalScaleY := (BaseDrawScale * Actor.Scale.y) + 1;
           var FinalScaleZ := (BaseDrawScale * Actor.Scale.z) + 1;
           DrawModelEx(Actor.FModel, Vector3Create(0, 0, 0), Vector3Create(0, 0, 0), 0, Vector3Create(FinalScaleX, FinalScaleY, FinalScaleZ), Fade(TintCol, Actor.ActAlpha));
-
         // 9. Restore original matrix so the model keeps its internal scale for the next frame
           Actor.FModel.transform := OldTransform;
         end
@@ -4849,7 +4438,6 @@ begin
           ColorShaderVec[2] := C.b / 255.0;
           ColorShaderVec[3] := Actor.ActAlpha;
           SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
-
         // ====================================================================
         // PIANO KEY LOGIC: CHECK THIS FIRST SO IT NEVER GETS OVERRIDDEN!
         // ====================================================================
@@ -5000,9 +4588,7 @@ begin
         rlPopMatrix();
       end;
     end;
-
     rlSetBlendMode(BLEND_ALPHA);
-
   // --- GHOST PREVIEW ---
     if FIsBrushActive and FGhostVisible then
     begin
@@ -5025,7 +4611,6 @@ begin
         var GUniformScale: Single := 1.0 / GMaxDim;
         SurfaceY := FGhostPos.y + ((GMeshH * GUniformScale) * 0.5) + 0.75;
       end;
-
       if FBrushShape = stBox then
       begin
         rlTranslatef(FGhostPos.x, SurfaceY, FGhostPos.z);
@@ -5088,10 +4673,8 @@ begin
       end;
       rlPopMatrix;
     end;
-
     if Assigned(FItemSelected) and not FIsBrushActive and (FGizmoMode <> gmNone) then
       DrawGizmo;
-
   // Draw projectiles
     for i := 0 to High(FProjectiles) do
     begin
@@ -5114,28 +4697,22 @@ begin
       rlPopMatrix;
       EndShaderMode();
     end;
-
     if Assigned(FParticleEngine) then
     begin
       FParticleEngine.Render;
     end;
-
     if Assigned(FNanoFog) then
     begin
       FNanoFog.Render;
     end;
-
     dt := GetFrameTime();
     UpdateProjectiles(dt * FTimeScale);
     DrawSpawnEffects;
     if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active then
       FAliveHighlighter3D.Draw;
-
   end;
-
   EndMode3D();
 end;
-
 procedure TYutaniRaylibSandbox.DrawGizmo;
 var
   Pos: TVector3;
@@ -5149,12 +4726,10 @@ var
   ArrowRadius, HandleSize: Single;
 begin
   Pos := FItemSelected.Position;
-
   // Default gizmo length for primitives
   ScaleX := EnsureRange((FItemSelected.Scale.x * 0.5) + 1.0, 1.0, 100.0);
   ScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 1.0, 1.0, 100.0);
   ScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 1.0, 1.0, 100.0);
-
   // FOR MODELS: Calculate the actual visual size so the gizmo arms match the mesh!
   if FItemSelected.ShapeType = stModel then
   begin
@@ -5162,13 +4737,11 @@ begin
     ScaleY := EnsureRange((FItemSelected.Scale.y * 0.5) + 5.0, 1.5, 150.0);
     ScaleZ := EnsureRange((FItemSelected.Scale.z * 0.5) + 5.0, 1.5, 150.0);
   end;
-
   ArrowRadius := 0.08;
   HandleSize := ArrowRadius * 2.5;
   ColX := RED;
   ColY := GREEN;
   ColZ := BLUE;
-
   if FGizmoDragging then
   begin
     if FGizmoAxis = 1 then
@@ -5187,25 +4760,21 @@ begin
     else if FGizmoHoverAxis = 3 then
       ColZ := YELLOW;
   end;
-
   AxisX := Vector3RotateByQuaternion(Vector3Create(1, 0, 0), FItemSelected.Quaternion);
   AxisY := Vector3RotateByQuaternion(Vector3Create(0, 1, 0), FItemSelected.Quaternion);
   AxisZ := Vector3RotateByQuaternion(Vector3Create(0, 0, 1), FItemSelected.Quaternion);
-
   EndX := Vector3Add(Pos, Vector3Scale(AxisX, ScaleX));
   EndY := Vector3Add(Pos, Vector3Scale(AxisY, ScaleY));
   EndZ := Vector3Add(Pos, Vector3Scale(AxisZ, ScaleZ));
   NegEndX := Vector3Subtract(Pos, Vector3Scale(AxisX, ScaleX));
   NegEndY := Vector3Subtract(Pos, Vector3Scale(AxisY, ScaleY));
   NegEndZ := Vector3Subtract(Pos, Vector3Scale(AxisZ, ScaleZ));
-
   TipX := Vector3Add(Pos, Vector3Scale(AxisX, ScaleX + (ArrowRadius * 3)));
   TipY := Vector3Add(Pos, Vector3Scale(AxisY, ScaleY + (ArrowRadius * 3)));
   TipZ := Vector3Add(Pos, Vector3Scale(AxisZ, ScaleZ + (ArrowRadius * 3)));
   NegTipX := Vector3Subtract(Pos, Vector3Scale(AxisX, ScaleX + (ArrowRadius * 3)));
   NegTipY := Vector3Subtract(Pos, Vector3Scale(AxisY, ScaleY + (ArrowRadius * 3)));
   NegTipZ := Vector3Subtract(Pos, Vector3Scale(AxisZ, ScaleZ + (ArrowRadius * 3)));
-
   if FGizmoMode = gmTranslate then
   begin
     DrawCylinderEx(Pos, EndX, ArrowRadius, ArrowRadius, 8, ColX);
@@ -5249,14 +4818,11 @@ begin
     DrawCylinderEx(Pos, EndX, ArrowRadius * 0.5, ArrowRadius * 0.5, 8, Fade(ColX, 0.5));
     DrawCylinderEx(Pos, EndY, ArrowRadius * 0.5, ArrowRadius * 0.5, 8, Fade(ColY, 0.5));
     DrawCylinderEx(Pos, EndZ, ArrowRadius * 0.5, ArrowRadius * 0.5, 8, Fade(ColZ, 0.5));
-
     // Determine handle color (Yellow if dragging/hovering, White otherwise)
     var CornerCol: TColorB := WHITE;
     if FGizmoDragging or (FGizmoHoverAxis > 0) then
       CornerCol := YELLOW;
-
     HandleSize := HandleSize * 1.2; // Make them slightly larger
-
     // Draw 8 cubes at the corners of the bounding box
     DrawCube(Vector3Create(EndX.x, EndY.y, EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
     DrawCube(Vector3Create(-EndX.x, EndY.y, EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
@@ -5268,7 +4834,6 @@ begin
     DrawCube(Vector3Create(-EndX.x, -EndY.y, -EndZ.z), HandleSize, HandleSize, HandleSize, CornerCol);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.DrawThickRingAt(Center, NormalAxis: TVector3; Radius, Thickness: Single; Color: TColorB);
 var
   I: Integer;
@@ -5293,7 +4858,6 @@ begin
     DrawCylinderEx(V1, V2, Thickness, Thickness, 6, Color);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.DrawNativePopup;
 var
   I: Integer;
@@ -5365,7 +4929,6 @@ begin
     DrawText(PAnsiChar(AnsiString(FPopupSegments[I])), Round(Rect.x + 15), Round(Rect.y + 10), 20, TextColor);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.DrawGUI;
 var
   fpsBuf: AnsiString;
@@ -5382,7 +4945,6 @@ begin
     begin
       fpsBuf := AnsiString(Format('FPS: %d', [GetFPS()]));
       DrawText(PAnsiChar(fpsBuf), 10, GetScreenHeight() - 30, 20, GREEN);
-
   // --- PARTICLE COUNTER ---
       if Assigned(FParticleEngine) then
       begin
@@ -5411,7 +4973,6 @@ begin
         ModeStr := 'Mode: None (UI Interaction)';
       end;
       DrawText(PAnsiChar(ModeStr), 10, GetScreenHeight() - 120, 20, RAYWHITE);
-
       // Show the currently selected avatar controller type so the user
       // knows what F11 will possess. Highlight it green while driving.
       var CtrlStr: AnsiString;
@@ -5435,7 +4996,6 @@ begin
         DrawText(PAnsiChar(CtrlStr), 10, GetScreenHeight() - 150, 20, GREEN)
       else
         DrawText(PAnsiChar(CtrlStr), 10, GetScreenHeight() - 150, 20, GRAY);
-
       // Split-screen status indicator. Bright purple so it stands out
       // from the regular controller-type line.
       if Assigned(FMultiPlayer) and FMultiPlayer.Active then
@@ -5444,7 +5004,6 @@ begin
         DrawText('Single-player mode (F2 to start 2-player split)', 10, GetScreenHeight() - 180, 20, DARKGRAY);
     end;
   end;
-
   // Galaxy minimap overlay - drawn last so it sits on top of every
   // other 2D element. Only shown in space mode where the galaxy
   // manager is actually running. Drawn with Raylib's 2D primitives
@@ -5453,7 +5012,6 @@ begin
   if (FCurrentWorldBase = wbSpace) and Assigned(FSpaceWorld) then
     FSpaceWorld.RenderMinimap(FCamera);
 end;
-
 procedure TYutaniRaylibSandbox.DoViewportReady;
 begin
   if Assigned(FOnViewportReady) then
@@ -5463,7 +5021,6 @@ begin
         FOnViewportReady(Self);
       end);
 end;
-
 procedure TYutaniRaylibSandbox.DoActorSpawned(Actor: TA3DComponent; Index: Integer);
 var
   Args: TActorEventArgs;
@@ -5479,7 +5036,6 @@ begin
       end);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.DoActorDestroyed(Actor: TA3DComponent; Index: Integer);
 var
   Args: TActorEventArgs;
@@ -5495,7 +5051,6 @@ begin
       end);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.DoSceneCleared;
 begin
   if Assigned(FOnSceneCleared) then
@@ -5505,7 +5060,6 @@ begin
         FOnSceneCleared(Self);
       end);
 end;
-
 procedure TYutaniRaylibSandbox.DoEngineException(const Msg, Context: string);
 var
   Args: TEngineExceptionEventArgs;
@@ -5524,7 +5078,6 @@ begin
   else
     OutputDebugString(PChar('[' + Context + '] ' + Msg));
 end;
-
 procedure TYutaniRaylibSandbox.DoObjectSelected(Actor: TA3DComponent);
 begin
   if Assigned(FOnObjectSelected) then
@@ -5540,7 +5093,6 @@ end;
 // NAVIGATION LOGIC
 // Uses an internal absolute counter to cycle strictly through the FItems array.
 // ============================================================================
-
 procedure TYutaniRaylibSandbox.SelectNextObject;
 var
   i: Integer;
@@ -5549,12 +5101,10 @@ begin
   // Abort if the scene is empty
   if Length(FItems) = 0 then
     Exit;
-
   // Strictly increment the internal navigation index and wrap around
   FNavIndex := FNavIndex + 1;
   if FNavIndex >= Length(FItems) then
     FNavIndex := 0;
-
   Actor := FItems[FNavIndex];
   if Assigned(Actor) then
   begin
@@ -5562,16 +5112,13 @@ begin
     for i := 0 to High(FItems) do
       if Assigned(FItems[i]) then
         FItems[i].CollisionHighlighting := False;
-
     // Apply new selection state
     Actor.CollisionHighlighting := True;
     FItemSelected := Actor; // Update engine state
-
     // Notify the VCL Form to update TreeView and Inspector
     DoObjectSelected(Actor);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SelectPrevObject;
 var
   i: Integer;
@@ -5580,12 +5127,10 @@ begin
   // Abort if the scene is empty
   if Length(FItems) = 0 then
     Exit;
-
   // Strictly decrement the internal navigation index and wrap around
   FNavIndex := FNavIndex - 1;
   if FNavIndex < 0 then
     FNavIndex := High(FItems);
-
   Actor := FItems[FNavIndex];
   if Assigned(Actor) then
   begin
@@ -5593,16 +5138,13 @@ begin
     for i := 0 to High(FItems) do
       if Assigned(FItems[i]) then
         FItems[i].CollisionHighlighting := False;
-
     // Apply new selection state
     Actor.CollisionHighlighting := True;
     FItemSelected := Actor; // Update engine state
-
     // Notify the VCL Form to update TreeView and Inspector
     DoObjectSelected(Actor);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ProcessCustomSpawnQueue(dt: Single);
 var
   Req: TSpawnRequest;
@@ -5617,13 +5159,11 @@ var
 begin
   if Length(FCustomSpawnQueue) = 0 then
     Exit;
-
   if FCustomSpawnTimer > 0 then
   begin
     FCustomSpawnTimer := FCustomSpawnTimer - dt;
     Exit;
   end;
-
   FLock.Enter;
   try
     Req := FCustomSpawnQueue[0];
@@ -5636,20 +5176,16 @@ begin
   finally
     FLock.Leave;
   end;
-
   FCustomSpawnTimer := 0.05;
-
   if Req.Name = 'BOMB_TRIGGER' then
   begin
     Req.Name := 'WallBlock_Final';
-
     BombReq.Shape := stSphere;
     BombReq.Size := Vector3Create(1, 1, 1);
     BombReq.IsStatic := False;
     BombReq.Color := RED;
     BombReq.Pos := Vector3Create(0, 2.0, -4.0);
     BombReq.Name := 'THE_BOMB';
-
     FLock.Enter;
     try
       SetLength(FCustomSpawnQueue, Length(FCustomSpawnQueue) + 1);
@@ -5660,18 +5196,14 @@ begin
       FLock.Leave;
     end;
   end;
-
   oldLen := Length(FItems);
   SetLength(FItems, oldLen + 1);
-
   New(Data);
   FillChar(Data^, SizeOf(TItemData), 0);
   Data^.SpawnTime := GetTime();
   Data^.IsProjectile := False;
   Data^.Name := Req.Name;
-
   IsKey := (Pos('Key_White_', Req.Name) = 1) or (Pos('Key_Black_', Req.Name) = 1);
-
   JPos.x := Req.Pos.x;
   JPos.y := Req.Pos.y;
   JPos.z := Req.Pos.z;
@@ -5679,13 +5211,11 @@ begin
   JRot.y := 0;
   JRot.z := 0;
   JRot.w := 1;
-
   // NOW WE PASS Req.IsStatic DIRECTLY! IF IT IS A KEY, IT IS STATIC FROM THE START!
   Obj := TA3DComponent.Create('', FEngine, Req.Shape, Req.Size, Req.IsStatic, Req.IsDestructable, @JPos, @JRot);
   Obj.Name := Req.Name;
   Obj.Friction := 0.4;
   Obj.Restitution := 0.2;
-
   if IsKey then
   begin
     Obj.IsPianoKey := True;
@@ -5695,31 +5225,24 @@ begin
       Obj.MidiNote := 60;
     end;
   end;
-
   Obj.UserData := Data;
   Obj.Visible := True;
-
   if Req.Shape = stButton then
   begin
     Obj.Caption := Req.Caption;
     Obj.BaseColor := Req.BaseColor;
     Obj.HoverColor := Req.HoverColor;
     Obj.OnClick := Req.OnClick;
-
     var TxtSize: Integer := Round(Req.Size.x * 20.0);
     if TxtSize < 10 then
       TxtSize := 10;
-
     if Req.Caption <> '' then
       Obj.FButtonTexture := DrawTextToTexture(Req.Caption, TxtSize, BLACK, Req.BaseColor);
   end;
-
   Obj.TargetColor := Req.Color;
   Obj.ActColor := Req.Color;
-
   // Force position just in case, though it shouldn't be needed anymore
   Obj.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
-
   if Req.Name = 'THE_BOMB' then
   begin
     // DO NOT assign FModel. The stBomb render block draws it
@@ -5746,25 +5269,21 @@ begin
           end;
         end;
       end;
-
       if Assigned(FMPVPlayer) then
         Obj.FVideoTexture := FMPVPlayer.Target.texture
       else
         Obj.FVideoTexture := LoadTextureFromImage(GenImageColor(640, 360, RED));
     end;
   end;
-
   // Register Piano Keys to the standalone component
   if Assigned(FPiano) and Obj.IsPianoKey then
   begin
     SetLength(FPiano.FKeys, Length(FPiano.FKeys) + 1);
     FPiano.FKeys[High(FPiano.FKeys)] := Obj;
   end;
-
   FItems[oldLen] := Obj;
   DoActorSpawned(Obj, oldLen);
 end;
-
 procedure TYutaniRaylibSandbox.TriggerFracture(Actor: TA3DComponent; ImpactForce: Single);
 var
   BaseMesh: TPolyMesh;
@@ -5776,12 +5295,10 @@ var
 begin
   if not Assigned(Actor) or not Actor.IsDestructable then
     Exit;
-
   // 1. Generate a BaseMesh EXACTLY matching the Actor's Size
   var HX: Single := Actor.Scale.x * 0.5;
   var HY: Single := Actor.Scale.y * 0.5;
   var HZ: Single := Actor.Scale.z * 0.5;
-
   SetLength(BaseMesh, 6);
   SetLength(BaseMesh[0], 4);
   BaseMesh[0][0].x := -HX;
@@ -5796,7 +5313,6 @@ begin
   BaseMesh[0][3].x := -HX;
   BaseMesh[0][3].y := HY;
   BaseMesh[0][3].Z := HZ;
-
   SetLength(BaseMesh[1], 4);
   BaseMesh[1][0].x := HX;
   BaseMesh[1][0].y := -HY;
@@ -5810,7 +5326,6 @@ begin
   BaseMesh[1][3].x := HX;
   BaseMesh[1][3].y := HY;
   BaseMesh[1][3].Z := -HZ;
-
   SetLength(BaseMesh[2], 4);
   BaseMesh[2][0].x := -HX;
   BaseMesh[2][0].y := -HY;
@@ -5824,7 +5339,6 @@ begin
   BaseMesh[2][3].x := -HX;
   BaseMesh[2][3].y := HY;
   BaseMesh[2][3].Z := -HZ;
-
   SetLength(BaseMesh[3], 4);
   BaseMesh[3][0].x := HX;
   BaseMesh[3][0].y := -HY;
@@ -5838,7 +5352,6 @@ begin
   BaseMesh[3][3].x := HX;
   BaseMesh[3][3].y := HY;
   BaseMesh[3][3].Z := HZ;
-
   SetLength(BaseMesh[4], 4);
   BaseMesh[4][0].x := -HX;
   BaseMesh[4][0].y := HY;
@@ -5852,7 +5365,6 @@ begin
   BaseMesh[4][3].x := -HX;
   BaseMesh[4][3].y := HY;
   BaseMesh[4][3].Z := -HZ;
-
   SetLength(BaseMesh[5], 4);
   BaseMesh[5][0].x := -HX;
   BaseMesh[5][0].y := -HY;
@@ -5866,7 +5378,6 @@ begin
   BaseMesh[5][3].x := -HX;
   BaseMesh[5][3].y := -HY;
   BaseMesh[5][3].Z := HZ;
-
   // 2. Generate random Voronoi seeds INSIDE the real size of the actor
   // We map the 0..1 random values to the -HX..HX bounds
   SetLength(Seeds, 10 + Random(5));
@@ -5876,10 +5387,8 @@ begin
     Seeds[I].y := -HY + (Random * Actor.Scale.y);
     Seeds[I].Z := -HZ + (Random * Actor.Scale.z);
   end;
-
   // 3. Fracture the mesh
   Fragments := FractureMesh(BaseMesh, Seeds);
-
   // 4. Distribute fragments into the queue with physics properties
   for I := 0 to High(Fragments) do
   begin
@@ -5891,33 +5400,26 @@ begin
         Centroid := Centroid + Fragments[I].Mesh[0][J];
       if Length(Fragments[I].Mesh[0]) > 0 then
         Centroid := Centroid * (1.0 / Length(Fragments[I].Mesh[0]));
-
       // Position = Actor Position + Centroid offset
       Fragments[I].Position.X := Actor.Position.x + Centroid.X;
       Fragments[I].Position.Y := Actor.Position.y + Centroid.Y;
       Fragments[I].Position.Z := Actor.Position.z + Centroid.Z;
-
       // Outward direction
       Dir := Centroid.Normalize;
       Dir.Y := Dir.Y + 0.2; // Slight bias upwards
-
       // Drastically limit the explosion force!
       // Even if it falls at speed 20, the fragments only pop out at max 2.0 speed.
       var DampenedForce := EnsureRange(ImpactForce * 0.05, 0.5, 2.0);
       Fragments[I].Velocity := Dir * DampenedForce;
-
       // Limit angular velocity so they don't spin like crazy
       Fragments[I].AngularVelocity := (Random * 1.5) - 0.75;
-
       SetLength(FFractureQueue, Length(FFractureQueue) + 1);
       FFractureQueue[High(FFractureQueue)] := Fragments[I];
     end;
   end;
-
   // Mark the original actor for deletion
   Actor.FIsDead := True;
 end;
-
 procedure TYutaniRaylibSandbox.ProcessFractureQueue(dt: Single);
 var
   Frag: TFragment;
@@ -5935,15 +5437,12 @@ var
 begin
   if Length(FFractureQueue) = 0 then
     Exit;
-
   if FFractureTimer > 0 then
   begin
     FFractureTimer := FFractureTimer - dt;
     Exit;
   end;
-
   FFractureTimer := 0;
-
   while Length(FFractureQueue) > 0 do
   begin
     FLock.Enter;
@@ -5958,66 +5457,52 @@ begin
     finally
       FLock.Leave;
     end;
-
     // 1. Build the perfectly centered Raylib mesh
     LocalMesh := BuildRaylibMeshFromFragment(Frag);
     BBox := GetMeshBoundingBox(LocalMesh);
-
     FragSize := Vector3Create(BBox.max.x - BBox.min.x, BBox.max.y - BBox.min.y, BBox.max.z - BBox.min.z);
     if Max(FragSize.x, Max(FragSize.y, FragSize.z)) < 0.1 then
       FragSize := Vector3Create(0.2, 0.2, 0.2);
-
     // 2. Push fragment outwards slightly
     OutwardDir := Vector3Normalize(Vector3Create(Frag.Position.X, Frag.Position.Y, Frag.Position.Z));
     if Vector3Length(OutwardDir) < 0.1 then
       OutwardDir := Vector3Create(0, 1, 0);
     OutwardDir := Vector3Scale(OutwardDir, 0.15);
-
     // 3. Set Position (Mesh is centered, so Position is exact)
     JPos.x := Frag.Position.X + OutwardDir.x;
     JPos.y := Frag.Position.Y + OutwardDir.y;
     JPos.z := Frag.Position.Z + OutwardDir.z;
-
     if JPos.y < 0.5 then
       JPos.y := 0.5;
-
     JRot.x := 0;
     JRot.y := 0;
     JRot.z := 0;
     JRot.w := 1;
-
     // 4. Create Actor using a slightly SHRUNK size (85%) to prevent micro-jitter!
     // SetScale will force ConvexRadius to 0.0 in ModelEngine (because Name='Fragment')
     var ShrinkFactor: Single := 0.85;
     var PhysSize: TVector3 := Vector3Create(FragSize.x * ShrinkFactor, FragSize.y * ShrinkFactor, FragSize.z * ShrinkFactor);
-
     Obj := TA3DComponent.Create('', FEngine, stBox, PhysSize, False, False, @JPos, @JRot);
     Obj.Name := 'Fragment';
     Obj.Friction := 0.6;
     Obj.Restitution := 0.1;
     Obj.ActivateBody;
     Obj.Visible := True;
-
     // 5. Assign Mesh & Shader
     Obj.ShapeType := stModel;
     Obj.FModel := LoadModelFromMesh(LocalMesh);
-
     if (Obj.FModel.materialCount > 0) and (Obj.FModel.materials <> nil) then
       Obj.FModel.materials[0].shader := FLightShader;
-
     // Mesh is centered, so no offset needed!
     Obj.FModelOffset := Vector3Create(0, 0, 0);
-
     RandomColor.r := Random(255);
     RandomColor.g := Random(255);
     RandomColor.b := Random(255);
     RandomColor.a := 255;
     Obj.ActColor := RandomColor;
     Obj.TargetColor := RandomColor;
-
     Obj.SetLinearVelocity(Vector3Create(Frag.Velocity.X, Frag.Velocity.Y, Frag.Velocity.Z));
     Obj.SetAngularVelocity(Vector3Create(Frag.AngularVelocity, Frag.AngularVelocity, Frag.AngularVelocity));
-
     // 6. Unique Name & Array Registration
     FRandID := Random(1000000) + 100000;
     oldLen := Length(FItems);
@@ -6028,21 +5513,16 @@ begin
     Data^.IsProjectile := False; // MUST BE FALSE! If True, they vanish!
     Data^.Name := 'Frag_' + IntToStr(FRandID) + '_' + IntToStr(oldLen);
     Obj.UserData := Data;
-
     FItems[oldLen] := Obj;
-
     DoActorSpawned(Obj, oldLen);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.UpdateBomb(dt: Single);
 begin
   // Prevent access violation if bomb was already cleared/deleted
   if not Assigned(FBombActor) or FBombExploded or FBombActor.FIsDead then
     Exit;
-
   FBombTimer := FBombTimer - dt;
-
   // Flashing effect: Blink faster as time runs out
   if FBombTimer < 0.5 then
   begin
@@ -6051,13 +5531,11 @@ begin
     else
       FBombActor.ActColor := WHITE;
   end;
-
   if FBombTimer <= 0 then
   begin
     ExplodeBomb;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ExplodeBomb;
 var
   i: Integer;
@@ -6069,18 +5547,15 @@ var
 begin
   if not Assigned(FBombActor) or FBombExploded then
     Exit;
-
   // Set flag immediately to prevent multiple triggers in the same frame
   FBombExploded := True;
   FYutaniAudio.PlaySoundEffect('ressources\audio\explosionCrunch_004.wav', 1.0);
-
   if Assigned(FParticleEngine) then
   begin
     FParticleEngine.EmitExplosion(FBombActor.Position, 2000, RED);
    // FParticleEngine.EmitSparks(FBombActor.Position, 2000, GOLD);
    // FParticleEngine.EmitSmoke(FBombActor.Position, 1000, DARKGRAY);
   end;
-
   // Loop through all items and apply massive explosion force
   for i := 0 to High(FItems) do
   begin
@@ -6111,7 +5586,6 @@ begin
       end;
     end;
   end;
-
   // ====================================================================
   // SAFE DESTRUCTION: Mark for deletion instead of hard deleting here
   // ====================================================================
@@ -6125,49 +5599,41 @@ begin
       Break;
     end;
   end;
-
   // 2. If found, notify UI and mark for deletion
   if BombIdx >= 0 then
   begin
     // Notify the VCL Form to remove the node from the TreeView!
     DoActorDestroyed(FBombActor, BombIdx);
-
     // Deselect bomb if it was selected to prevent Gizmo crashes
     if FItemSelected = FBombActor then
     begin
       FItemSelected := nil;
       DoObjectSelected(nil);
     end;
-
     // Remove and destroy from Jolt Physics immediately so it stops colliding
     if FBombActor.FBodyID <> 0 then
     begin
       JPH_BodyInterface_RemoveAndDestroyBody(FEngine.BodyInterface, FBombActor.FBodyID);
       FBombActor.FBodyID := 0;
     end;
-
     // Free UserData if it exists
     if FBombActor.UserData <> nil then
     begin
       Dispose(PItemData(FBombActor.UserData));
       FBombActor.UserData := nil;
     end;
-
     // Clear the Model reference so the primitive render block
     // doesn't attempt to draw the dead, invisible bomb before garbage collection!
     FBombActor.FModel := Default(TModel);
-
     // Instead of FreeAndNil here (which causes Access Violations
     // if the RenderThread tries to draw it at the same time), we mark it as Dead.
     // The garbage collector at the end of UpdateGame will safely free the memory.
     FBombActor.FIsDead := True;
     FBombActor.Visible := False;
   end;
-
   // Clear the reference so UpdateBomb doesn't fire it again
   FBombActor := nil;
 end;
-
 procedure TYutaniRaylibSandbox.ClearDynamicItemsOnly;
 begin
   FLock.Enter;
@@ -6218,7 +5684,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ReattachLoadedActor(Actor: TA3DComponent);
 var
   JPos: JPH_RVec3;
@@ -6244,7 +5709,6 @@ end;
 // ============================================================================
 // SCENE SAVING & LOADING (Executed in main thread)
 // ============================================================================
-
 procedure TYutaniRaylibSandbox.SaveSceneToFile(const FileName: string);
 begin
   FLock.Enter;
@@ -6255,7 +5719,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.LoadSceneFromFile(const FileName: string);
 begin
   FLock.Enter;
@@ -6266,7 +5729,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ExecuteSceneSave(const FileName: string);
 var
   Stream: TFileStream;
@@ -6276,14 +5738,12 @@ var
 begin
   if not Assigned(FEngine) then
     Exit;
-
   Stream := TFileStream.Create(FileName, fmCreate);
   FLock.Enter;
   try
     Writer := TWriter.Create(Stream, 4096);
     try
       Writer.WriteInteger(Length(FItems));
-
       for i := 0 to High(FItems) do
       begin
         Actor := FItems[i];
@@ -6291,36 +5751,28 @@ begin
         begin
          // if Actor.ShapeType = stModel then
          //   Continue;
-
           Writer.WriteStr(Actor.Name);
           Writer.WriteInteger(Integer(Actor.ShapeType));
-
           Writer.WriteFloat(Actor.Position.x);
           Writer.WriteFloat(Actor.Position.y);
           Writer.WriteFloat(Actor.Position.z);
-
           Writer.WriteFloat(Actor.Quaternion.x);
           Writer.WriteFloat(Actor.Quaternion.y);
           Writer.WriteFloat(Actor.Quaternion.z);
           Writer.WriteFloat(Actor.Quaternion.w);
-
           Writer.WriteFloat(Actor.Scale.x);
           Writer.WriteFloat(Actor.Scale.y);
           Writer.WriteFloat(Actor.Scale.z);
-
           Writer.WriteFloat(Actor.Friction);
           Writer.WriteFloat(Actor.Restitution);
-
           if Actor.IsStatic then
             Writer.WriteInteger(1)
           else
             Writer.WriteInteger(0);
-
           Writer.WriteInteger(Actor.ActColor.r);
           Writer.WriteInteger(Actor.ActColor.g);
           Writer.WriteInteger(Actor.ActColor.b);
           Writer.WriteInteger(Actor.ActColor.a);
-
           // Save ModelPath if the actor is a model, otherwise -
           if Actor.ShapeType = stModel then
             Writer.WriteStr(Actor.ModelPath)
@@ -6337,7 +5789,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ExecuteSceneLoad(const FileName: string);
 var
   Stream: TFileStream;
@@ -6354,41 +5805,32 @@ var
 begin
   if not Assigned(FEngine) then
     Exit;
-
   if not System.SysUtils.FileExists(FileName) then
     Exit;
-
   // Soft reset the scene
   ClearDynamicItemsOnly;
-
   try
     Stream := TFileStream.Create(FileName, fmOpenRead);
     try
       Reader := TReader.Create(Stream, 4096);
       try
         Count := Reader.ReadInteger;
-
         for i := 0 to Count - 1 do
         begin
           AName := Reader.ReadStr;
           ShapeType := TShapeType(Reader.ReadInteger);
-
           JPos.x := Reader.ReadFloat;
           JPos.y := Reader.ReadFloat;
           JPos.z := Reader.ReadFloat;
-
           JRot.x := Reader.ReadFloat;
           JRot.y := Reader.ReadFloat;
           JRot.z := Reader.ReadFloat;
           JRot.w := Reader.ReadFloat;
-
           Size.x := Reader.ReadFloat;
           Size.y := Reader.ReadFloat;
           Size.z := Reader.ReadFloat;
-
           Friction := Reader.ReadFloat;
           Restitution := Reader.ReadFloat;
-
           var LoadIsStatic: Boolean := (Reader.ReadInteger = 1);
           LoadColor.r := Reader.ReadInteger;
           LoadColor.g := Reader.ReadInteger;
@@ -6404,10 +5846,8 @@ begin
           Actor.ActColor := LoadColor;
           Actor.TargetColor := LoadColor;
           Actor.Visible := True;
-
           Actor.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
           Actor.SetRotation(QuaternionCreate(JRot.x, JRot.y, JRot.z, JRot.w));
-
           // Load model mesh if it's a model
           if (ShapeType = stModel) and (ModelPath <> '-') and (ModelPath <> '') then
           begin
@@ -6429,13 +5869,10 @@ begin
           end
           else
             Actor.ModelPath := '-';
-
           SetLength(FItems, Length(FItems) + 1);
           FItems[High(FItems)] := Actor;
-
           // Notify VCL Form about the spawned actor so it gets added to the TreeView
           DoActorSpawned(Actor, High(FItems));
-
           // Give Jolt Physics a tiny breather so Broadphase can catch up
           // This prevents bodies from spawning at 0,0,0
           Sleep(1);
@@ -6451,7 +5888,6 @@ begin
       DoEngineException(E.Message, 'LoadSceneFromFile');
   end;
 end;
-
 procedure TYutaniRaylibSandbox.TriggerSpawnEffect(const Pos: TVector3; Actor: TA3DComponent);
 var
   Effect: TSpawnEffect;
@@ -6459,15 +5895,11 @@ begin
   // Abort if no effect is selected
   if FSpawnEffectType = spefNone then
     Exit;
-
   Effect.Position := Pos;
   Effect.StartTime := GetTime();
-
   Effect.Duration := 4.0;
-
   Effect.EffectType := FSpawnEffectType;
   Effect.TargetActor := Actor;
-
   // CRITICAL: Force the actor to be completely invisible at the start!
   // This ensures DrawSpawnEffects will trigger the materialization process.
   if Assigned(Actor) then
@@ -6476,12 +5908,10 @@ begin
     Actor.ActAlpha := 0.0;
     Actor.TargetAlpha := 0.0; // Keep it 0 until particles are done
   end;
-
   // Add to active effects array
   SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) + 1);
   FActiveSpawnEffects[High(FActiveSpawnEffects)] := Effect;
 end;
-
 procedure TYutaniRaylibSandbox.DrawSpawnEffects;
 var
   i: Integer;
@@ -6492,7 +5922,6 @@ begin
   for i := 0 to High(FActiveSpawnEffects) do
   begin
     bRemove := False;
-
     // ==============================================================
     // FADE EFFECT (Uses Duration / Time)
     // ==============================================================
@@ -6508,14 +5937,12 @@ begin
         Progress := Elapsed / FActiveSpawnEffects[i].Duration;
         Alpha := 1.0 - Progress;
         BasePos := FActiveSpawnEffects[i].Position;
-
         if Assigned(FActiveSpawnEffects[i].TargetActor) and (not FActiveSpawnEffects[i].TargetActor.Visible) then
         begin
           FActiveSpawnEffects[i].TargetActor.Visible := True;
           FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
           FActiveSpawnEffects[i].TargetActor.TargetAlpha := 1.0;
         end;
-
         DrawSphere(BasePos, 0.5 + (Progress * 2.0), Fade(SKYBLUE, Alpha * 0.4));
         DrawSphereWires(BasePos, 0.5 + (Progress * 2.0), 8, 8, Fade(WHITE, Alpha * 0.8));
       end;
@@ -6565,12 +5992,10 @@ begin
         end;
       end;
     end;
-
     // Mark the effect for removal if it is finished
     if bRemove then
       FActiveSpawnEffects[i].StartTime := -99999.0;
   end;
-
   // --- CLEANUP: Remove finished effects from the array ---
   for i := High(FActiveSpawnEffects) downto 0 do
   begin
@@ -6582,16 +6007,13 @@ begin
         FActiveSpawnEffects[i].TargetActor.ActAlpha := 1.0;
         FActiveSpawnEffects[i].TargetActor.Visible := True;
       end;
-
       if i < High(FActiveSpawnEffects) then
         FActiveSpawnEffects[i] := FActiveSpawnEffects[High(FActiveSpawnEffects)];
-
       SetLength(FActiveSpawnEffects, Length(FActiveSpawnEffects) - 1);
     end;
   end;
 end;
 { TPiano }
-
 constructor TPiano.Create(ASandbox: TYutaniRaylibSandbox);
 var
   i: Integer;
@@ -6610,7 +6032,6 @@ var
 begin
   FSandbox := ASandbox;
   FKeys := nil;
-
   // Dimensions
   WhiteKeyW := 1.0;
   WhiteKeyH := 0.2;
@@ -6618,7 +6039,6 @@ begin
   BlackKeyW := 0.6;
   BlackKeyH := 0.3;
   BlackKeyD := 1.5;
-
   // 1. Spawn the Piano Base
   // Base height is 0.6. Center at Y=0.3 -> bottom is 0.0, top is 0.6
   JPos.x := 0;
@@ -6628,11 +6048,9 @@ begin
   JRot.y := 0;
   JRot.z := 0;
   JRot.w := 1;
-
   // Width is 14.0 to perfectly match 14 white keys
   BaseCube := TA3DComponent.Create('', FSandbox.FEngine, stBox, Vector3Create(15.0, 0.6, WhiteKeyD + 1.0), True, False, @JPos, @JRot);
   BaseCube.Name := 'PianoBody';
-
   WoodColor.r := 101;
   WoodColor.g := 67;
   WoodColor.b := 33;
@@ -6640,11 +6058,9 @@ begin
   BaseCube.ActColor := WoodColor;
   BaseCube.TargetColor := WoodColor;
   BaseCube.Visible := True;
-
   FBase := BaseCube;
   SetLength(FSandbox.FItems, Length(FSandbox.FItems) + 1);
   FSandbox.FItems[High(FSandbox.FItems)] := BaseCube;
-
   // Setup Colors
   WhiteBaseColor.r := 255;
   WhiteBaseColor.g := 255;
@@ -6654,7 +6070,6 @@ begin
   WhiteHoverColor.g := 255;
   WhiteHoverColor.b := 0;
   WhiteHoverColor.a := 255;
-
   BlackBaseColor.r := 0;
   BlackBaseColor.g := 0;
   BlackBaseColor.b := 0;
@@ -6663,20 +6078,16 @@ begin
   BlackHoverColor.g := 165;
   BlackHoverColor.b := 0;
   BlackHoverColor.a := 255;
-
   // 2. Spawn the White and Black Keys
   WhiteKeyCount := 14; // 2 Octaves
   Note := 60; // Start at Middle C (MIDI Note 60)
-
   for i := 0 to WhiteKeyCount - 1 do
   begin
     HasBlack := not ((i mod 7 = 2) or (i mod 7 = 6)); // No black key after E and B
-
     // --- Spawn White Key ---
     // Base top is Y=0.6. Key is 0.2 high. Center at Y=0.7 means it goes from 0.6 to 0.8 exactly.
     // Add 0.02 spacing between keys to prevent Wireframe Z-Fighting
     Pos := Vector3Create((i * (WhiteKeyW + 0.02)) - (WhiteKeyCount * (WhiteKeyW + 0.02) * 0.5) + (WhiteKeyW * 0.5), 0.7, 0);
-
     Request.Shape := stBox; // HARD FIX: Use stBox to bypass stButton physics offsets!
     Request.Pos := Pos;
     Request.Size := Vector3Create(WhiteKeyW, WhiteKeyH, WhiteKeyD);
@@ -6689,14 +6100,11 @@ begin
     Request.Caption := '';
     Request.GenerateTestTexture := False;
     Request.OnClick := nil;
-
     FSandbox.QueueCustomSpawn(Request);
-
     // --- Spawn Black Key (if applicable) ---
     if HasBlack then
     begin
       BlackOffset := Pos.x + (WhiteKeyW * 0.5);
-
       // Base top is Y=0.6. Key is 0.3 high. Center at Y=0.75 means it goes from 0.6 to 0.9 exactly.
       Request.Pos := Vector3Create(BlackOffset, 0.75, -0.76);
       Request.Size := Vector3Create(BlackKeyW, BlackKeyH, BlackKeyD);
@@ -6704,7 +6112,6 @@ begin
       Request.Color := BlackBaseColor;
       Request.BaseColor := BlackBaseColor;
       Request.HoverColor := BlackHoverColor;
-
       FSandbox.QueueCustomSpawn(Request);
       Inc(Note, 2);
     end
@@ -6712,26 +6119,22 @@ begin
       Inc(Note);
   end;
 end;
-
 destructor TPiano.Destroy;
 begin
   FKeys := nil;
   FBase := nil;
   inherited;
 end;
-
 procedure TPiano.PressKey(Index: Integer);
 begin
   if (Index >= 0) and (Index < Length(FKeys)) and Assigned(FKeys[Index]) then
     FKeys[Index].IsPressed := True;
 end;
-
 procedure TPiano.ReleaseKey(Index: Integer);
 begin
   if (Index >= 0) and (Index < Length(FKeys)) and Assigned(FKeys[Index]) then
     FKeys[Index].IsPressed := False;
 end;
-
 function TPiano.GetKey(Index: Integer): TA3DComponent;
 begin
   if (Index >= 0) and (Index < Length(FKeys)) then
@@ -6739,19 +6142,16 @@ begin
   else
     Result := nil;
 end;
-
 function TPiano.KeyCount: Integer;
 begin
   Result := Length(FKeys);
 end;
-
 procedure TYutaniRaylibSandbox.SpawnPiano;
 begin
   // Create the standalone Piano component
   if not Assigned(FPiano) then
     FPiano := TPiano.Create(Self);
 end;
-
 procedure TYutaniRaylibSandbox.SetHighlighterActive(Active: Boolean);
 begin
   if Assigned(FAliveHighlighter3D) then
@@ -6759,7 +6159,6 @@ begin
     FAliveHighlighter3D.Active := Active;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.SendHighlighterToActor(Actor: TA3DComponent);
 begin
   if Assigned(FAliveHighlighter3D) and Assigned(Actor) then
@@ -6768,7 +6167,6 @@ begin
     FAliveHighlighter3D.Active := True;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.TriggerFogEffect;
 var
   Req: TParticleSpawnRequest;
@@ -6777,13 +6175,10 @@ begin
     Req.Pos := FItemSelected.Position
   else
     Req.Pos := FCamera.target;
-
   Req.Pos.y := Req.Pos.y + 0.5;
-
   Req.Count := 10000;
   Req.Color := WHITE;
   Req.IsSmoke := True;
-
   FLock.Enter;
   try
     SetLength(FParticleSpawnQueue, Length(FParticleSpawnQueue) + 1);
@@ -6792,7 +6187,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.TriggerExplosionEffect;
 var
   Req: TParticleSpawnRequest;
@@ -6801,11 +6195,9 @@ begin
     Req.Pos := FItemSelected.Position
   else
     Req.Pos := FCamera.target;
-
   Req.Count := 1500;
   Req.Color := RED;
   Req.IsSmoke := False;
-
   FLock.Enter;
   try
     SetLength(FParticleSpawnQueue, Length(FParticleSpawnQueue) + 1);
@@ -6817,22 +6209,18 @@ end;
 // ============================================================================
 // EXTERNAL MATERIALIZATION TRIGGERS (Safe to call from VCL/UI Thread)
 // ============================================================================
-
 procedure TYutaniRaylibSandbox.DematerializeSelectedObject;
 begin
   if Assigned(FItemSelected) then
     DematerializeActor(FItemSelected);
 end;
-
 procedure TYutaniRaylibSandbox.DematerializeActor(Actor: TA3DComponent);
 var
   Req: TDematerializeRequest;
 begin
   if not Assigned(Actor) then
     Exit;
-
   Req.Actor := Actor;
-
   // Thread-safe queueing. The actual Raylib & Particle logic happens in UpdateGame.
   FLock.Enter;
   try
@@ -6842,7 +6230,6 @@ begin
     FLock.Leave;
   end;
 end;
-
 procedure TYutaniRaylibSandbox.ExecuteDematerializeActor(Actor: TA3DComponent);
 var
   BaseMesh: TMesh;
@@ -6861,10 +6248,8 @@ var
 begin
   if not Assigned(Actor) or not Assigned(FParticleEngine) then
     Exit;
-
   // HIDE ORIGINAL IMMEDIATELY: The particles take over the visual representation.
   Actor.Visible := False;
-
   // ========================================================================
   // FALL 1: CUSTOM 3D MODEL
   // We extract the real mesh shell from the loaded model file.
@@ -6875,7 +6260,6 @@ begin
       Mesh := Actor.FModel.meshes[0]
     else
       Exit; // Safety abort
-
     if (Mesh.vertexCount > 0) and (Mesh.vertices <> nil) then
     begin
       // Cap to 3000 to prevent massive memory leaks on huge models!
@@ -6883,27 +6267,22 @@ begin
         BaseMesh.vertexCount := 10000
       else
         BaseMesh.vertexCount := Mesh.vertexCount;
-
       SetLength(TempVerts, BaseMesh.vertexCount * 3);
       for i := 0 to BaseMesh.vertexCount - 1 do
       begin
         vx := Mesh.vertices[i * 3];
         vy := Mesh.vertices[i * 3 + 1];
         vz := Mesh.vertices[i * 3 + 2];
-
         vx := vx * Actor.Scale.x;
         vy := vy * Actor.Scale.y;
         vz := vz * Actor.Scale.z;
-
         vx := vx + Actor.FModelOffset.x;
         vy := vy + Actor.FModelOffset.y;
         vz := vz + Actor.FModelOffset.z;
-
         TempVerts[i * 3] := vx;
         TempVerts[i * 3 + 1] := vy;
         TempVerts[i * 3 + 2] := vz;
       end;
-
       BaseMesh.vertices := @TempVerts[0];
       BaseMesh.indices := nil;
       BaseMesh.texcoords := nil;
@@ -6916,12 +6295,10 @@ begin
       BaseMesh.boneWeights := nil;
       BaseMesh.vaoId := 0;
       BaseMesh.vboId := nil;
-
       FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
     end;
     Exit;
   end;
-
   // ========================================================================
   // FALL 2: PRIMITIVES (Voxel Generation)
   // We generate a dense, solid voxel cloud matching the exact shape.
@@ -6929,12 +6306,10 @@ begin
   GridSize := 10;
   SetLength(FinalVerts, GridSize * GridSize * GridSize * 3);
   vCount := 0;
-
   // Calculate exact half-dimensions
   LenX := Actor.Scale.x * 0.5;
   LenY := Actor.Scale.y * 0.5;
   LenZ := Actor.Scale.z * 0.5;
-
   case Actor.ShapeType of
     stSphere:
       begin
@@ -6947,7 +6322,6 @@ begin
               OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
               OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
               OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
-
               DistSq := Sqr(OffsetX) + Sqr(OffsetY) + Sqr(OffsetZ);
               if DistSq <= RadSq then
               begin
@@ -6958,7 +6332,6 @@ begin
               end;
             end;
       end;
-
     stCapsule:
       begin
         // SOLID CAPSULE
@@ -6966,7 +6339,6 @@ begin
         CapY := LenY - Max(LenX, LenZ);
         if CapY < 0 then
           CapY := 0;
-
         for i := 0 to GridSize - 1 do
           for j := 0 to GridSize - 1 do
             for k := 0 to GridSize - 1 do
@@ -6974,9 +6346,7 @@ begin
               OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
               OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
               OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
-
               DistSq := Sqr(OffsetX) + Sqr(OffsetZ);
-
               if DistSq <= RadSq then
               begin
                 if (OffsetY >= -CapY) and (OffsetY <= CapY) then
@@ -6992,7 +6362,6 @@ begin
                     DistSq := DistSq + Sqr(OffsetY - CapY)
                   else
                     DistSq := DistSq + Sqr(OffsetY + CapY);
-
                   if DistSq <= RadSq then
                   begin
                     FinalVerts[vCount] := OffsetX;
@@ -7004,7 +6373,6 @@ begin
               end;
             end;
       end;
-
     stPyramid:
       begin
         // SOLID PYRAMID (4-sided cone)
@@ -7015,11 +6383,9 @@ begin
               OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
               OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
               OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
-
               t := 1.0 - ((OffsetY + LenY) / Actor.Scale.y);
               if t < 0 then
                 t := 0;
-
               if (Abs(OffsetX) <= LenX * t) and (Abs(OffsetZ) <= LenZ * t) then
               begin
                 FinalVerts[vCount] := OffsetX;
@@ -7029,13 +6395,11 @@ begin
               end;
             end;
       end;
-
     stPrism:
       begin
         // SOLID PRISM (3-sided cylinder standing)
         // We use the inscribed circle radius of the triangle to make it perfectly round
         MaxR := Min(LenX, LenZ) * 0.866; // sqrt(3)/2 approx
-
         for i := 0 to GridSize - 1 do
           for j := 0 to GridSize - 1 do
             for k := 0 to GridSize - 1 do
@@ -7043,7 +6407,6 @@ begin
               OffsetX := ((i / (GridSize - 1)) - 0.5) * Actor.Scale.x;
               OffsetY := ((j / (GridSize - 1)) - 0.5) * Actor.Scale.y;
               OffsetZ := ((k / (GridSize - 1)) - 0.5) * Actor.Scale.z;
-
               // Calculate angle and check if the point is inside the triangle
               if (Abs(OffsetX) <= MaxR) and (Abs(OffsetZ) <= MaxR) then
               begin
@@ -7053,13 +6416,11 @@ begin
                   Angle := Angle + 2 * PI;
                 while Angle >= 2 * PI do
                   Angle := Angle - 2 * PI;
-
                 // Modulo 120 degrees (2*PI/3)
                 if Angle > 2 * PI / 3 then
                   Angle := Angle - 2 * PI / 3;
                 if Angle > 2 * PI / 3 then
                   Angle := Angle - 2 * PI / 3;
-
                 // Angle is now between -60 and +60 degrees relative to the triangle edge
                 // Max distance from center to edge is cos(Angle - 60deg) * MaxR
                 if Sqr(OffsetX) + Sqr(OffsetZ) <= Sqr(MaxR / Cos(Angle - PI / 3)) then
@@ -7086,7 +6447,6 @@ begin
           end;
     end;
   end;
-
   // Configure the temporary mesh struct
   BaseMesh.vertexCount := vCount div 3; // Only count the points we actually generated
   BaseMesh.vertices := @FinalVerts[0];
@@ -7101,14 +6461,11 @@ begin
   BaseMesh.boneWeights := nil;
   BaseMesh.vaoId := 0;
   BaseMesh.vboId := nil;
-
   // Pass the real, exact-size voxel cloud to the particle engine
   FParticleEngine.EmitDematerializeMesh(Actor.Position, BaseMesh);
-
   // Mark as dead. The engine's garbage collector will safely dispose of it.
   Actor.FIsDead := True;
 end;
-
 procedure TYutaniRaylibSandbox.ExecuteMaterializeActor(Actor: TA3DComponent);
 var
   BaseMesh: TMesh;
@@ -7127,12 +6484,10 @@ var
 begin
   if not Assigned(Actor) or not Assigned(FParticleEngine) then
     Exit;
-
   // HIDE ORIGINAL IMMEDIATELY
   Actor.Visible := False;
   Actor.ActAlpha := 0.0;
   Actor.TargetAlpha := 0.0;
-
   // ========================================================================
   // FALL 1: CUSTOM 3D MODEL (Use real vertices, but cap to max 5000)
   // ========================================================================
@@ -7142,7 +6497,6 @@ begin
       Mesh := Actor.FModel.meshes[0]
     else
       Exit;
-
     if (Mesh.vertexCount > 0) and (Mesh.vertices <> nil) then
     begin
       // Cap to 3000 to prevent massive memory leaks on huge models!
@@ -7150,7 +6504,6 @@ begin
         BaseMesh.vertexCount := 3000
       else
         BaseMesh.vertexCount := Mesh.vertexCount;
-
       SetLength(TempVerts, BaseMesh.vertexCount * 3);
       for i := 0 to BaseMesh.vertexCount - 1 do
       begin
@@ -7161,7 +6514,6 @@ begin
         TempVerts[i * 3 + 1] := vy * Actor.Scale.y;
         TempVerts[i * 3 + 2] := vz * Actor.Scale.z;
       end;
-
       BaseMesh.vertices := @TempVerts[0];
       BaseMesh.indices := nil;
       BaseMesh.texcoords := nil;
@@ -7174,23 +6526,19 @@ begin
       BaseMesh.boneWeights := nil;
       BaseMesh.vaoId := 0;
       BaseMesh.vboId := nil;
-
       FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
     end;
     Exit;
   end;
-
   // ========================================================================
   // FALL 2: PRIMITIVES (Reduced Voxel Grid to save memory!)
   // ========================================================================
   GridSize := 6;
   SetLength(FinalVerts, GridSize * GridSize * GridSize * 3);
   vCount := 0;
-
   LenX := Actor.Scale.x * 0.5;
   LenY := Actor.Scale.y * 0.5;
   LenZ := Actor.Scale.z * 0.5;
-
   case Actor.ShapeType of
     stSphere:
       begin
@@ -7318,7 +6666,6 @@ begin
           end;
     end;
   end;
-
   BaseMesh.vertexCount := vCount div 3;
   BaseMesh.vertices := @FinalVerts[0];
   BaseMesh.indices := nil;
@@ -7332,10 +6679,8 @@ begin
   BaseMesh.boneWeights := nil;
   BaseMesh.vaoId := 0;
   BaseMesh.vboId := nil;
-
   FParticleEngine.EmitMaterializeMesh(Actor.Position, BaseMesh);
 end;
-
 procedure TYutaniRaylibSandbox.TriggerNanoFogDuplicate;
 var
   TargetPos: TVector3;
@@ -7422,7 +6767,6 @@ begin
     Inc(FNanoFogAvatarID);
   end;
 end;
-
 procedure TYutaniRaylibSandbox.MorphSelectedToFog;
 begin
   // Dissolve the current avatar back into ambient roaming fog
@@ -7432,7 +6776,6 @@ begin
     Inc(FNanoFogAvatarID); // Increment so the next build uses a fresh ID
   end;
 end;
-
 procedure TYutaniRaylibSandbox.KillNanoFog;
 begin
   if Assigned(FNanoFog) then
@@ -7440,6 +6783,5 @@ begin
     FNanoFog.ExplodeAndKill;
   end;
 end;
-
 end.
 
