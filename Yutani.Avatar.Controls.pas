@@ -9,9 +9,7 @@ unit Yutani.Avatar.Controls;
  *    Central input and control system bridging Keyboard, SDL3 Gamepads,
  *    Jolt Physics (via TModelEngine) and Raylib Cameras.
  *==============================================================================}
-
 {$POINTERMATH ON}
-
 interface
 
 uses
@@ -32,6 +30,7 @@ type
   // The field name Fwd is used instead of Forward because Forward is a
   // Delphi directive; the legacy GetInputs API still exposes it as the
   // out parameter named "forward" for backward compatibility.
+
   TYutaniPlayerInputState = record
     Fwd: Single;
     Right: Single;
@@ -75,7 +74,6 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-
     procedure InitializeGamepad;
     procedure ShowGamepadSettings(ParentForm: TForm);
     procedure Rumble(PlayerID: Integer; LowFreq, HighFreq: Word; DurationMS: Cardinal);
@@ -87,7 +85,6 @@ type
     // Snapshot accessor for code paths that want the full struct instead
     // of out parameters.
     function GetPlayerState(PadID: Integer): TYutaniPlayerInputState;
-
     // --- Mouselook API ---
     // StartMouseLook hides the cursor, snaps it to the center of the given
     // viewport and begins emitting look deltas into the buffer. StopMouseLook
@@ -96,7 +93,6 @@ type
     procedure StartMouseLook(ViewportHandle: HWND);
     procedure StopMouseLook;
     procedure PollMouseLook;
-
     property Core: TMRXGamepadCore read FGamepadCore;
     property MouseLookActive: Boolean read FMouseLookActive;
     property MouseSensitivity: Single read FMouseSensitivity write FMouseSensitivity;
@@ -163,7 +159,6 @@ type
     FInputLookY: Single;
     FInputAction1: Boolean;
     FInputAction2: Boolean;
-
     procedure HandleKeyboardInput; virtual;
     procedure UpdateCameraTransform(dt: Single); virtual; abstract;
     // Single entry point that every UpdateCameraTransform override should
@@ -192,15 +187,12 @@ type
   public
     constructor Create(AAvatar: TA3DComponent; ACamera: PCamera3D); virtual;
     destructor Destroy; override;
-
     procedure Update(DeltaTime: Single; InputManager: TYutaniInputManager); virtual; abstract;
-
     // Call this immediately after spawning a controller (or when shifting
     // between controller types) to make the camera fly smoothly from its
     // current state to the new controller's desired state. Captures the
     // current FCamera position/target/up as the start of the ease.
     procedure BeginCameraTransition(Duration: Single = 0.6);
-
     property Avatar: TA3DComponent read FAvatar write SetAvatar;
     property Camera: PCamera3D read FCamera write FCamera;
     property CamYaw: Single read FCamYaw write FCamYaw;
@@ -265,6 +257,7 @@ type
   // controller types below. Keeping them in a record makes it trivial to
   // expose them in a VCL inspector, persist them to disk alongside other
   // user preferences, or pass them by value into helper functions.
+
   TYutaniAvatarSettings = record
     LookSensitivity: Single;      // Mouse / right-stick look speed multiplier
     InvertY: Boolean;             // If TRUE, pushing the stick up looks down
@@ -288,6 +281,7 @@ type
   // direction. Sprint (Shift), crouch (Ctrl) and jump (Space / Action1)
   // are supported. Vertical look is clamped to a sane range so the player
   // cannot break their neck looking straight up or down.
+
   TYutaniFirstPersonController = class(TYutaniAvatarController)
   private
     FYaw: Single;                 // Body yaw (mirrored to FCamYaw for external readers)
@@ -341,6 +335,7 @@ type
   // floats freely in any direction. Sprint with Shift for a speed boost.
   // The avatar itself is not rotated - only the camera moves. This is the
   // go-to controller for level designers that need to fly through walls.
+
   TYutaniSpectatorController = class(TYutaniAvatarController)
   private
     FSprintActive: Boolean;
@@ -363,6 +358,7 @@ type
   // Manual look overrides auto-rotation as soon as the user touches the
   // right stick; auto-rotation resumes once the stick is released. The
   // forward/backward axes (or triggers) adjust the orbit distance.
+
   TYutaniOrbitController = class(TYutaniAvatarController)
   private
     FAutoRotate: Boolean;
@@ -384,6 +380,7 @@ type
   // body. This produces physically believable acceleration, momentum and
   // friction behaviour on slopes. Best used for ragdoll-friendly avatars,
   // rolling spheres and physics puzzles where momentum matters.
+
   TYutaniRigidBodyController = class(TYutaniAvatarController)
   private
     FAccelForce: Single;           // Force applied per second when accelerating
@@ -414,6 +411,7 @@ type
   // this for legacy reasons, but this standalone function lets other
   // consumers (TYutaniMultiPlayerManager, unit tests, external tools)
   // spawn controllers without depending on the sandbox.
+
 function YutaniCreateAvatarController(Avatar: TA3DComponent; AType: TYutaniAvatarControllerType; ACamera: PCamera3D): TYutaniAvatarController;
   // ==========================================================================
   // Player slot for split-screen play
@@ -422,6 +420,7 @@ function YutaniCreateAvatarController(Avatar: TA3DComponent; AType: TYutaniAvata
   // controller should pull input from. The sandbox renders the scene once
   // per slot using the slot's camera; the manager handles the per-frame
   // update logic for both slots.
+
 type
   TYutaniPlayerSlot = class
   private
@@ -463,6 +462,7 @@ type
   //   FMultiPlayer.Update(dt, FInputManager);
   //   // when done:
   //   FMultiPlayer.DisableSplitScreen;
+
   TYutaniMultiPlayerManager = class
   private
     FSlots: array[0..1] of TYutaniPlayerSlot;
@@ -588,7 +588,6 @@ begin
       geExtra4:
         BtnName := 'Extra4 (Paddle)';
     end;
-
     if Pressed then
       StateStr := 'pressed'
     else
@@ -617,7 +616,6 @@ begin
       OutputDebugString(PChar(Format('[Pad %d] %s: %.2f', [PadID, BtnName, Value])));
     end;
   end;
-
   FLock.Acquire;
   try
     // Per-pad buffered state. PadID is bounded 0..3 by the GamepadCore
@@ -1114,30 +1112,22 @@ var
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
-
   // Mouse wheel zoom: lets the player dial in their preferred chase
   // distance live without touching the settings dialog.
   HandleWheelZoom(DeltaTime);
-
   FCamYaw := FCamYaw + (FInputLookX * 0.05);
   FCamPitch := EnsureRange(FCamPitch - (FInputLookY * 0.05), 0.1, 1.5);
-
   fwd := Vector3Create(-Sin(FCamYaw), 0, -Cos(FCamYaw));
   right := Vector3Create(Cos(FCamYaw), 0, -Sin(FCamYaw));
-
   vel.x := (fwd.x * FInputForward + right.x * FInputRight) * FMoveSpeed;
   vel.z := (fwd.z * FInputForward + right.z * FInputRight) * FMoveSpeed;
   vel.y := FAvatar.GetLinearVelocity.y;
-
   FAvatar.SetLinearVelocity(vel);
-
   // Rotate the avatar body to face the velocity direction. This makes
   // the avatar look where it is walking instead of sliding in place.
   FaceMovementDirection(vel, DeltaTime);
-
   // Footstep audio: fires FOnFootstep at a speed-scaled interval.
   UpdateFootstepAudio(DeltaTime);
-
   if FInputAction1 or ((GetAsyncKeyState(VK_SPACE) and $8000) <> 0) then
   begin
     if FAvatar.Position.y <= 1.0 then
@@ -1147,7 +1137,6 @@ begin
       FAvatar.ActivateBody;
     end;
   end;
-
   UpdateCameraTransform(DeltaTime);
 end;
 
@@ -1177,34 +1166,26 @@ var
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
-
   // Wheel zoom lets the player pull the chase camera back for a wider
   // view while flying. Useful for navigating tight terrain where the
   // default distance feels too claustrophobic.
   HandleWheelZoom(DeltaTime);
-
   if (GetAsyncKeyState(VK_SPACE) and $8000) <> 0 then
     FInputUp := 1.0;
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
     FInputUp := -1.0;
-
   FAvatar.SetGravityFactor(0.0);
   FAvatar.SetAngularVelocity(Vector3Create(0, 0, 0));
-
   FCamYaw := FCamYaw + (FInputLookX * 0.05);
   FCamPitch := EnsureRange(FCamPitch - (FInputLookY * 0.05), -1.4, 1.4);
-
   fwd := Vector3Create(Cos(FCamPitch) * Sin(FCamYaw), Sin(FCamPitch), Cos(FCamPitch) * Cos(FCamYaw));
   fwd := Vector3Normalize(fwd);
-
   right := Vector3Normalize(Vector3CrossProduct(fwd, Vector3Create(0, 1, 0)));
   up := Vector3Create(0, 1, 0);
-
   vel := Vector3Create(0, 0, 0);
   vel := Vector3Add(vel, Vector3Scale(fwd, FInputForward * FMoveSpeed));
   vel := Vector3Add(vel, Vector3Scale(right, FInputRight * FMoveSpeed));
   vel := Vector3Add(vel, Vector3Scale(up, FInputUp * FMoveSpeed));
-
   FAvatar.SetLinearVelocity(vel);
   UpdateCameraTransform(DeltaTime);
 end;
@@ -1240,45 +1221,34 @@ var
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
-
   // Wheel zoom adjusts chase distance on the fly. Useful when parking
   // or maneuvering in tight spots so the player can pull the camera
   // in for a closer look at the avatar.
   HandleWheelZoom(DeltaTime);
-
   if (GetAsyncKeyState(Ord('Q')) and $8000) <> 0 then
     FInputUp := 1.0;
   if (GetAsyncKeyState(Ord('E')) and $8000) <> 0 then
     FInputUp := -1.0;
-
   if FInputForward > 0 then
     FCurrentSpeed := EnsureRange(FCurrentSpeed + (20 * DeltaTime), 0, FMaxSpeed)
   else if FInputForward < 0 then
     FCurrentSpeed := EnsureRange(FCurrentSpeed - (40 * DeltaTime), -FMaxSpeed * 0.5, FMaxSpeed)
   else
     FCurrentSpeed := FCurrentSpeed * (1.0 - (0.5 * DeltaTime));
-
   if Abs(FCurrentSpeed) > 0.1 then
     FCamYaw := FCamYaw - (FInputRight * FTurnSpeed * DeltaTime * (FCurrentSpeed / FMaxSpeed));
-
   fwd := Vector3Create(-Sin(FCamYaw), 0, -Cos(FCamYaw));
-
   FAvatar.SetAngularVelocity(Vector3Create(0, 0, 0));
   FAvatar.SetGravityFactor(0.0);
-
   vel := Vector3Scale(fwd, FCurrentSpeed);
   vel.y := FInputUp * 10.0;
-
   FAvatar.SetLinearVelocity(vel);
-
   RotQuat := QuaternionFromAxisAngle(Vector3Create(0, 1, 0), FCamYaw + FVehicleModelOffset);
   FAvatar.SetRotation(RotQuat);
-
   // Footstep-style audio trigger: not used for footsteps but can be
   // repurposed for engine-idle / tire-roll cues by wiring a different
   // callback to OnFootstep from the sandbox.
   UpdateFootstepAudio(DeltaTime);
-
   UpdateCameraTransform(DeltaTime);
 end;
 
@@ -1297,7 +1267,6 @@ end;
 // ==========================================================================
 // NEW IMPLEMENTATIONS
 // ==========================================================================
-
 { TYutaniAvatarSettings }
 
 class function TYutaniAvatarSettings.Default: TYutaniAvatarSettings;
@@ -1427,7 +1396,6 @@ var
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
-
   // --- Keyboard modifiers: sprint, crouch, jump ---
   FSprintActive := (GetAsyncKeyState(VK_SHIFT) and $8000) <> 0;
   FIsCrouching := (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0;
@@ -1439,7 +1407,6 @@ begin
   FADSActive := (GetAsyncKeyState(FADSTriggerKey) and $8000) <> 0;
   // --- Wheel zoom / ADS zoom tuning ---
   HandleWheelZoom(DeltaTime);
-
   // --- Apply look input to yaw and pitch ---
   // Stick up produces positive Y, but we want look-up to be positive pitch,
   // so we invert the sign here unless the user requested Y inversion.
@@ -1455,28 +1422,23 @@ begin
   // works (e.g. the existing camera HUD or save-load routines).
   FCamYaw := FYaw;
   FCamPitch := FPitch;
-
   // --- Build basis vectors from yaw only ---
   // Movement stays on the ground plane so the player does not fly when
   // looking up. Vertical motion is handled entirely by gravity + jump.
   fwd := Vector3Create(-Sin(FYaw), 0, -Cos(FYaw));
   right := Vector3Create(Cos(FYaw), 0, -Sin(FYaw));
-
   // --- Determine effective speed based on sprint / crouch state ---
   SpeedScale := 1.0;
   if FSprintActive and (not FIsCrouching) then
     SpeedScale := 2.0
   else if FIsCrouching then
     SpeedScale := 0.45;
-
   // --- Compose target velocity, preserving gravity-driven Y velocity ---
   vel.x := (fwd.x * FInputForward + right.x * FInputRight) * FMoveSpeed * SpeedScale;
   vel.z := (fwd.z * FInputForward + right.z * FInputRight) * FMoveSpeed * SpeedScale;
   CurrentVel := FAvatar.GetLinearVelocity;
   vel.y := CurrentVel.y;
-
   FAvatar.SetLinearVelocity(vel);
-
   // --- Jump: only when close to ground and moving downwards ---
   // The Position.y <= 1.2 check is intentionally a bit loose so the player
   // can jump from small steps and uneven terrain without feeling stuck.
@@ -1489,12 +1451,10 @@ begin
       FAvatar.ActivateBody;
     end;
   end;
-
   // --- Rotate the avatar body so its visual orientation matches the view yaw ---
   // This keeps third-person rendering of the avatar (shadow, mirror, other
   // players) consistent with where the player is actually looking.
   FAvatar.SetRotation(QuaternionFromAxisAngle(Vector3Create(0, 1, 0), FYaw));
-
   // --- Smoothly transition eye height when crouching ---
   // Lerp gives a soft dip instead of an instant snap, which feels much
   // more natural and prevents motion sickness.
@@ -1502,12 +1462,10 @@ begin
     FCurrentEyeHeight := Lerp(FCurrentEyeHeight, FCrouchHeight, EnsureRange(DeltaTime * 10.0, 0.0, 1.0))
   else
     FCurrentEyeHeight := Lerp(FCurrentEyeHeight, FEyeHeight, EnsureRange(DeltaTime * 10.0, 0.0, 1.0));
-
   // Determine if horizontal movement is happening so the head bob activates
   IsMoving := (Abs(FInputForward) > 0.1) or (Abs(FInputRight) > 0.1);
   UpdateHeadBob(DeltaTime, IsMoving);
   UpdateFOV(DeltaTime);
-
   UpdateCameraTransform(DeltaTime);
 end;
 
@@ -1548,44 +1506,36 @@ var
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
-
   // Keyboard vertical: Space = up, Ctrl = down. Mirrors the flight controller
   // so users do not have to relearn muscle memory between the two modes.
   if (GetAsyncKeyState(VK_SPACE) and $8000) <> 0 then
     FInputUp := 1.0;
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
     FInputUp := -1.0;
-
   // Sprint gives a strong speed multiplier for crossing large maps fast.
   FSprintActive := (GetAsyncKeyState(VK_SHIFT) and $8000) <> 0;
-
   // Disable gravity & freeze any rotation so the avatar floats in pure 6DOF.
   // We do not touch the avatar's rotation here so the avatar keeps whatever
   // orientation the player previously set - useful for placement work.
   FAvatar.SetGravityFactor(0.0);
   FAvatar.SetAngularVelocity(Vector3Create(0, 0, 0));
-
   // Apply look input (pitch is inverted unless the user opted out).
   if FInvertY then
     FCamPitch := EnsureRange(FCamPitch + (FInputLookY * 0.05 * FSensitivity), -1.4, 1.4)
   else
     FCamPitch := EnsureRange(FCamPitch - (FInputLookY * 0.05 * FSensitivity), -1.4, 1.4);
   FCamYaw := FCamYaw + (FInputLookX * 0.05 * FSensitivity);
-
   fwd := Vector3Create(Cos(FCamPitch) * Sin(FCamYaw), Sin(FCamPitch), Cos(FCamPitch) * Cos(FCamYaw));
   fwd := Vector3Normalize(fwd);
   right := Vector3Normalize(Vector3CrossProduct(fwd, Vector3Create(0, 1, 0)));
   up := Vector3Create(0, 1, 0);
-
   SpeedScale := 1.0;
   if FSprintActive then
     SpeedScale := FBoostMultiplier;
-
   vel := Vector3Create(0, 0, 0);
   vel := Vector3Add(vel, Vector3Scale(fwd, FInputForward * FMoveSpeed * SpeedScale));
   vel := Vector3Add(vel, Vector3Scale(right, FInputRight * FMoveSpeed * SpeedScale));
   vel := Vector3Add(vel, Vector3Scale(up, FInputUp * FMoveSpeed * SpeedScale));
-
   FAvatar.SetLinearVelocity(vel);
   UpdateCameraTransform(DeltaTime);
 end;
@@ -1625,7 +1575,6 @@ end;
 procedure TYutaniOrbitController.Update(DeltaTime: Single; InputManager: TYutaniInputManager);
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
-
   // Manual look always overrides auto-rotation when the user touches the
   // stick. As soon as they let go, auto-rotation resumes. This is the
   // standard "Idle Cinematic" pattern used in many game main menus.
@@ -1639,18 +1588,15 @@ begin
   begin
     FAutoRotate := True;
   end;
-
   // Distance adjustment via the forward/back axis. Triggers (FInputUp)
   // are wired to the same channel by the input manager, so they work too.
   if Abs(FInputForward) > 0.05 then
     FTargetDist := EnsureRange(FTargetDist - FInputForward * 0.5, 3.0, 50.0);
   if Abs(FInputUp) > 0.05 then
     FTargetDist := EnsureRange(FTargetDist - FInputUp * 0.5, 3.0, 50.0);
-
   // Smoothly lerp the actual distance towards the target so zoom feels
   // like a real lens motor rather than an instant cut.
   FCamDist := Lerp(FCamDist, FTargetDist, EnsureRange(DeltaTime * 6.0, 0.0, 1.0));
-
   UpdateCameraTransform(DeltaTime);
 end;
 
@@ -1662,7 +1608,6 @@ begin
     Exit;
   if FAutoRotate then
     FCamYaw := FCamYaw + (FAutoRotateSpeed * dt);
-
   // Spherical coordinate to Cartesian conversion. Pitch lifts the camera
   // above the avatar, yaw rotates around the vertical axis.
   Pos := Vector3Create(FAvatar.Position.x + Cos(FCamPitch) * Sin(FCamYaw) * FCamDist, FAvatar.Position.y + Sin(FCamPitch) * FCamDist + 1.5, FAvatar.Position.z + Cos(FCamPitch) * Cos(FCamYaw) * FCamDist);
@@ -1724,24 +1669,19 @@ var
 begin
   InputManager.GetInputs(FInputForward, FInputRight, FInputUp, FInputLookX, FInputLookY, FInputAction1, FInputAction2);
   HandleKeyboardInput;
-
   // Wheel zoom: lets the player dial in their preferred orbit distance.
   HandleWheelZoom(DeltaTime);
-
   // --- Apply look input ---
   if FInvertY then
     FCamPitch := EnsureRange(FCamPitch + (FInputLookY * 0.05 * FSensitivity), -1.4, 1.4)
   else
     FCamPitch := EnsureRange(FCamPitch - (FInputLookY * 0.05 * FSensitivity), -1.4, 1.4);
   FCamYaw := FCamYaw + (FInputLookX * 0.05 * FSensitivity);
-
   // --- Ground check (raycast based, much more reliable than y-position) ---
   FIsGrounded := CheckGrounded;
-
   // --- Compute desired forward / right based on camera yaw ---
   fwd := Vector3Create(-Sin(FCamYaw), 0, -Cos(FCamYaw));
   right := Vector3Create(Cos(FCamYaw), 0, -Sin(FCamYaw));
-
   // --- Apply force to accelerate. Only do this if we are below max speed ---
   // in the desired direction. This prevents runaway acceleration on slopes
   // and respects the soft speed cap. Note: we compare squared lengths to
@@ -1749,7 +1689,6 @@ begin
   CurrentVel := FAvatar.GetLinearVelocity;
   SpeedSq := (CurrentVel.x * CurrentVel.x) + (CurrentVel.z * CurrentVel.z);
   MaxSpeedSq := FMaxSpeed * FMaxSpeed;
-
   if (SpeedSq < MaxSpeedSq) and ((Abs(FInputForward) > 0.01) or (Abs(FInputRight) > 0.01)) then
   begin
     Force := Vector3Create(0, 0, 0);
@@ -1757,7 +1696,6 @@ begin
     Force := Vector3Add(Force, Vector3Scale(right, FInputRight * FAccelForce * DeltaTime));
     FAvatar.AddForce(Force);
   end;
-
   // --- Smoothly turn the avatar body to face the camera yaw ---
   // We compute the shortest angular delta to avoid the body spinning the
   // long way around when the player turns past 180 degrees.
@@ -1769,30 +1707,24 @@ begin
     YawDelta := YawDelta + 2 * PI;
   YawStep := EnsureRange(YawDelta * 8.0 * DeltaTime, -Abs(YawDelta), Abs(YawDelta));
   FYaw := FYaw + YawStep;
-
   // Apply a torque impulse around the Y axis to nudge the body towards the
   // target yaw. Jolt will integrate this into the angular velocity.
   TorqueAxis := Vector3Create(0, YawStep * FTorqueForce, 0);
   FAvatar.AddForce(TorqueAxis); // AddForce on Y acts as a torque around Y when offset - kept simple here.
-
   // --- Jump: only when grounded ---
   if ((FInputAction1) or ((GetAsyncKeyState(VK_SPACE) and $8000) <> 0)) and FIsGrounded then
   begin
     FAvatar.ApplyImpulse(Vector3Create(0, FJumpImpulse, 0));
     FAvatar.ActivateBody;
   end;
-
   // Re-activate the body if the player is providing input so it does not
   // fall asleep mid-motion (Jolt puts bodies to sleep to save CPU).
   if (Abs(FInputForward) > 0.01) or (Abs(FInputRight) > 0.01) then
     FAvatar.ActivateBody;
-
   // Rotate the avatar body to face the velocity direction.
   FaceMovementDirection(CurrentVel, DeltaTime);
-
   // Footstep audio trigger.
   UpdateFootstepAudio(DeltaTime);
-
   UpdateCameraTransform(DeltaTime);
 end;
 

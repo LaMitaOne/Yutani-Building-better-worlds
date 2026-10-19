@@ -33,6 +33,14 @@
      - Added thread-safe Rumble execution via TCriticalSection.
      - Implemented event throttling for axes to prevent UI message flooding.
      - Basic hot-discovery: Finds and opens up to 4 gamepads on launch.
+     - Fixed close-crash: StopThread now uses WaitFor instead of Sleep,
+       keeps FreeOnTerminate := False so we can WaitFor+Free safely, and
+       calls TThread.RemoveQueuedEvents to drop any input closures that
+       were queued by the bg thread before it exited (otherwise they
+       would dereference a freed Self when the message pump runs them).
+     - Added nil-guard on SDL_GetJoysticks return value because SDL can
+       return nil during shutdown / hot-unplug, which previously caused
+       an AV when dereferencing IDPtr^.
 }
 
 unit Yutani.Avatar.Controls.GamepadCore;
@@ -227,18 +235,52 @@ begin
         Sleep(10); // Polling rate: ~100Hz
       end;
     end);
-  FThread.FreeOnTerminate := True;
+  // IMPORTANT: keep FreeOnTerminate := False so we can WaitFor the
+  // thread and Free it manually in StopThread. With FreeOnTerminate = True
+  // the thread object can be auto-freed while StopThread is still waiting
+  // on it, which leads to "Thread-Objekt existiert nicht mehr" / AVs.
+  FThread.FreeOnTerminate := False;
   FThread.Start;
 end;
 
 procedure TMRXGamepadCore.StopThread;
+var
+  LocalThread: TThread;
 begin
+  // Defensive: nothing to do if the thread was never started.
+  if not Assigned(FThread) then
+    Exit;
+
+  // Capture the thread reference before nil'ing FThread. We need it for
+  // RemoveQueuedEvents after WaitFor returns, because WaitFor has already
+  // torn down the thread's internal state but the queued closures still
+  // carry that TThread reference as their owner tag.
+  LocalThread := FThread;
+
+  // Signal the bg thread to exit its polling loop on the next iteration.
   FActive := False;
-  if Assigned(FThread) then
-  begin
-    FThread.Terminate;
-    Sleep(50); // Allow thread to finish gracefully
-  end;
+  LocalThread.Terminate;
+
+  // Block until the bg thread has ACTUALLY exited the polling loop and
+  // the anonymous procedure has fully returned. The previous Sleep(50)
+  // was racy: if the thread was inside SDL_UpdateGamepads or holding
+  // FLock when we proceeded to FreeSDL / FreeAndNil(FLock), we would
+  // crash on access to freed memory or an unloaded DLL.
+  LocalThread.WaitFor;
+
+  // Drop every input closure the bg thread queued to the main thread
+  // via TThread.Queue(nil, ...) inside DoInputEvent. Those closures
+  // capture Self, so they would dereference a freed object if the
+  // message pump ran them after Self has been destroyed. Queue tags
+  // each event with the calling thread as its owner, and
+  // RemoveQueuedEvents(LocalThread) drops them all synchronously
+  // without going through the message pump - safe to call from the
+  // destructor on the main thread.
+  TThread.RemoveQueuedEvents(LocalThread);
+
+  // Now that the thread is dead and its queued events are purged, it
+  // is safe to free the TThread wrapper itself.
+  FreeAndNil(FThread);
 end;
 
 procedure TMRXGamepadCore.ProcessGamepadStates;
@@ -257,9 +299,13 @@ begin
   begin
     IDs := SDL_GetJoysticks(Count);
     try
-      IDPtr := IDs;
-      if Count > 0 then
+      // Defensive: SDL_GetJoysticks can return nil if SDL is shutting
+      // down or the joystick subsystem is in a weird state (e.g. right
+      // after a hot-unplug). The old code dereferenced IDPtr^
+      // unconditionally inside the Count > 0 branch, which AV'd on nil.
+      if (IDs <> nil) and (Count > 0) then
       begin
+        IDPtr := IDs;
         for I := 0 to Count - 1 do
         begin
           if (I <= 3) and not Assigned(FGamepads[I]) then
@@ -268,8 +314,10 @@ begin
         end;
       end;
     finally
-      // SDL3 allocates memory for the ID array, we must free it
-      if Assigned(SDL_free) then
+      // SDL3 allocates memory for the ID array, we must free it.
+      // SDL_free(nil) is safe (matches C free behaviour) but we guard
+      // anyway for clarity.
+      if Assigned(SDL_free) and (IDs <> nil) then
         SDL_free(IDs);
     end;
   end;
@@ -418,16 +466,22 @@ end;
 
 procedure TMRXGamepadCore.DoInputEvent(PadID: Integer; Element: TGamepadElement; Pressed: Boolean; Value: Single);
 begin
-  if Assigned(FOnInputEvent) then
-  begin
-    // Marshal event to the main UI thread
-    TThread.Queue(nil,
-      procedure
-      begin
-        if Assigned(FOnInputEvent) then
-          FOnInputEvent(Self, PadID, Element, Pressed, Value);
-      end);
-  end;
+  // Bail out early if no listener is attached. This avoids queueing
+  // closures that would just no-op when they fire later, which both
+  // saves main-thread CPU and reduces the number of pending events
+  // RemoveQueuedEvents has to drop during shutdown.
+  if not Assigned(FOnInputEvent) then
+    Exit;
+
+  // Marshal event to the main UI thread. The closure captures Self,
+  // which is safe as long as StopThread calls RemoveQueuedEvents before
+  // letting Self die (see StopThread).
+  TThread.Queue(nil,
+    procedure
+    begin
+      if Assigned(FOnInputEvent) then
+        FOnInputEvent(Self, PadID, Element, Pressed, Value);
+    end);
 end;
 
 procedure TMRXGamepadCore.Rumble(PlayerID: Integer; LowFreq, HighFreq: Word; DurationMS: Cardinal);
