@@ -72,7 +72,7 @@ type
   public
     constructor Create(const ResourcesPath: string; const DefaultWhiteTex: TTexture2D);
     destructor Destroy; override;
-    procedure Draw(const Camera: TCamera3D);
+   procedure Draw(const Camera: TCamera3D; DayTime: Single);
   end;
 
 implementation
@@ -540,43 +540,65 @@ begin
   end;
 end;
 
-procedure TIslandWorld.Draw(const Camera: TCamera3D);
+procedure TIslandWorld.Draw(const Camera: TCamera3D; DayTime: Single);
 var
   dt: Single;
-  nDaytime: Single;
+  SunAngle, nDaytime: Single;
   AmbientColor: array[0..3] of Single;
   CameraPos: array[0..2] of Single;
   LightPos: array[0..2] of Single;
 begin
   if not FIsInitialized then
     Exit;
+
+  // Compute time-of-day as a sine value (-1..1) so the skybox and
+  // terrain shaders receive a continuous signal through midnight.
+  // Same formula used by TYutaniRaylibSandbox.UpdateGame and
+  // TLandWorld.Render so all three worlds stay in sync.
+  SunAngle := Lerp(-90, 270, DayTime) * DEG2RAD;
+  nDaytime := Sin(SunAngle);
+
   // Update Water Move Factor
   dt := GetFrameTime();
   FWaterMoveFactor := FWaterMoveFactor + 0.03 * dt;
   if FWaterMoveFactor > 1.0 then
     FWaterMoveFactor := FWaterMoveFactor - 1.0;
   SetShaderValue(FWaterShader, FWaterMoveFactorLoc, @FWaterMoveFactor, SHADER_UNIFORM_FLOAT);
-  // Send Lighting Uniforms to the Terrain Shader!
-  nDaytime := 1.0; // Bright midday sun
-  AmbientColor[0] := 0.5;
-  AmbientColor[1] := 0.5;
-  AmbientColor[2] := 0.5;
-  AmbientColor[3] := 1.0;
+
+  // Dynamic ambient: dim and slightly blue-tinted at night, brighter
+  // during the day so the terrain shading tracks the sun position.
+  if nDaytime < 0 then
+  begin
+    AmbientColor[0] := 0.15;
+    AmbientColor[1] := 0.15;
+    AmbientColor[2] := 0.2;
+    AmbientColor[3] := 1.0;
+  end
+  else
+  begin
+    AmbientColor[0] := 0.2 + nDaytime * 0.3;
+    AmbientColor[1] := 0.2 + nDaytime * 0.3;
+    AmbientColor[2] := 0.2 + nDaytime * 0.4;
+    AmbientColor[3] := 1.0;
+  end;
+
   SetShaderValue(FTerrainShader, GetShaderLocation(FTerrainShader, 'daytime'), @nDaytime, SHADER_UNIFORM_FLOAT);
   SetShaderValue(FTerrainShader, GetShaderLocation(FTerrainShader, 'ambient'), @AmbientColor, SHADER_UNIFORM_VEC4);
+
   CameraPos[0] := Camera.position.x;
   CameraPos[1] := Camera.position.y;
   CameraPos[2] := Camera.position.z;
   SetShaderValue(FTerrainShader, GetShaderLocation(FTerrainShader, 'viewPos'), @CameraPos, SHADER_UNIFORM_VEC3);
+
   LightPos[0] := 50.0;
   LightPos[1] := 80.0;
   LightPos[2] := 30.0;
-  // Calculate scale factor (new size / old size) and send to shader
-  var MeshSize: Single := 512.0; // Must match the size in GenMeshPlane!
+  var MeshSize: Single := 512.0;
   var ScaleFactor: Single := MeshSize / 32.0;
   SetShaderValue(FTerrainShader, GetShaderLocation(FTerrainShader, 'scaleFactor'), @ScaleFactor, SHADER_UNIFORM_FLOAT);
   SetShaderValue(FTerrainShader, GetShaderLocation(FTerrainShader, 'lightPos'), @LightPos, SHADER_UNIFORM_VEC3);
-  // Draw Terrain (The Shader handles the 3D displacement via texture2!)
+
+  // Draw Terrain (the shader handles 3D displacement via texture2)
   DrawModel(FTerrainModel, Vector3Create(0, 0, 0), 1.0, WHITE);
   // Draw Water
   DrawModel(FWaterModel, Vector3Create(0, 0, 0), 1.0, WHITE);

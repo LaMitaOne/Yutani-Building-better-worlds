@@ -1,4 +1,4 @@
-﻿unit Yutani.Core;
+unit Yutani.Core;
 
 {==============================================================================*
  *  Yutani.Core v0.649 - Multi-threaded Raylib + Jolt 3D Editor
@@ -80,6 +80,7 @@
  Latest Changes:
 
 v0.649
+
  - F12 now leaves posessed object, split screen moved to F2
  - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
  - Added world bones unit Yutani.Worlds.YourWorld
@@ -88,7 +89,6 @@ v0.649
  - New Engine tab Combobox for transition effect setting
  - Space reset/load/save functions added
  - Space radar minimap now real 3d & added zoom btns
-
  *==============================================================================}
 {$POINTERMATH ON}
 {$Q-}
@@ -273,6 +273,25 @@ type
     FCloudMoveFactorLoc: Integer;
     FCloudDaytimeLoc: Integer;
     FAmbientGradientTex: TTexture2D;
+    // ====================================================================
+    // NEW: Shadow-receiving floor plane.
+    // --------------------------------------------------------------------
+    // A transparent plane that sits 10cm above the world floor and only
+    // renders shadow pixels (semi-transparent black) where the shadow
+    // map says a shadow exists. The world floor shows through everywhere
+    // else - so this is purely additive: it only ADDS shadows of spawned
+    // objects onto the existing floor, never replaces the floor itself.
+    // ====================================================================
+    FShadowFloorShader: TShader;
+    FShadowFloorModel: TModel;
+    FShadowFloorMesh: TMesh;
+    FShadowFloorMvpLoc: Integer;
+    FShadowFloorModelLoc: Integer;
+    FShadowFloorLightViewLoc: Integer;
+    FShadowFloorLightProjLoc: Integer;
+    FShadowFloorShadowMapLoc: Integer;
+    FShadowFloorShadowBiasLoc: Integer;
+    FShadowFloorEnabled: Boolean;
     FDayTime: Single;
     FDaySpeed: Single;
     FSunPos: TVector3;
@@ -477,6 +496,10 @@ type
     procedure Render3DSceneCore;
     procedure RenderShadowMap;
     procedure DrawSceneShadows;
+    // NEW: Draw a transparent plane that receives shadows from the
+    // shadow map. Renders on top of the world floor (10cm above) and
+    // only darkens pixels where the shadow map says a shadow exists.
+    procedure DrawShadowFloor;
     procedure DrawGUI;
     procedure DrawGizmo;
     procedure DrawThickRingAt(Center, NormalAxis: TVector3; Radius, Thickness: Single; Color: TColorB);
@@ -1243,6 +1266,32 @@ begin
     FAmbientGradientTex := LoadTexture(PAnsiChar(AnsiString(FilePath + 'ambientGradient.png')));
     SetTextureFilter(FAmbientGradientTex, TEXTURE_FILTER_TRILINEAR);
   end;
+
+  // ========================================================================
+  // NEW: Initialize the shadow-receiving floor plane.
+  // ------------------------------------------------------------------------
+  // This plane sits 10cm above the world floor and only renders shadow
+  // pixels - transparent everywhere else. It uses the existing shadow
+  // map that the lighting system already generates, so it does not need
+  // any additional render pass. It only adds shadows of spawned objects
+  // onto the existing world floor.
+  // ========================================================================
+  FShadowFloorShader := LoadShaderFromMemory(PAnsiChar(REFLECTIVE_FLOOR_VERT), PAnsiChar(REFLECTIVE_FLOOR_FRAG));
+  FShadowFloorMvpLoc := GetShaderLocation(FShadowFloorShader, 'mvp');
+  FShadowFloorModelLoc := GetShaderLocation(FShadowFloorShader, 'matModel');
+  FShadowFloorLightViewLoc := GetShaderLocation(FShadowFloorShader, 'lightView');
+  FShadowFloorLightProjLoc := GetShaderLocation(FShadowFloorShader, 'lightProj');
+  FShadowFloorShadowMapLoc := GetShaderLocation(FShadowFloorShader, 'shadowMap');
+  FShadowFloorShadowBiasLoc := GetShaderLocation(FShadowFloorShader, 'shadowBias');
+
+  // 2000x2000 plane. Sits 10cm above world floor (y=0.1) to avoid z-fighting.
+  FShadowFloorMesh := GenMeshPlane(2000, 2000, 1, 1);
+  UploadMesh(@FShadowFloorMesh, False);
+  FShadowFloorModel := LoadModelFromMesh(FShadowFloorMesh);
+  FShadowFloorModel.materials[0].shader := FShadowFloorShader;
+
+  // Enabled everywhere except Space (no floor there).
+  FShadowFloorEnabled := (FCurrentWorldBase <> wbSpace);
 end;
 
 procedure TYutaniRaylibSandbox.StartThread;
@@ -1317,7 +1366,7 @@ begin
           // cloud shaders + textures from the ressources/ folder.
           // YourWorld is a skeleton template for user-built worlds.
           FHolodeckWorld := THolodeckWorld.Create;
-          FLandWorld := TLandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', PAnsiChar(SKYBOX_VERT), PAnsiChar(SKYBOX_FRAG), PAnsiChar(CLOUD_VERT), PAnsiChar(CLOUD_FRAG));
+          FLandWorld := TLandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', PAnsiChar(SKYBOX_VERT), PAnsiChar(SKYBOX_FRAG), PAnsiChar(CLOUD_VERT), PAnsiChar(CLOUD_FRAG), FLightShader);
           FYourWorld := TYourWorld.Create(FLightShader);
           FParticleEngine := TYutaniParticleEngine.Create;
           // Init NanoFog Engine
@@ -1422,6 +1471,9 @@ begin
                       FDayNightRhythmActive := True;
                   end;
                   FShadowMapDirty := True;
+                  // NEW: Disable shadow floor in Space (no floor there),
+                  // enable everywhere else.
+                  FShadowFloorEnabled := (FCurrentWorldBase <> wbSpace);
                   // 5. Tell the loading screen to stop.
                   // It will gracefully fade out itself!
                   if Assigned(FLoadingScreen) then
@@ -1518,6 +1570,13 @@ begin
             UnloadTexture(FWhiteTex);
           if FDefaultWhiteTex.id > 0 then
             UnloadTexture(FDefaultWhiteTex);
+          // NEW: Free shadow-receiving floor resources.
+          if FShadowFloorShader.id > 0 then
+          begin
+            UnloadShader(FShadowFloorShader);
+            if FShadowFloorModel.meshes <> nil then
+              UnloadModel(FShadowFloorModel);
+          end;
           UnloadMesh(FUnitBox);
           UnloadMesh(FUnitSphere);
           if Assigned(FIslandWorld) then
@@ -4217,6 +4276,16 @@ begin
   // Bias to prevent shadow acne
   var TempBias: Single := 0.05;
   SetShaderValue(FLightShader, GetShaderLocation(FLightShader, 'shadowBias'), @TempBias, SHADER_UNIFORM_FLOAT);
+  // NEW: Push the same shadow view/proj matrices + shadow map into
+  // FShadowFloorShader so the shadow plane samples the same shadow map
+  // as the main lighting pass.
+  if FShadowFloorEnabled and (FShadowFloorShader.id > 0) then
+  begin
+    SetShaderValueMatrix(FShadowFloorShader, FShadowFloorLightViewLoc, LightViewMat);
+    SetShaderValueMatrix(FShadowFloorShader, FShadowFloorLightProjLoc, LightProjMat);
+    SetShaderValueTexture(FShadowFloorShader, FShadowFloorShadowMapLoc, FShadowMap.texture);
+    SetShaderValue(FShadowFloorShader, FShadowFloorShadowBiasLoc, @TempBias, SHADER_UNIFORM_FLOAT);
+  end;
   // CRITICAL: Remove dead actors from the list to prevent them
   // from clogging up Jolt's body count and freezing in mid-air!
   for i := High(FItems) downto 0 do
@@ -4544,7 +4613,9 @@ begin
     end
     else if FCurrentWorldBase = wbLand then
     begin
-      FLandWorld.Render(FCamera, FDayTime);
+      var SunAngle: Single := Lerp(-90, 270, FDayTime) * DEG2RAD;
+      var nDaytime: Single := Sin(SunAngle);
+      FLandWorld.Render(FCamera, nDaytime);
     end
     else if FCurrentWorldBase = wbYourWorld then
     begin
@@ -4569,7 +4640,7 @@ begin
         rlEnableDepthMask();
       end;
       if Assigned(FIslandWorld) then
-        FIslandWorld.Draw(FCamera);
+        FIslandWorld.Draw(FCamera, FDayTime);
       if (FCloudModel.meshes <> nil) then
       begin
         BeginShaderMode(FCloudShader);
@@ -4931,7 +5002,51 @@ begin
   if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active then
     FAliveHighlighter3D.Draw;
 
+  // NEW: Draw the shadow-receiving floor plane on top of the world floor.
+  // It is transparent everywhere except where shadows exist, so it
+  // only ADDS shadow pixels - the world floor shows through unchanged.
+  if FShadowFloorEnabled and (not FIsLoadingWorld) then
+    DrawShadowFloor;
+
   EndMode3D();
+end;
+
+// ============================================================================
+// NEW: Draw the shadow-receiving floor plane.
+// ----------------------------------------------------------------------------
+// Draws a 2000x2000 plane at y=0.1 using FShadowFloorShader. The shader
+// samples the shadow map and outputs transparent pixels everywhere except
+// where a shadow exists - there it outputs semi-transparent black. This
+// means the plane only ADDS shadows of spawned objects onto the world
+// floor; the world floor itself shows through unchanged.
+// ============================================================================
+procedure TYutaniRaylibSandbox.DrawShadowFloor;
+var
+  FloorPos: TVector3;
+begin
+  if (FShadowFloorShader.id = 0) or (FShadowFloorModel.meshes = nil) then
+    Exit;
+
+  // Position the plane at the camera position so it follows the viewer.
+  // Y = 0.1 (10cm above world floor) to avoid Z-fighting.
+  FloorPos := Vector3Create(FCamera.position.x, 0.1, FCamera.position.z);
+
+  // Use BLEND_ALPHA so transparent pixels (alpha=0) let the world floor
+  // show through, and shadow pixels (alpha=0.55) darken the world floor.
+  rlSetBlendMode(BLEND_ALPHA);
+  BeginShaderMode(FShadowFloorShader);
+  try
+    rlDisableBackfaceCulling();
+    rlDisableDepthMask();
+
+    DrawModelEx(FShadowFloorModel, FloorPos, Vector3Create(0, 0, 0), 0, Vector3Create(1, 1, 1), WHITE);
+
+    rlEnableDepthMask();
+    rlEnableBackfaceCulling();
+  finally
+    EndShaderMode();
+    rlSetBlendMode(BLEND_ALPHA);
+  end;
 end;
 
 procedure TYutaniRaylibSandbox.DrawGizmo;
@@ -7049,7 +7164,6 @@ begin
     FNanoFog.ExplodeAndKill;
   end;
 end;
-
 // ====================================================================
 // Galaxy control - forwarded to FSpaceWorld
 // ====================================================================
@@ -7084,7 +7198,6 @@ begin
   else
     Result := '';
 end;
-
 // ====================================================================
 // Minimap marker forwarding - to FSpaceWorld
 // ====================================================================

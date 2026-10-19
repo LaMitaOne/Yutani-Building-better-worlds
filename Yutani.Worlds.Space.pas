@@ -1,4 +1,4 @@
-﻿unit Yutani.Worlds.Space;
+unit Yutani.Worlds.Space;
 
 {==============================================================================*
  *  Yutani World: Space - Infinite Procedural Cosmos
