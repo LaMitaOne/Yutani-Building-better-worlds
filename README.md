@@ -326,6 +326,7 @@ v0.62:
 700 fps on rtx 2060s... not bad :D    
                
 includes:      
+Raylib Delphi Wrapper https://github.com/GuvaCode/ray4laz   
 Raylib 3d https://github.com/LaMitaOne/r3d-delphi   
 MiniAudio4Delphi https://github.com/LaMitaOne/MiniAudio4Delphi    
 JoltPhysics4Delphi https://github.com/LaMitaOne/JoltPhysics4Delphi    
