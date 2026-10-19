@@ -12138,6 +12138,19 @@ object YutaniWindow: TYutaniWindow
           Font.Style = []
           ParentFont = False
         end
+        object lblWorldTransition: TLabel
+          Left = 16
+          Top = 400
+          Width = 121
+          Height = 15
+          Caption = 'World transition effect:'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
         object cbFPS: TComboBox
           Left = 16
           Top = 29
@@ -12360,6 +12373,27 @@ object YutaniWindow: TYutaniWindow
           TabOrder = 12
           TickStyle = tsNone
           OnChange = tbSlowMotionChange
+        end
+        object cbWorldTransitionEffect: TComboBox
+          Left = 16
+          Top = 421
+          Width = 145
+          Height = 23
+          Style = csDropDownList
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clBlack
+          Font.Height = -12
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ItemIndex = 1
+          ParentFont = False
+          TabOrder = 13
+          Text = 'BlinkEye'
+          OnChange = cbWorldTransitionEffectChange
+          Items.Strings = (
+            'Warp'
+            'BlinkEye'
+            'Fade')
         end
       end
       object tsControls: TTabSheet

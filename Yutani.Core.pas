@@ -76,12 +76,16 @@
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
  * Apache-2.0 license
+ *
  Latest Changes:
-v0.648
- - F11 posess item, but F12 now leave, split screen moved to F2
- - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
- - Added world unit Yutani.Worlds.YourWorld
 
+v0.649
+ - 12 now leave posessed object, split screen moved to F2
+ - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
+ - Added world bones unit Yutani.Worlds.YourWorld
+ - Added unit Yutani.Worlds.WorldTransitions
+ - New world Transition effects: Warp, BlinkEye, Fade
+ - New Engine tab Combobox for transition effect setting
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -95,9 +99,9 @@ uses
   JoltPhysics, MiniAudio4Delphi, Yutani.Audio, Yutani.Render.VoronoiFracture,
   Yutani.AliveHighlighter3D, Yutani.Worlds.Island, Yutani.Worlds.Space,
   Yutani.Worlds.Holodeck, Yutani.Worlds.Land, Yutani.Worlds.YourWorld,
-  Yutani.Render.Shaders, Yutani.Render.Particles, Yutani.Render.NanoFog,
-  Yutani.Render.LoadingScreen, GameNetworkingSockets, VerySimple.Lua,
-  Yutani.Avatar.Controls, Yutani.Video.MPV, Yutani.Chaos.Skia;
+  Yutani.Worlds.WorldTransitions, Yutani.Render.Shaders, Yutani.Render.Particles,
+  Yutani.Render.NanoFog, Yutani.Render.LoadingScreen, GameNetworkingSockets,
+  VerySimple.Lua, Yutani.Avatar.Controls, Yutani.Video.MPV, Yutani.Chaos.Skia;
   //RN_InputGeom, RN_Recast, RN_SampleInterfaces, RN_Sample, RN_SampleSoloMesh, RN_SampleTileMesh,
   //dglOpenGL, KromOGLUtils;
 
@@ -374,6 +378,16 @@ type
     FPendingSpaceShader: TShader;
     FLoadWorldQueued: Boolean;
     FLoadingScreen: TYutaniLoadingScreen;
+    // Cinematic world-swap transition manager. Owned by the sandbox
+    // and driven from the render thread. See Yutani.Worlds.WorldTransitions
+    // for the lifecycle (Outro -> Loading -> Intro).
+    FWorldTransition: TWorldTransition;
+    // Selected transition style for the next SetWorldBase call.
+    // Set from the VCL (e.g. combobox in YutaniWindow) to change
+    // which effect the next world swap uses. Does NOT affect an
+    // in-flight transition - the new type only takes effect on
+    // the next swap.
+    FWorldTransitionType: TTransitionType;
     // Second Life style Camera Focus tracking variables
     FFocusTrackingActor: TA3DComponent;
     FAltWasPressed: Boolean;
@@ -589,6 +603,11 @@ type
     property DayNightSpeed: Single read FDaySpeed write SetDayNightSpeed;
     property CurrentWorldBase: TWorldBaseType read FCurrentWorldBase write SetWorldBase;
     property SpawnEffectType: TSpawnEffectType read FSpawnEffectType write FSpawnEffectType default spefNone;
+    // Cinematic transition style for world swaps. Set this from a
+    // VCL combobox to let the user pick between Warp / Stretch /
+    // Hyperspace / Fade. The chosen type is used by the next
+    // SetWorldBase call; an in-flight transition is NOT affected.
+    property WorldTransitionType: TTransitionType read FWorldTransitionType write FWorldTransitionType default ttBlinkEye;
     property AntiAliasing: Boolean read FAntiAliasing write SetAntiAliasing default True;
     property Gravity: Single read FGravity write SetGravity;
     property TimeScale: Single read FTimeScale write SetTimeScale;
@@ -795,6 +814,15 @@ begin
   FYutaniAudio := TYutaniAudioEngine.Create;
   FYutaniAudio.InitAudio;
   FYutaniAudio.LoadSoundfont(ExtractFilePath(ParamStr(0)) + 'ressources\audio\8bitsf.sf2');
+  // Cinematic world-swap transition manager. Created up-front so it
+  // is ready the moment the first SetWorldBase is invoked. The manager
+  // is a no-op (Active = False) until Start() is called, so creating
+  // it here costs nothing per frame.
+  FWorldTransition := TWorldTransition.Create;
+  // Default transition style. The VCL form (YutaniWindow) overrides
+  // this via the WorldTransitionType property when the user picks a
+  // different effect in the combobox.
+  FWorldTransitionType := ttBlinkEye;
 end;
 
 destructor TYutaniRaylibSandbox.Destroy;
@@ -817,6 +845,10 @@ begin
     FreeAndNil(FParticleEngine);
   if Assigned(FAliveHighlighter3D) then
     FreeAndNil(FAliveHighlighter3D);
+  // Tear down the cinematic transition manager. Safe to free even if
+  // a transition is mid-flight because StopThread above has already
+  // stopped the render loop, so no one is reading from it anymore.
+  FreeAndNil(FWorldTransition);
   inherited;
 end;
 
@@ -931,11 +963,25 @@ begin
 end;
 
 procedure TYutaniRaylibSandbox.SetWorldBase(const Value: TWorldBaseType);
+var
+  NeedsHeavyLoad: Boolean;
 begin
   if FCurrentWorldBase = Value then
     Exit;
   if FIsLoadingWorld then
     Exit;
+  // Determine if this swap requires a heavy texture creation
+  // (first-time Space or Island load). If so, skip the cinematic
+  // transition and fall back to the old loading screen behavior
+  // (solid black + loading screen) because the render thread will
+  // be blocked for seconds during the heavy lift and the transition
+  // would just freeze behind the loading screen. For lightweight
+  // swaps (Holodeck / Land / YourWorld, or Space / Island when
+  // already loaded) the render thread keeps running, so the
+  // transition can play smoothly on top of the live old world.
+  NeedsHeavyLoad := ((Value = wbSpace) and (not Assigned(FSpaceWorld))) or ((Value = wbIsland) and (not Assigned(FIslandWorld)));
+  if (not NeedsHeavyLoad) and Assigned(FWorldTransition) then
+    FWorldTransition.Start(FWorldTransitionType);
   FIsLoadingWorld := True;
   if (Value = wbSpace) and (not Assigned(FSpaceWorld)) then
   begin
@@ -1268,65 +1314,108 @@ begin
               // ==========================================
               // WORLD LOADING (RAYLIB STAYS VISIBLE BUT BLACK)
               // ==========================================
+              // Two-stage gating: when a world swap is queued AND a
+              // cinematic transition is in tpOutro, we let the Outro
+              // play on the OLD world (still alive + animating) before
+              // we touch anything. Only once the transition has reached
+              // tpLoading (the tunnel mask now covers the screen) do we
+              // perform the heavy lift. This produces the "freeze old
+              // world -> warp out -> tunnel -> warp in -> new world"
+              // sequence the user expects, instead of "new world -> warp".
               if FLoadWorldQueued then
               begin
-                FLoadWorldQueued := False;
-                FIsLoadingWorld := True;
-                // 1. Start the loading screen
-                if (FPendingWorldBase = wbSpace) and (not Assigned(FSpaceWorld)) then
+                if Assigned(FWorldTransition) and FWorldTransition.Active and (FWorldTransition.Phase = tpOutro) then
                 begin
-                  if (not Assigned(FLoadingScreen)) then
-                    FLoadingScreen := TYutaniLoadingScreen.Create;
-                  FLoadingScreen.Start;
-                end;
-                // 2. Render one frame to Raylib so it immediately switches to black
-                RenderGame;
-                // 3. Perform the heavy lifting (this blocks the thread)
-                try
-                  if FPendingWorldBase = wbSpace then
+                  // Outro is still playing on the OLD world. Run a
+                  // normal frame so the warp can advance. We DO NOT
+                  // clear FLoadWorldQueued here so the next iteration
+                  // re-enters this branch and checks the phase again.
+                  // Once tpOutro advances to tpLoading, the else branch
+                  // below will finally pick up the heavy lift.
+                  UpdateGame;
+                  RenderGame;
+                end
+                else
+                begin
+                  // No transition in flight, OR transition has moved
+                  // past tpOutro (tpLoading / tpIntro / tpComplete).
+                  // Now is the safe moment to do the heavy swap: the
+                  // tunnel mask is already covering the screen so the
+                  // user can't see the swap happen.
+                  FLoadWorldQueued := False;
+                  FIsLoadingWorld := True;
+                  // 1. Start the loading screen (only the very first
+                  //    time we load Space - subsequent swaps reuse the
+                  //    already-created instance and the screen is a
+                  //    no-op during the transition anyway).
+                  if (FPendingWorldBase = wbSpace) and (not Assigned(FSpaceWorld)) then
                   begin
-                    if not Assigned(FSpaceWorld) then
-                      FSpaceWorld := TSpaceWorld.Create(FPendingSpaceShader);
-                  end
-                  else if FPendingWorldBase = wbIsland then
-                  begin
-                    if not Assigned(FIslandWorld) then
-                      FIslandWorld := TIslandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', FDefaultWhiteTex);
+                    if (not Assigned(FLoadingScreen)) then
+                      FLoadingScreen := TYutaniLoadingScreen.Create;
+                    FLoadingScreen.Start;
                   end;
-                except
-                  on E: Exception do
-                    DoEngineException(E.Message, 'AsyncWorldLoad');
-                end;
-                // 4. Apply world settings
-                FCurrentWorldBase := FPendingWorldBase;
-                case FCurrentWorldBase of
-                  wbLand:
+                  // 2. Render one frame so the tunnel is the last
+                  //    visible image while the heavy lift blocks the
+                  //    render thread for several seconds. Without this
+                  //    the last rendered frame would be the Outro peak
+                  //    (just before tunnel) which is acceptable but the
+                  //    explicit tunnel frame is cleaner.
+                  RenderGame;
+                  // 3. Perform the heavy lifting (this blocks the thread)
+                  try
+                    if FPendingWorldBase = wbSpace then
                     begin
+                      if not Assigned(FSpaceWorld) then
+                        FSpaceWorld := TSpaceWorld.Create(FPendingSpaceShader);
+                    end
+                    else if FPendingWorldBase = wbIsland then
+                    begin
+                      if not Assigned(FIslandWorld) then
+                        FIslandWorld := TIslandWorld.Create(ExtractFilePath(ParamStr(0)) + 'ressources/', FDefaultWhiteTex);
+                    end;
+                  except
+                    on E: Exception do
+                      DoEngineException(E.Message, 'AsyncWorldLoad');
+                  end;
+                  // 4. Apply world settings
+                  FCurrentWorldBase := FPendingWorldBase;
+                  case FCurrentWorldBase of
+                    wbLand:
+                      begin
+                        FDayNightRhythmActive := True;
+                        FDayTime := 0.5;
+                      end;
+                    wbSpace:
+                      begin
+                        FDayNightRhythmActive := False;
+                        FDayTime := 0.0;
+                      end;
+                    wbHolodeck:
+                      begin
+                        FDayNightRhythmActive := False;
+                        FDayTime := 0.5;
+                      end;
+                    wbIsland:
                       FDayNightRhythmActive := True;
-                      FDayTime := 0.5;
-                    end;
-                  wbSpace:
-                    begin
-                      FDayNightRhythmActive := False;
-                      FDayTime := 0.0;
-                    end;
-                  wbHolodeck:
-                    begin
-                      FDayNightRhythmActive := False;
-                      FDayTime := 0.5;
-                    end;
-                  wbIsland:
-                    FDayNightRhythmActive := True;
+                  end;
+                  FShadowMapDirty := True;
+                  // 5. Tell the loading screen to stop.
+                  // It will gracefully fade out itself!
+                  if Assigned(FLoadingScreen) then
+                  begin
+                    FLoadingScreen.AsyncStop;
+                    FLoadingScreen := nil;
+                  end;
+                  FIsLoadingWorld := False;
+                  // Tell the transition manager that the heavy swap is
+                  // done so it can leave tpLoading on the next Update()
+                  // and play the Intro warp on the NEW world. The
+                  // manager still enforces its minimum tunnel duration,
+                  // so very fast swaps get a brief extra tunnel moment
+                  // instead of a jarring snap.
+                  if Assigned(FWorldTransition) then
+                    FWorldTransition.AdvanceToIntro;
                 end;
-                FShadowMapDirty := True;
-                // 5. Tell the loading screen to stop.
-                // It will gracefully fade out itself!
-                if Assigned(FLoadingScreen) then
-                begin
-                  FLoadingScreen.AsyncStop;
-                  FLoadingScreen := nil;
-                end;
-                FIsLoadingWorld := False;
               end
               else
               begin
@@ -1752,10 +1841,13 @@ var
   CurrVel: TVector3;
   SpeedSq: Single;
 begin
-  // FREEZE ENGINE WHILE LOADING
-  if FIsLoadingWorld then
+  // FREEZE ENGINE WHILE LOADING - but NOT during the transition's
+  // tpOutro phase, because then the old world is still being shown
+  // and should keep animating (physics, projectiles, day/night) so
+  // the warp fades out a LIVE scene, not a frozen one.
+  if FIsLoadingWorld and (not (Assigned(FWorldTransition) and FWorldTransition.Active and (FWorldTransition.Phase = tpOutro))) then
   begin
-    Exit; // Do absolutely nothing until the background thread is done
+    Exit;
   end;
   for i := High(FProjectiles) downto 0 do
   begin
@@ -3599,6 +3691,12 @@ begin
     end;
   end;
   dt := GetFrameTime();
+  // Drive the cinematic world-swap transition. No-op when no
+  // transition is active. Must be called every frame so the timing
+  // stays smooth - skipping it during paused simulation would freeze
+  // the warp mid-flight and break the user's sense of progress.
+  if Assigned(FWorldTransition) then
+    FWorldTransition.Update(dt);
   if Assigned(FMPVPlayer) then
     FMPVPlayer.Update;
   // Slow Motion calculation: Scale time if active, otherwise normal speed
@@ -4133,6 +4231,13 @@ begin
   if Assigned(FMPVPlayer) then
     FMPVPlayer.Render;
   Render3DScene;
+  // Draw the cinematic world-swap overlay on top of the 3D scene but
+  // BELOW the GUI / split-screen divider / popup. The transition is a
+  // pure 2D overlay - it does not need a depth buffer and it must not
+  // cover the popup menu (otherwise the user can't cancel a switch by
+  // right-clicking). When no transition is active, Render() is a no-op.
+  if Assigned(FWorldTransition) then
+    FWorldTransition.Render;
   // Draw a vertical divider line down the middle when split-screen is
   // active so the user can immediately see that the screen is split,
   // even if both halves happen to show a similar view.
@@ -4381,9 +4486,15 @@ begin
     var OverrideProj: TMatrix := MatrixPerspective(FCamera.fovy * DEG2RAD, FSplitScreenVPW / FSplitScreenVPH, 0.01, 10000.0);
     rlSetMatrixProjection(OverrideProj);
   end;
-  if FIsLoadingWorld then
+  if FIsLoadingWorld and (not (Assigned(FWorldTransition) and FWorldTransition.Active and (FWorldTransition.Phase = tpOutro))) then
   begin
-    // Just render the skybox if it exists, so we don't see a void
+    // Loading state - just render the skybox so we don't see a void.
+    // EXCEPT when the cinematic transition is in tpOutro: then we
+    // need the OLD world to render normally so the warp effect can
+    // fade it out gradually. Without this exception the old world
+    // vanishes the moment SetWorldBase is called (FIsLoadingWorld
+    // becomes True instantly) and the user sees black + warp overlay
+    // instead of "old world fading into warp".
     if FSkyboxModel.meshes <> nil then
     begin
       rlDisableDepthMask();
@@ -5025,7 +5136,10 @@ var
   ModeStr: AnsiString;
 begin
   // --- LOADING SCREEN OVERLAY ---
-  if FIsLoadingWorld then
+  // Skip the dark rectangle when the cinematic transition is running -
+  // the transition's own tunnel already covers the screen and adding
+  // another dark layer on top would dull the streaks.
+  if FIsLoadingWorld and (not (Assigned(FWorldTransition) and FWorldTransition.Active)) then
   begin
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.9));
   end

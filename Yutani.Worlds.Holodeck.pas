@@ -21,11 +21,9 @@ unit Yutani.Worlds.Holodeck;
  *    Replace the inline Holodeck rendering in Yutani.Core.Render3DSceneCore
  *    with a call to FHolodeckWorld.Render(Camera). Same for shadows.
  *==============================================================================}
-
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
-
 interface
 
 uses
@@ -45,18 +43,14 @@ type
     FFloorSize: Single;
     FTime: Single;
     FCameraPos: TVector3;
-    procedure DrawGrid3D(Slices: Integer; Spacing: Single;
-      GridColor: TColorB; const Camera: TCamera3D);
+    procedure DrawGrid3D(Slices: Integer; Spacing: Single; GridColor: TColorB; const Camera: TCamera3D);
   public
     constructor Create;
     destructor Destroy; override;
-
-    procedure Update(dt: Single; const CameraPos: TVector3;
-      DayTime: Single = 0.5);
+    procedure Update(dt: Single; const CameraPos: TVector3; DayTime: Single = 0.5);
     procedure Render(const Camera: TCamera3D; const SkyboxModel: TModel);
     procedure RenderShadows;
     procedure RenderSkybox(const Camera: TCamera3D; const SkyboxModel: TModel);
-
     property GridSlices: Integer read FGridSlices write FGridSlices;
     property GridSpacing: Single read FGridSpacing write FGridSpacing;
     property GridColor: TColorB read FGridColor write FGridColor;
@@ -64,7 +58,6 @@ type
   end;
 
 implementation
-
 { THolodeckWorld }
 
 constructor THolodeckWorld.Create;
@@ -89,8 +82,7 @@ begin
   inherited;
 end;
 
-procedure THolodeckWorld.Update(dt: Single; const CameraPos: TVector3;
-  DayTime: Single);
+procedure THolodeckWorld.Update(dt: Single; const CameraPos: TVector3; DayTime: Single);
 begin
   FTime := FTime + dt;
   FCameraPos := CameraPos;
@@ -98,8 +90,7 @@ begin
   // cycle is disabled in Holodeck mode.
 end;
 
-procedure THolodeckWorld.DrawGrid3D(Slices: Integer; Spacing: Single;
-  GridColor: TColorB; const Camera: TCamera3D);
+procedure THolodeckWorld.DrawGrid3D(Slices: Integer; Spacing: Single; GridColor: TColorB; const Camera: TCamera3D);
 var
   I: Integer;
   HalfSize: Single;
@@ -115,16 +106,13 @@ begin
   begin
     var Pos: Single := -HalfSize + (I * Spacing);
     // Draw X-axis lines (going into Z depth)
-    DrawLine3D(Vector3Create(Pos, 0.01, -HalfSize),
-               Vector3Create(Pos, 0.01, HalfSize), GridColor);
+    DrawLine3D(Vector3Create(Pos, 0.01, -HalfSize), Vector3Create(Pos, 0.01, HalfSize), GridColor);
     // Draw Z-axis lines (going across X)
-    DrawLine3D(Vector3Create(-HalfSize, 0.01, Pos),
-               Vector3Create(HalfSize, 0.01, Pos), GridColor);
+    DrawLine3D(Vector3Create(-HalfSize, 0.01, Pos), Vector3Create(HalfSize, 0.01, Pos), GridColor);
   end;
 end;
 
-procedure THolodeckWorld.RenderSkybox(const Camera: TCamera3D;
-  const SkyboxModel: TModel);
+procedure THolodeckWorld.RenderSkybox(const Camera: TCamera3D; const SkyboxModel: TModel);
 var
   BlackSkyColor: TColorB;
   ViewMat, ProjMat: TMatrix;
@@ -145,8 +133,7 @@ begin
   if Shader.id > 0 then
   begin
     ViewMat := GetCameraMatrix(Camera);
-    ProjMat := MatrixPerspective(Camera.fovy * DEG2RAD,
-      GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
+    ProjMat := MatrixPerspective(Camera.fovy * DEG2RAD, GetScreenWidth() / GetScreenHeight(), 0.01, 1000.0);
     ViewLoc := GetShaderLocation(Shader, 'view');
     ProjLoc := GetShaderLocation(Shader, 'projection');
     if ViewLoc >= 0 then
@@ -158,16 +145,12 @@ begin
   rlEnableDepthMask();
 end;
 
-procedure THolodeckWorld.Render(const Camera: TCamera3D;
-  const SkyboxModel: TModel);
+procedure THolodeckWorld.Render(const Camera: TCamera3D; const SkyboxModel: TModel);
 begin
   // 1. Skybox - pure black void
   RenderSkybox(Camera, SkyboxModel);
-
   // 2. Floor - black plane so only the grid lines are visible
-  DrawPlane(Vector3Create(0, 0, 0),
-    Vector2Create(FFloorSize, FFloorSize), BLACK);
-
+  DrawPlane(Vector3Create(0, 0, 0), Vector2Create(FFloorSize, FFloorSize), BLACK);
   // 3. Grid - warm orange wireframe on top of the black floor.
   //    Slightly lifted (0.01) to prevent Z-fighting with the plane.
   DrawGrid3D(FGridSlices, FGridSpacing, Fade(FGridColor, 0.85), Camera);
@@ -177,8 +160,7 @@ procedure THolodeckWorld.RenderShadows;
 begin
   // The floor is the only shadow-casting surface in the Holodeck.
   // Dynamic objects are drawn by the sandbox's own DrawSceneShadows loop.
-  DrawPlane(Vector3Create(0, 0, 0),
-    Vector2Create(FFloorSize, FFloorSize), BLACK);
+  DrawPlane(Vector3Create(0, 0, 0), Vector2Create(FFloorSize, FFloorSize), BLACK);
 end;
 
 end.

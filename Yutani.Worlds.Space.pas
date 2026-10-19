@@ -24,6 +24,7 @@ unit Yutani.Worlds.Space;
 {$Q-}
 {$R-}
 interface
+
 uses
   Winapi.Windows, System.SysUtils, System.Math, Raylib, RayMath, rlgl,
   Yutani.Worlds.Space.Textures;
@@ -34,64 +35,73 @@ uses
 // (open, prepare, bind, step, column-read). Inlining the declarations
 // here keeps the dependency surface to one unit + one dll, no extra
 // .pas file floating around for ~50 lines of bindings.
+
 type
   // Opaque SQLite handles. Declared as distinct types so the compiler
   // can catch accidental mixing with other Pointer vars.
   TSQLiteDB = type Pointer;
+
   TSQLiteStmt = type Pointer;
   // Destructor callback signature for blob/text bindings. Matches the
   // C signature `void (*)(void*)` with cdecl calling convention.
+
   TSQLiteDestructor = procedure(p: Pointer); cdecl;
+
 const
   // Result codes we actually check.
-  SQLITE_OK       = 0;
-  SQLITE_ROW      = 100;
-  SQLITE_DONE     = 101;
+  SQLITE_OK = 0;
+  SQLITE_ROW = 100;
+  SQLITE_DONE = 101;
   // Open flags. The wrapper defaults to READWRITE + CREATE so a fresh
   // DB file is created on first Open() if it does not exist yet.
-  SQLITE_OPEN_READONLY  = $00000001;
+  SQLITE_OPEN_READONLY = $00000001;
   SQLITE_OPEN_READWRITE = $00000002;
-  SQLITE_OPEN_CREATE    = $00000004;
+  SQLITE_OPEN_CREATE = $00000004;
   // Special destructor sentinels. SQLITE_STATIC means "do not free,
   // the pointer stays valid forever"; SQLITE_TRANSIENT means "make a
   // private copy now". We always use TRANSIENT for safety.
-  SQLITE_STATIC    = Pointer(0);
+  SQLITE_STATIC = Pointer(0);
   SQLITE_TRANSIENT = Pointer(-1);
   // Pass -1 for the SQL length to have SQLite read until the null
   // terminator.
   SQLITE_SQL_LENGTH_NULLTERM = -1;
 // Native sqlite3.dll imports (cdecl). The DLL must be on the
 // executable search path - drop it next to your .exe.
-function sqlite3_open_v2(filename: PAnsiChar; out db: TSQLiteDB;
-  flags: Integer; vfs: PAnsiChar): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_open_v2(filename: PAnsiChar; out db: TSQLiteDB; flags: Integer; vfs: PAnsiChar): Integer; cdecl; external 'sqlite3.dll';
+
 function sqlite3_close_v2(db: TSQLiteDB): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_prepare_v2(db: TSQLiteDB; sql: PAnsiChar; nByte: Integer;
-  out stmt: TSQLiteStmt; tail: PPAnsiChar): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_prepare_v2(db: TSQLiteDB; sql: PAnsiChar; nByte: Integer; out stmt: TSQLiteStmt; tail: PPAnsiChar): Integer; cdecl; external 'sqlite3.dll';
+
 function sqlite3_step(stmt: TSQLiteStmt): Integer; cdecl; external 'sqlite3.dll';
+
 function sqlite3_finalize(stmt: TSQLiteStmt): Integer; cdecl; external 'sqlite3.dll';
+
 function sqlite3_reset(stmt: TSQLiteStmt): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_bind_int(stmt: TSQLiteStmt; idx: Integer;
-  val: Integer): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_bind_int64(stmt: TSQLiteStmt; idx: Integer;
-  val: Int64): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_bind_double(stmt: TSQLiteStmt; idx: Integer;
-  val: Double): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_bind_text(stmt: TSQLiteStmt; idx: Integer;
-  txt: PAnsiChar; nByte: Integer;
-  destructor_: Pointer): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_bind_null(stmt: TSQLiteStmt;
-  idx: Integer): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_column_int(stmt: TSQLiteStmt;
-  idx: Integer): Integer; cdecl; external 'sqlite3.dll';
-function sqlite3_column_int64(stmt: TSQLiteStmt;
-  idx: Integer): Int64; cdecl; external 'sqlite3.dll';
-function sqlite3_column_double(stmt: TSQLiteStmt;
-  idx: Integer): Double; cdecl; external 'sqlite3.dll';
-function sqlite3_column_text(stmt: TSQLiteStmt;
-  idx: Integer): PAnsiChar; cdecl; external 'sqlite3.dll';
-function sqlite3_column_bytes(stmt: TSQLiteStmt;
-  idx: Integer): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_bind_int(stmt: TSQLiteStmt; idx: Integer; val: Integer): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_bind_int64(stmt: TSQLiteStmt; idx: Integer; val: Int64): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_bind_double(stmt: TSQLiteStmt; idx: Integer; val: Double): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_bind_text(stmt: TSQLiteStmt; idx: Integer; txt: PAnsiChar; nByte: Integer; destructor_: Pointer): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_bind_null(stmt: TSQLiteStmt; idx: Integer): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_column_int(stmt: TSQLiteStmt; idx: Integer): Integer; cdecl; external 'sqlite3.dll';
+
+function sqlite3_column_int64(stmt: TSQLiteStmt; idx: Integer): Int64; cdecl; external 'sqlite3.dll';
+
+function sqlite3_column_double(stmt: TSQLiteStmt; idx: Integer): Double; cdecl; external 'sqlite3.dll';
+
+function sqlite3_column_text(stmt: TSQLiteStmt; idx: Integer): PAnsiChar; cdecl; external 'sqlite3.dll';
+
+function sqlite3_column_bytes(stmt: TSQLiteStmt; idx: Integer): Integer; cdecl; external 'sqlite3.dll';
+
 function sqlite3_errmsg(db: TSQLiteDB): PAnsiChar; cdecl; external 'sqlite3.dll';
+
 type
   /// <summary>
   /// Thin ergonomic wrapper around a sqlite3 connection. Owns the handle
@@ -132,6 +142,7 @@ type
     property LastError: string read FLastError;
     property DllAvailable: Boolean read FDllAvailable;
   end;
+
 type
   TSpaceStar = record
     Dir: TVector3;
@@ -141,6 +152,7 @@ type
     TwinkleSpeed: Single;
     ColorTint: Byte;
   end;
+
   TNearStar = record
     Position: TVector3;
     Size: Single;
@@ -149,11 +161,13 @@ type
     TwinkleSpeed: Single;
     ColorTint: Byte;
   end;
+
   TNebula = record
     Position: TVector3;
     Size: Single;
     Color: TColorB;
   end;
+
   TSpacePlanet = record
     Position: TVector3;
     Radius: Single;
@@ -172,11 +186,13 @@ type
     ParentPlanetIndex: Integer;
     IsLocked: Boolean;
   end;
+
   TSun = record
     Position: TVector3;
     Radius: Single;
     Color: TColorB;
   end;
+
   TSpaceComet = record
     Position: TVector3;
     Velocity: TVector3;
@@ -186,6 +202,7 @@ type
     Color: TColorB;
     ParticleTimer: Single;
   end;
+
   TCometParticle = record
     Position: TVector3;
     Velocity: TVector3;
@@ -199,6 +216,7 @@ type
   // brown specks that float around the camera at close range so the
   // player feels like they're flying through actual debris, not
   // pristine empty void.
+
   TSpaceDust = record
     Position: TVector3;
     Velocity: TVector3;
@@ -206,7 +224,9 @@ type
     ColorR, ColorG, ColorB: Byte;
   end;
   // Galaxy lifecycle phases. See the unit header for a description.
+
   TGalaxyPhase = (gpAtSystem, gpDeparting, gpTraveling, gpApproaching);
+
   TSpaceWorld = class
   private
     FDistantStars: array of TSpaceStar;
@@ -300,9 +320,7 @@ type
     // Uses TArray<T> rather than `array of T` so the procedure can call
     // SetLength on the arrays - open array parameters would not allow
     // that.
-    procedure GenerateSystemAt(var Suns: TArray<TSun>;
-      var Planets: TArray<TSpacePlanet>;
-      const SunPos: TVector3; Seed: Cardinal; Append: Boolean);
+    procedure GenerateSystemAt(var Suns: TArray<TSun>; var Planets: TArray<TSpacePlanet>; const SunPos: TVector3; Seed: Cardinal; Append: Boolean);
     // SQLite schema setup - creates the star_systems table if missing.
     procedure EnsureGalaxySchema;
     // Upserts the current system (FCurrentGalaxyPos + FCurrentSeed +
@@ -310,8 +328,7 @@ type
     procedure SaveCurrentSystemToDB;
     // Loads a system's seed from the DB by galaxy position. Returns True
     // if a row was found, False otherwise. OutSeed is only valid on True.
-    function LoadSystemSeedFromDB(const GalaxyPos: TVector3;
-      out OutSeed: Cardinal): Boolean;
+    function LoadSystemSeedFromDB(const GalaxyPos: TVector3; out OutSeed: Cardinal): Boolean;
     // 3D hash of a galaxy cell position - yields a deterministic seed
     // for any given galaxy coordinate. Same hash as the legacy chunk
     // generator so old saved galaxies stay compatible.
@@ -381,8 +398,10 @@ type
     property ArriveDistance: Single read FArriveDistance write FArriveDistance;
     property MinTravelTime: Single read FMinTravelTime write FMinTravelTime;
   end;
+
 implementation
 { TYutaniSQLiteDB }
+
 constructor TYutaniSQLiteDB.Create;
 begin
   inherited Create;
@@ -397,11 +416,13 @@ begin
   // sqlite3 itself.
   FDllAvailable := True;
 end;
+
 destructor TYutaniSQLiteDB.Destroy;
 begin
   Close;
   inherited;
 end;
+
 procedure TYutaniSQLiteDB.CaptureLastError;
 begin
   if FDB <> nil then
@@ -409,6 +430,7 @@ begin
   else
     FLastError := 'Database is not open';
 end;
+
 function TYutaniSQLiteDB.Open(const AFileName: string; CreateIfMissing: Boolean): Boolean;
 var
   Flags: Integer;
@@ -442,6 +464,7 @@ begin
     end;
   end;
 end;
+
 procedure TYutaniSQLiteDB.Close;
 begin
   if FDB <> nil then
@@ -451,6 +474,7 @@ begin
   end;
   FFileName := '';
 end;
+
 function TYutaniSQLiteDB.Execute(const SQL: AnsiString): Boolean;
 var
   Stmt: TSQLiteStmt;
@@ -479,6 +503,7 @@ begin
     Finalize(Stmt);
   end;
 end;
+
 function TYutaniSQLiteDB.Prepare(const SQL: AnsiString; out Stmt: TSQLiteStmt): Boolean;
 begin
   Stmt := nil;
@@ -487,8 +512,7 @@ begin
     FLastError := 'Database is not open';
     Exit(False);
   end;
-  if sqlite3_prepare_v2(FDB, PAnsiChar(SQL), SQLITE_SQL_LENGTH_NULLTERM,
-    Stmt, nil) = SQLITE_OK then
+  if sqlite3_prepare_v2(FDB, PAnsiChar(SQL), SQLITE_SQL_LENGTH_NULLTERM, Stmt, nil) = SQLITE_OK then
     Result := True
   else
   begin
@@ -497,18 +521,22 @@ begin
     CaptureLastError;
   end;
 end;
+
 class procedure TYutaniSQLiteDB.BindInt(Stmt: TSQLiteStmt; Idx: Integer; Val: Integer);
 begin
   sqlite3_bind_int(Stmt, Idx, Val);
 end;
+
 class procedure TYutaniSQLiteDB.BindInt64(Stmt: TSQLiteStmt; Idx: Integer; Val: Int64);
 begin
   sqlite3_bind_int64(Stmt, Idx, Val);
 end;
+
 class procedure TYutaniSQLiteDB.BindDouble(Stmt: TSQLiteStmt; Idx: Integer; Val: Double);
 begin
   sqlite3_bind_double(Stmt, Idx, Val);
 end;
+
 class procedure TYutaniSQLiteDB.BindText(Stmt: TSQLiteStmt; Idx: Integer; const Val: AnsiString);
 begin
   // SQLITE_TRANSIENT tells SQLite to make a private copy of the text
@@ -516,6 +544,7 @@ begin
   // the safe default for short-lived string buffers.
   sqlite3_bind_text(Stmt, Idx, PAnsiChar(Val), Length(Val), SQLITE_TRANSIENT);
 end;
+
 class procedure TYutaniSQLiteDB.BindTextW(Stmt: TSQLiteStmt; Idx: Integer; const Val: string);
 var
   AnsiVal: AnsiString;
@@ -523,36 +552,44 @@ begin
   AnsiVal := AnsiString(Val);
   sqlite3_bind_text(Stmt, Idx, PAnsiChar(AnsiVal), Length(AnsiVal), SQLITE_TRANSIENT);
 end;
+
 class procedure TYutaniSQLiteDB.BindNull(Stmt: TSQLiteStmt; Idx: Integer);
 begin
   sqlite3_bind_null(Stmt, Idx);
 end;
+
 class function TYutaniSQLiteDB.Step(Stmt: TSQLiteStmt): Integer;
 begin
   Result := sqlite3_step(Stmt);
 end;
+
 class procedure TYutaniSQLiteDB.Finalize(Stmt: TSQLiteStmt);
 begin
   if Stmt <> nil then
     sqlite3_finalize(Stmt);
 end;
+
 class procedure TYutaniSQLiteDB.Reset(Stmt: TSQLiteStmt);
 begin
   if Stmt <> nil then
     sqlite3_reset(Stmt);
 end;
+
 class function TYutaniSQLiteDB.ColumnInt(Stmt: TSQLiteStmt; Idx: Integer): Integer;
 begin
   Result := sqlite3_column_int(Stmt, Idx);
 end;
+
 class function TYutaniSQLiteDB.ColumnInt64(Stmt: TSQLiteStmt; Idx: Integer): Int64;
 begin
   Result := sqlite3_column_int64(Stmt, Idx);
 end;
+
 class function TYutaniSQLiteDB.ColumnDouble(Stmt: TSQLiteStmt; Idx: Integer): Double;
 begin
   Result := sqlite3_column_double(Stmt, Idx);
 end;
+
 class function TYutaniSQLiteDB.ColumnText(Stmt: TSQLiteStmt; Idx: Integer): AnsiString;
 var
   P: PAnsiChar;
@@ -568,10 +605,12 @@ begin
   else
     Result := '';
 end;
+
 class function TYutaniSQLiteDB.ColumnTextW(Stmt: TSQLiteStmt; Idx: Integer): string;
 begin
   Result := string(ColumnText(Stmt, Idx));
 end;
+
 const
   DISTANT_STAR_COUNT = 3000;
   CHUNK_SIZE = 2000.0;
@@ -618,6 +657,7 @@ const
   MINIMAP_MARGIN = 20;                // pixel gap from screen edge
   MINIMAP_RANGE = 10000.0;            // world units shown across the minimap
   MINIMAP_CACHE_TTL = 10.0;           // seconds between DB refreshes
+
 function MakeCol(r, g, b: Byte): TColorB;
 begin
   Result.r := r;
@@ -626,6 +666,7 @@ begin
   Result.a := 255;
 end;
 { TSpaceWorld }
+
 constructor TSpaceWorld.Create(const ALightShader: TShader);
 var
   Mesh: TMesh;
@@ -717,6 +758,7 @@ begin
   // so a re-load reproduces the exact same home layout.
   SaveCurrentSystemToDB;
 end;
+
 destructor TSpaceWorld.Destroy;
 begin
   DestroyPlanetAssets;
@@ -739,12 +781,14 @@ begin
   FreeAndNil(FGalaxyDB);
   inherited;
 end;
+
 procedure TSpaceWorld.SeedRand(Seed: Cardinal);
 begin
   if Seed = 0 then
     Seed := 1;
   FRngState := Seed;
 end;
+
 function TSpaceWorld.NextRand: Single;
 begin
   FRngState := FRngState xor (FRngState shl 13);
@@ -752,6 +796,7 @@ begin
   FRngState := FRngState xor (FRngState shl 5);
   Result := (FRngState and $00FFFFFF) / $00FFFFFF;
 end;
+
 function TSpaceWorld.HashChunk(cx, cy, cz: Integer): Cardinal;
 var
   h: Cardinal;
@@ -764,6 +809,7 @@ begin
   h := h xor (h shr 16);
   Result := h;
 end;
+
 function TSpaceWorld.GetStarColor(Tint: Byte; Alpha: Byte): TColorB;
 begin
   // Expanded color palette: White, Blue, Red, Yellow, Orange, Purple, Cyan
@@ -787,6 +833,7 @@ end;
 {==============================================================================*
  *  STAR SPRITE & CIRCULAR BILLBOARD
  *==============================================================================}
+
 procedure TSpaceWorld.DrawStarSprite(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
 var
   H: Single;
@@ -818,6 +865,7 @@ begin
   rlVertex3f(LeftV.x, LeftV.y, LeftV.z);
   rlVertex3f(TopV.x, TopV.y, TopV.z);
 end;
+
 procedure TSpaceWorld.DrawCircularBillboard(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
 var
   i: Integer;
@@ -850,6 +898,7 @@ end;
 {==============================================================================*
  *  PLANET ASSETS & LIGHTING
  *==============================================================================}
+
 procedure TSpaceWorld.GeneratePlanetAssets(const ALightShader: TShader);
 var
   i: Integer;
@@ -872,6 +921,7 @@ begin
       FPlanetModels[i].materials[0].shader := ALightShader;
   end;
 end;
+
 procedure TSpaceWorld.DestroyPlanetAssets;
 var
   i: Integer;
@@ -884,6 +934,7 @@ begin
       UnloadModel(FPlanetModels[i]);
   end;
 end;
+
 procedure TSpaceWorld.SetupPlanetLighting(const CameraPos: TVector3);
 var
   NearestSun: TSun;
@@ -953,6 +1004,7 @@ end;
 {==============================================================================*
  *  STARTER PLANETS (Home Solar System) & CHUNK GEN
  *==============================================================================}
+
 procedure TSpaceWorld.SpawnStarterPlanets;
 var
   i, SunIdx, idx: Integer;
@@ -1023,6 +1075,7 @@ begin
     FPlanets[idx].Position := Vector3Add(SystemOffset, Vector3Create(Cos(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius, 0, Sin(FPlanets[idx].OrbitAngle) * FPlanets[idx].OrbitRadius));
   end;
 end;
+
 procedure TSpaceWorld.RegenerateNearContent(const CameraPos: TVector3);
 var
   cx, cy, cz, dx, dy, dz: Integer;
@@ -1109,6 +1162,7 @@ end;
 {==============================================================================*
  *  COMET SYSTEM & COLLISIONS
  *==============================================================================}
+
 procedure TSpaceWorld.SpawnComet(const CameraPos: TVector3);
 var
   idx: Integer;
@@ -1139,6 +1193,7 @@ begin
   else
     C^.Color := ColorAlpha(Fade(ORANGE, 0.9), 230);
 end;
+
 procedure TSpaceWorld.SpawnCometParticle(const Pos, Vel: TVector3; Size: Single);
 var
   i: Integer;
@@ -1159,6 +1214,7 @@ begin
     end;
   end;
 end;
+
 procedure TSpaceWorld.UpdateComets(const dt: Single; const CameraPos: TVector3);
 var
   i, j: Integer;
@@ -1186,6 +1242,7 @@ begin
     end;
   end;
 end;
+
 procedure TSpaceWorld.UpdateCometParticles(const dt: Single);
 var
   i: Integer;
@@ -1206,6 +1263,7 @@ begin
     P^.Position := Vector3Add(P^.Position, Vector3Scale(P^.Velocity, dt));
   end;
 end;
+
 procedure TSpaceWorld.CheckCometCollisions;
 var
   i, j: Integer;
@@ -1238,6 +1296,7 @@ end;
 {==============================================================================*
  *  ORBIT UPDATE
  *==============================================================================}
+
 procedure TSpaceWorld.UpdateOrbits(const dt: Single);
 var
   i: Integer;
@@ -1269,6 +1328,7 @@ end;
 {==============================================================================*
  *  MAIN UPDATE
  *==============================================================================}
+
 procedure TSpaceWorld.Update(const dt: Single; const CameraPos: TVector3; const TimeScale: Single);
 var
   cx, cy, cz: Integer;
@@ -1341,6 +1401,7 @@ end;
 {==============================================================================*
  *  RENDERERS
  *==============================================================================}
+
 procedure TSpaceWorld.RenderDistantStars(const CameraPos, CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -1374,6 +1435,7 @@ begin
   rlEnableBackfaceCulling;
   rlEnableDepthTest;
 end;
+
 procedure TSpaceWorld.RenderNearStars(const CameraPos, CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -1412,6 +1474,7 @@ begin
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
 end;
+
 procedure TSpaceWorld.RenderNebulae(const CameraPos, CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -1452,6 +1515,7 @@ end;
 {==============================================================================*
  *  GALAXY MANAGER - One-System-At-A-Time Lifecycle
  *==============================================================================}
+
 function TSpaceWorld.HashGalaxyPos(x, y, z: Double): Cardinal;
 var
   h: Cardinal;
@@ -1473,41 +1537,21 @@ begin
   h := h xor (h shr 16);
   Result := h;
 end;
+
 procedure TSpaceWorld.EnsureGalaxySchema;
 const
-  SQL_CREATE: AnsiString =
-    'CREATE TABLE IF NOT EXISTS star_systems (' +
-    '  system_id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  galaxy_x REAL NOT NULL,' +
-    '  galaxy_y REAL NOT NULL,' +
-    '  galaxy_z REAL NOT NULL,' +
-    '  seed INTEGER NOT NULL,' +
-    '  sun_radius REAL NOT NULL DEFAULT 100.0,' +
-    '  sun_color_r INTEGER NOT NULL DEFAULT 255,' +
-    '  sun_color_g INTEGER NOT NULL DEFAULT 200,' +
-    '  sun_color_b INTEGER NOT NULL DEFAULT 80,' +
-    '  visit_count INTEGER NOT NULL DEFAULT 1,' +
-    '  discovered_at TEXT,' +
-    '  name TEXT' +
-    ');';
-  SQL_INDEX: AnsiString =
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_galaxy_pos ' +
-    'ON star_systems(galaxy_x, galaxy_y, galaxy_z);';
+  SQL_CREATE: AnsiString = 'CREATE TABLE IF NOT EXISTS star_systems (' + '  system_id INTEGER PRIMARY KEY AUTOINCREMENT,' + '  galaxy_x REAL NOT NULL,' + '  galaxy_y REAL NOT NULL,' + '  galaxy_z REAL NOT NULL,' + '  seed INTEGER NOT NULL,' + '  sun_radius REAL NOT NULL DEFAULT 100.0,' + '  sun_color_r INTEGER NOT NULL DEFAULT 255,' + '  sun_color_g INTEGER NOT NULL DEFAULT 200,' + '  sun_color_b INTEGER NOT NULL DEFAULT 80,' + '  visit_count INTEGER NOT NULL DEFAULT 1,' + '  discovered_at TEXT,' + '  name TEXT' + ');';
+  SQL_INDEX: AnsiString = 'CREATE UNIQUE INDEX IF NOT EXISTS idx_galaxy_pos ' + 'ON star_systems(galaxy_x, galaxy_y, galaxy_z);';
 begin
   if not Assigned(FGalaxyDB) then
     Exit;
   FGalaxyDB.Execute(SQL_CREATE);
   FGalaxyDB.Execute(SQL_INDEX);
 end;
+
 procedure TSpaceWorld.SaveCurrentSystemToDB;
 const
-  SQL_UPSERT: AnsiString =
-    'INSERT INTO star_systems ' +
-    '(galaxy_x, galaxy_y, galaxy_z, seed, sun_radius, sun_color_r, ' +
-    ' sun_color_g, sun_color_b, visit_count, discovered_at, name) ' +
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
-    'ON CONFLICT(galaxy_x, galaxy_y, galaxy_z) DO UPDATE SET ' +
-    '  visit_count = visit_count + 1;';
+  SQL_UPSERT: AnsiString = 'INSERT INTO star_systems ' + '(galaxy_x, galaxy_y, galaxy_z, seed, sun_radius, sun_color_r, ' + ' sun_color_g, sun_color_b, visit_count, discovered_at, name) ' + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' + 'ON CONFLICT(galaxy_x, galaxy_y, galaxy_z) DO UPDATE SET ' + '  visit_count = visit_count + 1;';
 var
   Stmt: TSQLiteStmt;
   StepResult: Integer;
@@ -1538,17 +1582,15 @@ begin
     StepResult := TYutaniSQLiteDB.Step(Stmt);
     // Result ignored - we only care that the call did not crash.
     if (StepResult <> SQLITE_DONE) and (StepResult <> SQLITE_OK) then
-      OutputDebugString(PChar('Galaxy DB upsert failed: ' +
-        FGalaxyDB.LastError));
+      OutputDebugString(PChar('Galaxy DB upsert failed: ' + FGalaxyDB.LastError));
   finally
     TYutaniSQLiteDB.Finalize(Stmt);
   end;
 end;
-function TSpaceWorld.LoadSystemSeedFromDB(const GalaxyPos: TVector3;
-  out OutSeed: Cardinal): Boolean;
+
+function TSpaceWorld.LoadSystemSeedFromDB(const GalaxyPos: TVector3; out OutSeed: Cardinal): Boolean;
 const
-  SQL_LOAD: AnsiString =
-    'SELECT seed FROM star_systems WHERE galaxy_x = ? AND galaxy_y = ? AND galaxy_z = ?;';
+  SQL_LOAD: AnsiString = 'SELECT seed FROM star_systems WHERE galaxy_x = ? AND galaxy_y = ? AND galaxy_z = ?;';
 var
   Stmt: TSQLiteStmt;
   StepResult: Integer;
@@ -1578,15 +1620,15 @@ begin
     TYutaniSQLiteDB.Finalize(Stmt);
   end;
 end;
-procedure TSpaceWorld.GenerateSystemAt(var Suns: TArray<TSun>;
-  var Planets: TArray<TSpacePlanet>;
-  const SunPos: TVector3; Seed: Cardinal; Append: Boolean);
+
+procedure TSpaceWorld.GenerateSystemAt(var Suns: TArray<TSun>; var Planets: TArray<TSpacePlanet>; const SunPos: TVector3; Seed: Cardinal; Append: Boolean);
 var
   i, j, idx, PlanetCount, PlanetType: Integer;
   OrbitR, SunRadius: Single;
   HasMoon: Boolean;
   SunIdx: Integer;
   LocalRng: Cardinal;
+
   function Rand: Single;
   begin
     LocalRng := LocalRng xor (LocalRng shl 13);
@@ -1594,6 +1636,7 @@ var
     LocalRng := LocalRng xor (LocalRng shl 5);
     Result := (LocalRng and $00FFFFFF) / $00FFFFFF;
   end;
+
 begin
   // We use a private RNG seeded with the supplied value so the call
   // does not perturb the global FRngState used by the rest of the
@@ -1688,12 +1731,10 @@ begin
     end;
     // Position the planet at its current orbital angle so it starts in
     // a sensible spot. UpdateOrbits will keep it moving from there.
-    Planets[idx].Position := Vector3Add(SunPos,
-      Vector3Create(Cos(Planets[idx].OrbitAngle) * Planets[idx].OrbitRadius,
-        0,
-        Sin(Planets[idx].OrbitAngle) * Planets[idx].OrbitRadius));
+    Planets[idx].Position := Vector3Add(SunPos, Vector3Create(Cos(Planets[idx].OrbitAngle) * Planets[idx].OrbitRadius, 0, Sin(Planets[idx].OrbitAngle) * Planets[idx].OrbitRadius));
   end;
 end;
+
 procedure TSpaceWorld.PickNextSystem(const CameraPos, CameraForward: TVector3);
 var
   TargetPos, RoundedPos: TVector3;
@@ -1703,8 +1744,7 @@ begin
   // Place the next system a fixed distance ahead in the flight
   // direction. We then round to the galaxy grid so the seed hash
   // and DB lookup are stable.
-  TargetPos := Vector3Add(CameraPos,
-    Vector3Scale(CameraForward, FTargetPickDistance));
+  TargetPos := Vector3Add(CameraPos, Vector3Scale(CameraForward, FTargetPickDistance));
   RoundedPos.x := Round(TargetPos.x / GALAXY_GRID) * GALAXY_GRID;
   RoundedPos.y := Round(TargetPos.y / GALAXY_GRID) * GALAXY_GRID;
   RoundedPos.z := Round(TargetPos.z / GALAXY_GRID) * GALAXY_GRID;
@@ -1720,6 +1760,7 @@ begin
   // invisible until FNextVis rises above zero in the approaching phase.
   GenerateSystemAt(FNextSuns, FNextPlanets, RoundedPos, FNextSeed, False);
 end;
+
 procedure TSpaceWorld.SwapToNextSystem;
 var
   i: Integer;
@@ -1745,6 +1786,7 @@ begin
   FPhase := gpAtSystem;
   FTravelTimer := 0.0;
 end;
+
 procedure TSpaceWorld.UpdateSystemVisibilities(const CameraPos: TVector3);
 var
   CurDist, NextDist, FadeT: Single;
@@ -1778,14 +1820,14 @@ begin
       FNextVis := 1.0
     else
     begin
-      FadeT := (NextDist - FArriveDistance) /
-        (FTargetApproachFadeStart - FArriveDistance);
+      FadeT := (NextDist - FArriveDistance) / (FTargetApproachFadeStart - FArriveDistance);
       FNextVis := 1.0 - FadeT;
     end;
   end
   else
     FNextVis := 0.0;
 end;
+
 procedure TSpaceWorld.UpdateGalaxyPhase(dt: Single; const CameraPos, CameraForward: TVector3);
 var
   CurDist, NextDist: Single;
@@ -1796,59 +1838,60 @@ begin
   UpdateSystemVisibilities(CameraPos);
   case FPhase of
     gpAtSystem:
-    begin
+      begin
       // If the camera has flown past FadeStartDist we begin the
       // departure sequence. This is also the trigger when the user
       // immediately beelines away from the home system at game start.
-      if Length(FSuns) > 0 then
-      begin
-        CurDist := Vector3Distance(CameraPos, FSuns[0].Position);
-        if CurDist > FFadeStartDist then
-          FPhase := gpDeparting;
+        if Length(FSuns) > 0 then
+        begin
+          CurDist := Vector3Distance(CameraPos, FSuns[0].Position);
+          if CurDist > FFadeStartDist then
+            FPhase := gpDeparting;
+        end;
       end;
-    end;
     gpDeparting:
-    begin
+      begin
       // Hold in departure until the current system is fully faded out,
       // then enter the empty-void traveling phase.
-      if FCurrentVis <= 0.001 then
-      begin
-        FPhase := gpTraveling;
-        FTravelTimer := 0.0;
+        if FCurrentVis <= 0.001 then
+        begin
+          FPhase := gpTraveling;
+          FTravelTimer := 0.0;
+        end;
       end;
-    end;
     gpTraveling:
-    begin
+      begin
       // Accumulate the empty-void timer so the user gets a clear
       // "crossing empty space" moment before the next system appears.
-      FTravelTimer := FTravelTimer + dt;
-      if FTravelTimer >= FMinTravelTime then
-      begin
-        PickNextSystem(CameraPos, CameraForward);
-        if Length(FNextSuns) > 0 then
-          FPhase := gpApproaching;
+        FTravelTimer := FTravelTimer + dt;
+        if FTravelTimer >= FMinTravelTime then
+        begin
+          PickNextSystem(CameraPos, CameraForward);
+          if Length(FNextSuns) > 0 then
+            FPhase := gpApproaching;
+        end;
       end;
-    end;
     gpApproaching:
-    begin
+      begin
       // Wait until the camera is close enough to the next sun, then
       // promote it to current and reset to the AtSystem phase.
-      if Length(FNextSuns) > 0 then
-      begin
-        NextDist := Vector3Distance(CameraPos, FNextSuns[0].Position);
-        if NextDist <= FArriveDistance then
-          SwapToNextSystem;
-      end
-      else
-      begin
+        if Length(FNextSuns) > 0 then
+        begin
+          NextDist := Vector3Distance(CameraPos, FNextSuns[0].Position);
+          if NextDist <= FArriveDistance then
+            SwapToNextSystem;
+        end
+        else
+        begin
         // Lost the next system somehow - go back to traveling so we
         // can re-pick. This should not happen in normal operation.
-        FPhase := gpTraveling;
-        FTravelTimer := 0.0;
+          FPhase := gpTraveling;
+          FTravelTimer := 0.0;
+        end;
       end;
-    end;
   end;
 end;
+
 procedure TSpaceWorld.RenderSuns;
 var
   i, j: Integer;
@@ -1959,6 +2002,7 @@ begin
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableDepthMask;
 end;
+
 procedure TSpaceWorld.RenderPlanets(const CameraPos, CamRight, CamUp: TVector3);
 var
   i, j: Integer;
@@ -2007,10 +2051,8 @@ begin
         P := @FPlanets[i];
         if not P^.HasAtmosphere then
           Continue;
-        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 1.5,
-          P^.AtmosphereColor, Trunc(55 * FCurrentVis));
-        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 2.5,
-          P^.AtmosphereColor, Trunc(20 * FCurrentVis));
+        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 1.5, P^.AtmosphereColor, Trunc(55 * FCurrentVis));
+        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 2.5, P^.AtmosphereColor, Trunc(20 * FCurrentVis));
       end;
     end;
     if (NextAlpha > 0) and (Length(FNextPlanets) > 0) then
@@ -2020,10 +2062,8 @@ begin
         P := @FNextPlanets[i];
         if not P^.HasAtmosphere then
           Continue;
-        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 1.5,
-          P^.AtmosphereColor, Trunc(55 * FNextVis));
-        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 2.5,
-          P^.AtmosphereColor, Trunc(20 * FNextVis));
+        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 1.5, P^.AtmosphereColor, Trunc(55 * FNextVis));
+        DrawCircularBillboard(P^.Position, CamRight, CamUp, P^.Radius * 2.5, P^.AtmosphereColor, Trunc(20 * FNextVis));
       end;
     end;
   finally
@@ -2080,6 +2120,7 @@ begin
   rlDrawRenderBatchActive;
   rlDisableDepthMask;
 end;
+
 procedure TSpaceWorld.RenderCometParticles(const CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -2148,6 +2189,7 @@ begin
   rlSetBlendMode(BLEND_ALPHA);
   rlEnableBackfaceCulling;
 end;
+
 procedure TSpaceWorld.RenderComets;
 var
   i: Integer;
@@ -2167,6 +2209,7 @@ end;
 {==============================================================================*
  *  AMBIENT DUST SYSTEM
  *==============================================================================}
+
 procedure TSpaceWorld.SpawnDustShell(const CameraPos: TVector3);
 var
   i: Integer;
@@ -2204,14 +2247,40 @@ begin
     // pure black so the player actually sees drifting rocks.
     ColorPick := Trunc(Random * 5);
     case ColorPick of
-      0: begin D^.ColorR := 140; D^.ColorG := 140; D^.ColorB := 145; end;  // bright gray
-      1: begin D^.ColorR := 175; D^.ColorG := 175; D^.ColorB := 180; end;  // light gray
-      2: begin D^.ColorR := 200; D^.ColorG := 170; D^.ColorB := 120; end;  // light tan
-      3: begin D^.ColorR := 165; D^.ColorG := 130; D^.ColorB := 90;  end;  // medium brown
-      4: begin D^.ColorR := 210; D^.ColorG := 190; D^.ColorB := 160; end;  // pale tan
+      0:
+        begin
+          D^.ColorR := 140;
+          D^.ColorG := 140;
+          D^.ColorB := 145;
+        end;  // bright gray
+      1:
+        begin
+          D^.ColorR := 175;
+          D^.ColorG := 175;
+          D^.ColorB := 180;
+        end;  // light gray
+      2:
+        begin
+          D^.ColorR := 200;
+          D^.ColorG := 170;
+          D^.ColorB := 120;
+        end;  // light tan
+      3:
+        begin
+          D^.ColorR := 165;
+          D^.ColorG := 130;
+          D^.ColorB := 90;
+        end;  // medium brown
+      4:
+        begin
+          D^.ColorR := 210;
+          D^.ColorG := 190;
+          D^.ColorB := 160;
+        end;  // pale tan
     end;
   end;
 end;
+
 procedure TSpaceWorld.UpdateDust(const dt: Single; const CameraPos: TVector3);
 var
   i: Integer;
@@ -2258,6 +2327,7 @@ begin
     end;
   end;
 end;
+
 procedure TSpaceWorld.RenderDust(const CamRight, CamUp: TVector3);
 var
   i: Integer;
@@ -2294,24 +2364,12 @@ begin
       // transparent so specks behind nearer ones don't completely
       // hide each other.
       rlColor4ub(R, G, B, 220);
-      rlVertex3f(Px - RX * HalfSize + UX * HalfSize,
-                 Py - RY * HalfSize + UY * HalfSize,
-                 Pz - RZ * HalfSize + UZ * HalfSize);
-      rlVertex3f(Px + RX * HalfSize + UX * HalfSize,
-                 Py + RY * HalfSize + UY * HalfSize,
-                 Pz + RZ * HalfSize + UZ * HalfSize);
-      rlVertex3f(Px + RX * HalfSize - UX * HalfSize,
-                 Py + RY * HalfSize - UY * HalfSize,
-                 Pz + RZ * HalfSize - UZ * HalfSize);
-      rlVertex3f(Px - RX * HalfSize + UX * HalfSize,
-                 Py - RY * HalfSize + UY * HalfSize,
-                 Pz - RZ * HalfSize + UZ * HalfSize);
-      rlVertex3f(Px + RX * HalfSize - UX * HalfSize,
-                 Py + RY * HalfSize - UY * HalfSize,
-                 Pz + RZ * HalfSize - UZ * HalfSize);
-      rlVertex3f(Px - RX * HalfSize - UX * HalfSize,
-                 Py - RY * HalfSize - UY * HalfSize,
-                 Pz - RZ * HalfSize - UZ * HalfSize);
+      rlVertex3f(Px - RX * HalfSize + UX * HalfSize, Py - RY * HalfSize + UY * HalfSize, Pz - RZ * HalfSize + UZ * HalfSize);
+      rlVertex3f(Px + RX * HalfSize + UX * HalfSize, Py + RY * HalfSize + UY * HalfSize, Pz + RZ * HalfSize + UZ * HalfSize);
+      rlVertex3f(Px + RX * HalfSize - UX * HalfSize, Py + RY * HalfSize - UY * HalfSize, Pz + RZ * HalfSize - UZ * HalfSize);
+      rlVertex3f(Px - RX * HalfSize + UX * HalfSize, Py - RY * HalfSize + UY * HalfSize, Pz - RZ * HalfSize + UZ * HalfSize);
+      rlVertex3f(Px + RX * HalfSize - UX * HalfSize, Py + RY * HalfSize - UY * HalfSize, Pz + RZ * HalfSize - UZ * HalfSize);
+      rlVertex3f(Px - RX * HalfSize - UX * HalfSize, Py - RY * HalfSize - UY * HalfSize, Pz - RZ * HalfSize - UZ * HalfSize);
     end;
   finally
     rlEnd;
@@ -2322,10 +2380,10 @@ end;
 {==============================================================================*
  *  MINIMAP - 2D overlay showing discovered systems + current flight state
  *==============================================================================}
+
 procedure TSpaceWorld.RefreshDiscoveredSystemsCache;
 const
-  SQL_ALL: AnsiString =
-    'SELECT galaxy_x, galaxy_y, galaxy_z FROM star_systems ORDER BY system_id;';
+  SQL_ALL: AnsiString = 'SELECT galaxy_x, galaxy_y, galaxy_z FROM star_systems ORDER BY system_id;';
 var
   Stmt: TSQLiteStmt;
   StepResult: Integer;
@@ -2358,6 +2416,7 @@ begin
     TYutaniSQLiteDB.Finalize(Stmt);
   end;
 end;
+
 procedure TSpaceWorld.RenderMinimap(const Camera: TCamera3D);
 var
   ScreenW, ScreenH: Integer;
@@ -2385,7 +2444,10 @@ begin
   MapX := ScreenW - MINIMAP_SIZE - MINIMAP_MARGIN;
   MapY := MINIMAP_MARGIN;
   // Background: dark semi-transparent square.
-  Bg.r := 0; Bg.g := 0; Bg.b := 0; Bg.a := 200;
+  Bg.r := 0;
+  Bg.g := 0;
+  Bg.b := 0;
+  Bg.a := 200;
   DrawRectangle(MapX, MapY, MINIMAP_SIZE, MINIMAP_SIZE, Bg);
   // Border: bright frame so the minimap stands out against the scene.
   DrawRectangleLines(MapX, MapY, MINIMAP_SIZE, MINIMAP_SIZE, WHITE);
@@ -2453,6 +2515,7 @@ end;
 {==============================================================================*
  *  SHADOW MAP RENDERING
  *==============================================================================}
+
 procedure TSpaceWorld.RenderShadows;
 var
   i: Integer;
@@ -2477,6 +2540,7 @@ begin
     DrawSphere(C^.Position, C^.Size * 0.5, BLACK);
   end;
 end;
+
 procedure TSpaceWorld.Render(const Camera: TCamera3D);
 var
   CamForward, CamRight, CamUp: TVector3;
@@ -2516,6 +2580,7 @@ end;
 {==============================================================================*
  *  LANDING & FLOATING ORIGIN SYSTEM
  *==============================================================================}
+
 function TSpaceWorld.FindNearestPlanet(const CameraPos: TVector3; out OutIndex: Integer; out OutDistance: Single): Boolean;
 var
   i: Integer;
@@ -2538,6 +2603,7 @@ begin
   OutDistance := Nearest;
   Result := (OutIndex >= 0);
 end;
+
 procedure TSpaceWorld.InitiateLanding(const TargetIndex: Integer; var CameraTarget: TVector3; var CameraPos: TVector3);
 var
   TargetPos, Shift: TVector3;
@@ -2570,6 +2636,7 @@ begin
   CameraPos := Vector3Add(FPlanets[TargetIndex].Position, Vector3Scale(SurfDir, FPlanets[TargetIndex].Radius + 5.0));
   CameraTarget := FPlanets[TargetIndex].Position;
 end;
+
 procedure TSpaceWorld.ReleaseLanding;
 begin
   if not FIsLanded then
@@ -2579,10 +2646,12 @@ begin
   FIsLanded := False;
   FLandingTargetIndex := -1;
 end;
+
 function TSpaceWorld.IsLanded: Boolean;
 begin
   Result := FIsLanded;
 end;
+
 function TSpaceWorld.GetLandedPlanetPos: TVector3;
 begin
   if FIsLanded and (FLandingTargetIndex >= 0) then
@@ -2590,6 +2659,7 @@ begin
   else
     Result := Vector3Create(0, 0, 0);
 end;
+
 function TSpaceWorld.GetLandedPlanetRadius: Single;
 begin
   if FIsLanded and (FLandingTargetIndex >= 0) then
@@ -2597,6 +2667,7 @@ begin
   else
     Result := 0;
 end;
+
 procedure TSpaceWorld.GetPlanetInfo(const Index: Integer; out OutPos: TVector3; out OutRadius: Single);
 begin
   if (Index >= 0) and (Index <= High(FPlanets)) then
@@ -2613,6 +2684,7 @@ end;
 {==============================================================================*
  *  Initialize distant stars with true cluster distribution (no rings)
  *==============================================================================}
+
 procedure TSpaceWorld.InitializeDistantStars;
 var
   i, c, j: Integer;
@@ -2669,5 +2741,6 @@ begin
     end;
   end;
 end;
+
 end.
 

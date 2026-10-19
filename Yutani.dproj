@@ -166,6 +166,7 @@
         <DCCReference Include="Yutani.Worlds.Land.pas"/>
         <DCCReference Include="Yutani.Worlds.Holodeck.pas"/>
         <DCCReference Include="Yutani.Worlds.YourWorld.pas"/>
+        <DCCReference Include="Yutani.Worlds.WorldTransitions.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

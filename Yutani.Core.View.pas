@@ -17,7 +17,7 @@ uses
   Winapi.Windows, System.SysUtils, System.Math, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   Yutani.Core, Yutani.Core.ModelEngine, TypInfo, Vcl.Grids, Raylib,
-  Vcl.WinXPickers, Vcl.Samples.Spin, Yutani.VCL3D,
+  Vcl.WinXPickers, Vcl.Samples.Spin, Yutani.VCL3D, Yutani.Worlds.WorldTransitions,
   Yutani.SkiaIntro, MiniAudio4Delphi;
 
 type
@@ -109,6 +109,8 @@ type
     lblSFXVolume: TLabel;
     lblMusicVolume: TLabel;
     tbMusicVOlume: TTrackBar;
+    lblWorldTransition: TLabel;
+    cbWorldTransitionEffect: TComboBox;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -173,6 +175,7 @@ type
     procedure btnControlsClick(Sender: TObject);
     procedure tbSFXVolumeChange(Sender: TObject);
     procedure tbMusicVOlumeChange(Sender: TObject);
+    procedure cbWorldTransitionEffectChange(Sender: TObject);
   private
     FSandbox: TYutaniRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -469,6 +472,12 @@ begin
   SelectedWorld := TWorldBaseType(Idx);
   if Assigned(FSandbox) then
     FSandbox.CurrentWorldBase := SelectedWorld;
+end;
+
+procedure TYutaniWindow.cbWorldTransitionEffectChange(Sender: TObject);
+begin
+  if (cbWorldTransitionEffect.ItemIndex >= 0) and Assigned(FSandbox) then
+    FSandbox.WorldTransitionType := TTransitionType(cbWorldTransitionEffect.ItemIndex);
 end;
 
 procedure TYutaniWindow.btnSceneSaveClick(Sender: TObject);

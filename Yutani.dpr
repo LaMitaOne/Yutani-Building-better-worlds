@@ -26,7 +26,8 @@ uses
   Yutani.Render.PlanarReflections in 'Yutani.Render.PlanarReflections.pas',
   Yutani.Worlds.Land in 'Yutani.Worlds.Land.pas',
   Yutani.Worlds.Holodeck in 'Yutani.Worlds.Holodeck.pas',
-  Yutani.Worlds.YourWorld in 'Yutani.Worlds.YourWorld.pas';
+  Yutani.Worlds.YourWorld in 'Yutani.Worlds.YourWorld.pas',
+  Yutani.Worlds.WorldTransitions in 'Yutani.Worlds.WorldTransitions.pas';
 
 {$R *.res}
 
