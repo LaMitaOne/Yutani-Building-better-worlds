@@ -87,8 +87,11 @@ slowly getting ready to explore the new universe
 * **CTRL + Q / E:** Select previous / next Actor in Hierarchy    
 * **F10** on selected send alive highlighter
 * **ALT + Left Click** — Change focus target of the Third-Person camera to the clicked surface point
-* ---Flying---
-* **F11** posess whatever selected as vehicle    
+* **F2** Split screen mode
+* ---vehicles---
+* **F11** posess whatever selected as vehicle & rotate
+* **Shift & F11** Change control type
+* **F12** leave posessed vehicle
 * **W / S** — Pitch (Tilt Up / Down)
 * **A / D** — Yaw (Turn Left / Right)
 * **R / F** — Throttle / Speed Up / Speed Down
