@@ -23,7 +23,10 @@ uses
   Yutani.Audio in 'Yutani.Audio.pas',
   Yutani.Avatar.Controls.GamepadSettings in 'Yutani.Avatar.Controls.GamepadSettings.pas' {frmGamepadSettings},
   Yutani.Video.MPV in 'Yutani.Video.MPV.pas',
-  Yutani.Render.PlanarReflections in 'Yutani.Render.PlanarReflections.pas';
+  Yutani.Render.PlanarReflections in 'Yutani.Render.PlanarReflections.pas',
+  Yutani.Worlds.Land in 'Yutani.Worlds.Land.pas',
+  Yutani.Worlds.Holodeck in 'Yutani.Worlds.Holodeck.pas',
+  Yutani.Worlds.YourWorld in 'Yutani.Worlds.YourWorld.pas';
 
 {$R *.res}
 

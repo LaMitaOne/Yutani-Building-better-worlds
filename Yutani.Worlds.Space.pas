@@ -605,12 +605,12 @@ const
   // the particle count, scale up sizes and bump the drift speed so the
   // player actually sees rocks drifting past the cockpit instead of
   // static invisible pinpricks.
-  DUST_PARTICLE_COUNT = 1200;
+  DUST_PARTICLE_COUNT = 1000;
   DUST_SHELL_INNER = 30.0;
-  DUST_SHELL_OUTER = 250.0;
+  DUST_SHELL_OUTER = 350.0;
   DUST_RESPAWN_DIST = 400.0;
   DUST_MIN_SIZE = 0.1;
-  DUST_MAX_SIZE = 0.2;
+  DUST_MAX_SIZE = 0.3;
   DUST_MIN_SPEED = 3.0;
   DUST_MAX_SPEED = 12.0;
   // Minimap tuning.

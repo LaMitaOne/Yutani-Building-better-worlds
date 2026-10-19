@@ -12530,7 +12530,8 @@ object YutaniWindow: TYutaniWindow
         'Land'
         'Space'
         'Holodeck'
-        'Island')
+        'Island'
+        'YourWorld')
       ExplicitLeft = 900
     end
     object btnSelectPrev: TButton
