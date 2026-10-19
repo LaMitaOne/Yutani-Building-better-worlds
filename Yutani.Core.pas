@@ -80,7 +80,7 @@
  Latest Changes:
 
 v0.649
- - 12 now leave posessed object, split screen moved to F2
+ - F12 now leave posessed object, split screen moved to F2
  - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
  - Added world bones unit Yutani.Worlds.YourWorld
  - Added unit Yutani.Worlds.WorldTransitions
