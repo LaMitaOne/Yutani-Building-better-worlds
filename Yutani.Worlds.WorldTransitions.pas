@@ -90,12 +90,9 @@ unit Yutani.Worlds.WorldTransitions;
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
-
 interface
-
 uses
   System.SysUtils, System.Math, Raylib, RayMath, rlgl;
-
 type
   /// <summary>
   /// Transition visual style. Multiple are provided so the host
@@ -108,7 +105,6 @@ type
     ttBlinkEye,     // Vertical rubber-band snap (fast + cheap)
     ttFade         // Plain alpha fade - fallback for low-end hardware
   );
-
   /// <summary>
   /// Lifecycle phase of the active transition. The Core inspects
   /// this to decide when to perform the heavy world swap (only while
@@ -121,7 +117,6 @@ type
     tpIntro,      // New world is being warped in. Host renders the live new scene.
     tpComplete    // Just finished. Update() will reset to tpIdle.
   );
-
   /// <summary>
   /// Single streak used by the warp / hyperspace tunnel. Streaks are
   /// generated around the screen center and accelerated outward to
@@ -137,7 +132,6 @@ type
   end;
   PStreakArray = ^TStreakArray;
   TStreakArray = array[0..0] of TWarpStreak;
-
   /// <summary>
   /// Main transition manager. The host application owns exactly one
   /// instance and calls Start() at the beginning of a world swap,
@@ -176,7 +170,6 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-
     /// <summary>
     /// Kicks off a new transition of the given type. Safe to call
     /// while another transition is running - the old one is
@@ -186,13 +179,11 @@ type
       OutroDuration: Single = 0.6;
       LoadingMinDuration: Single = 0.4;
       IntroDuration: Single = 0.6); virtual;
-
     /// <summary>
     /// Advances one frame. Must be called every frame while Active
     /// is True so the timing stays smooth.
     /// </summary>
     procedure Update(dt: Single);
-
     /// <summary>
     /// Draws the transition overlay on top of the live framebuffer.
     /// Call this INSIDE BeginDrawing / EndDrawing, AFTER the 3D
@@ -200,7 +191,6 @@ type
     /// method is a no-op when Active is False.
     /// </summary>
     procedure Render; virtual;
-
     /// <summary>
     /// Tells the manager that the heavy world swap is done and the
     /// new world is ready to be revealed. The manager will leave
@@ -209,14 +199,12 @@ type
     /// minimum tunnel time is up.
     /// </summary>
     procedure AdvanceToIntro;
-
     /// <summary>
     /// Hard-resets the manager to tpIdle. Use this to abort a
     /// transition in flight (e.g. if the world swap fails and the
     /// host decides to fall back to the old world).
     /// </summary>
     procedure Cancel;
-
     property Active: Boolean read FActive;
     property Phase: TTransitionPhase read FPhase;
     property Progress: Single read FProgress;
@@ -225,14 +213,11 @@ type
     property LoadingMinDuration: Single read FLoadingMinDuration write FLoadingMinDuration;
     property IntroDuration: Single read FIntroDuration write FIntroDuration;
   end;
-
 implementation
-
 const
   DEFAULT_OUTRO_DURATION   = 0.6;
   DEFAULT_LOADING_MIN      = 0.4;
   DEFAULT_INTRO_DURATION   = 0.6;
-
   // Streak palette. Hue byte indexes this table. Keep the count in
   // sync with the Hue mod below or the modulo will mask the bug.
   STREAK_PALETTE: array[0..4] of TColorB = (
@@ -242,12 +227,9 @@ const
     (r: 255; g: 230; b: 180; a: 255),  // 3 - warm sun
     (r: 220; g: 180; b: 255; a: 255)   // 4 - purple
   );
-
   STREAK_COUNT_WARP       = 90;
   STREAK_COUNT_HYPERSPACE = 180;
-
 { TWorldTransition }
-
 constructor TWorldTransition.Create;
 begin
   inherited Create;
@@ -268,13 +250,11 @@ begin
   FFlashAlpha := 0.0;
   FInvVignetteAlpha := 0.0;
 end;
-
 destructor TWorldTransition.Destroy;
 begin
   FStreaks := nil;
   inherited;
 end;
-
 procedure TWorldTransition.SeedRand(Seed: Cardinal);
 begin
   // xorshift32 - good enough for visual randomness, deterministic
@@ -283,7 +263,6 @@ begin
     Seed := 1;
   FRngState := Seed;
 end;
-
 function TWorldTransition.NextRand: Single;
 begin
   FRngState := FRngState xor (FRngState shl 13);
@@ -291,7 +270,6 @@ begin
   FRngState := FRngState xor (FRngState shl 5);
   Result := (FRngState and $00FFFFFF) / $00FFFFFF;
 end;
-
 procedure TWorldTransition.Recenter;
 var
   W, H: Integer;
@@ -303,7 +281,6 @@ begin
   FCenterX := W * 0.5;
   FCenterY := H * 0.5;
 end;
-
 procedure TWorldTransition.SpawnStreaks(Count: Integer; ResetAll: Boolean);
 var
   I: Integer;
@@ -343,7 +320,6 @@ begin
     Streak^.Hue := Trunc(NextRand * 5);
   end;
 end;
-
 procedure TWorldTransition.UpdateStreaks(dt: Single);
 var
   I: Integer;
@@ -383,7 +359,6 @@ begin
     end;
   end;
 end;
-
 function TWorldTransition.PickStreakColor(Hue: Byte; Alpha: Byte): TColorB;
 begin
   if Hue > High(STREAK_PALETTE) then
@@ -391,7 +366,6 @@ begin
   Result := STREAK_PALETTE[Hue];
   Result.a := Alpha;
 end;
-
 procedure TWorldTransition.DrawStreaks(Alpha: Single);
 var
   I: Integer;
@@ -439,7 +413,6 @@ begin
   rlDrawRenderBatchActive;
   rlSetBlendMode(BLEND_ALPHA);
 end;
-
 procedure TWorldTransition.DrawInvertedVignette(Alpha: Single);
 var
   W, H: Integer;
@@ -471,7 +444,6 @@ begin
   Center := Vector2Create(CX, CY);
   DrawCircleGradient(Center, R, Fade(BLACK, 0), Fade(BLACK, Alpha));
 end;
-
 procedure TWorldTransition.DrawCenterFlash(Alpha: Single);
 var
   CX, CY: Integer;
@@ -487,7 +459,6 @@ begin
   DrawCircle(CX, CY, 160, Fade(WHITE, Alpha * 0.4));
   rlSetBlendMode(BLEND_ALPHA);
 end;
-
 procedure TWorldTransition.DrawStretchBars(Progress: Single);
 var
   W, H: Integer;
@@ -508,7 +479,6 @@ begin
   DrawRectangle(0, 0, W, BlackH, BLACK);
   DrawRectangle(0, H - BlackH, W, BlackH, BLACK);
 end;
-
 procedure TWorldTransition.AdvancePhase;
 begin
   case FPhase of
@@ -556,7 +526,6 @@ begin
       end;
   end;
 end;
-
 procedure TWorldTransition.Start(AType: TTransitionType;
   OutroDuration: Single;
   LoadingMinDuration: Single;
@@ -601,7 +570,6 @@ begin
     SpawnStreaks(STREAK_COUNT_WARP, True);
   end;
 end;
-
 procedure TWorldTransition.Update(dt: Single);
 var
   Duration: Single;
@@ -661,7 +629,6 @@ begin
       AdvancePhase;
   end;
 end;
-
 procedure TWorldTransition.Render;
 var
   W, H: Integer;
@@ -743,7 +710,6 @@ begin
       end;
   end;
 end;
-
 procedure TWorldTransition.AdvanceToIntro;
 begin
   // Called by the host once the new world has finished loading.
@@ -751,7 +717,6 @@ begin
   // minimum tunnel duration before advancing to tpIntro.
   FReadyForIntro := True;
 end;
-
 procedure TWorldTransition.Cancel;
 begin
   // Hard reset to idle. Used if the host aborts a world swap.
@@ -765,6 +730,5 @@ begin
   FStreaks := nil;
   FStreakCount := 0;
 end;
-
 end.
 

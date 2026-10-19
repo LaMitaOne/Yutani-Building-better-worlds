@@ -80,12 +80,14 @@
  Latest Changes:
 
 v0.649
- - F12 now leave posessed object, split screen moved to F2
+ - F12 now leaves posessed object, split screen moved to F2
  - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
  - Added world bones unit Yutani.Worlds.YourWorld
  - Added unit Yutani.Worlds.WorldTransitions
  - New world Transition effects: Warp, BlinkEye, Fade
  - New Engine tab Combobox for transition effect setting
+ - Space reset/load/save functions added
+ - Space radar minimap now real 3d & added zoom btns
 
  *==============================================================================}
 {$POINTERMATH ON}
@@ -578,6 +580,26 @@ type
     procedure DematerializeSelectedObject;
     procedure DematerializeActor(Actor: TA3DComponent);
     procedure ExecuteMaterializeActor(Actor: TA3DComponent);
+    // ===== Galaxy control (forwarded to FSpaceWorld) =====
+    // These let the VCL control the galaxy persistence from buttons /
+    // menu items. All are safe to call from the VCL thread. They are
+    // no-ops when the current world is not wbSpace (FSpaceWorld = nil).
+    procedure ResetUniverse;
+    procedure SaveGalaxy;
+    procedure LoadGalaxy;
+    function GetGalaxyDBPath: string;
+    // ===== Minimap marker forwarding (to FSpaceWorld) =====
+    // External entities (enemies, NPCs, waypoints) call these to
+    // register markers that appear in the 3D system minimap. The
+    // caller manages the lifecycle - call ClearMinimapMarkers at the
+    // start of each frame for per-frame markers, or manage entries
+    // individually for persistent markers.
+    procedure ClearMinimapMarkers;
+    procedure AddMinimapMarker(const Pos: TVector3; const Col: TColorB; Size: Single = 3.0);
+    // Radar zoom control (forwarded to FSpaceWorld). Connect to VCL
+    // buttons (+ / -) so the user can zoom the 3D radar in/out.
+    procedure RadarZoomIn;
+    procedure RadarZoomOut;
     // Factory that maps TYutaniAvatarControllerType to the matching
     // controller class. Used by the F11 possess path and the Shift+F11
     // controller-swap path so the spawn logic lives in exactly one place.
@@ -604,7 +626,7 @@ type
     property CurrentWorldBase: TWorldBaseType read FCurrentWorldBase write SetWorldBase;
     property SpawnEffectType: TSpawnEffectType read FSpawnEffectType write FSpawnEffectType default spefNone;
     // Cinematic transition style for world swaps. Set this from a
-    // VCL combobox to let the user pick between Warp / Stretch /
+    // VCL combobox to let the user pick between Warp / BlinkEye /
     // Hyperspace / Fade. The chosen type is used by the next
     // SetWorldBase call; an in-flight transition is NOT affected.
     property WorldTransitionType: TTransitionType read FWorldTransitionType write FWorldTransitionType default ttBlinkEye;
@@ -971,7 +993,7 @@ begin
   if FIsLoadingWorld then
     Exit;
   // Determine if this swap requires a heavy texture creation
-  // (first-time Space or Island load). If so, skip the cinematic
+  // (first-time Space load). If so, skip the cinematic
   // transition and fall back to the old loading screen behavior
   // (solid black + loading screen) because the render thread will
   // be blocked for seconds during the heavy lift and the transition
@@ -979,7 +1001,8 @@ begin
   // swaps (Holodeck / Land / YourWorld, or Space / Island when
   // already loaded) the render thread keeps running, so the
   // transition can play smoothly on top of the live old world.
-  NeedsHeavyLoad := ((Value = wbSpace) and (not Assigned(FSpaceWorld))) or ((Value = wbIsland) and (not Assigned(FIslandWorld)));
+  NeedsHeavyLoad := ((Value = wbSpace) and (not Assigned(FSpaceWorld)));
+               //  or ((Value = wbIsland) and (not Assigned(FIslandWorld)));
   if (not NeedsHeavyLoad) and Assigned(FWorldTransition) then
     FWorldTransition.Start(FWorldTransitionType);
   FIsLoadingWorld := True;
@@ -997,7 +1020,7 @@ begin
     // 2. Change the size and visibility
     if Value = wbSpace then
     begin
-      FFloorActor.Scale := Vector3Create(4, 1, 4); // Shrink to tiny 4x4 platform
+      FFloorActor.Scale := Vector3Create(4, 0.9, 4); // Shrink to tiny 4x4 platform  - 0.9 so we not see it while world transitions
       FFloorActor.Visible := True;                 // Make it visible as a landing pad
       FFloorActor.Friction := 0.8;                 // High friction so things don't slide off
     end
@@ -7025,6 +7048,72 @@ begin
   begin
     FNanoFog.ExplodeAndKill;
   end;
+end;
+
+// ====================================================================
+// Galaxy control - forwarded to FSpaceWorld
+// ====================================================================
+// All four methods are safe to call from the VCL thread. They are
+// no-ops when FSpaceWorld is nil (i.e. the user hasn't loaded the
+// Space world yet). The VCL should guard the UI buttons with
+// (FSandbox.CurrentWorldBase = wbSpace) so they're only enabled
+// when relevant, but even without that guard the calls don't crash.
+
+procedure TYutaniRaylibSandbox.ResetUniverse;
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.ResetUniverse;
+end;
+
+procedure TYutaniRaylibSandbox.SaveGalaxy;
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.SaveGalaxy;
+end;
+
+procedure TYutaniRaylibSandbox.LoadGalaxy;
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.LoadGalaxy;
+end;
+
+function TYutaniRaylibSandbox.GetGalaxyDBPath: string;
+begin
+  if Assigned(FSpaceWorld) then
+    Result := FSpaceWorld.GetGalaxyDBPath
+  else
+    Result := '';
+end;
+
+// ====================================================================
+// Minimap marker forwarding - to FSpaceWorld
+// ====================================================================
+// These let the game logic (or VCL for testing) register entities
+// that should appear as colored dots in the 3D system minimap. The
+// render is nil-guarded so callers don't need to check CurrentWorldBase.
+
+procedure TYutaniRaylibSandbox.ClearMinimapMarkers;
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.ClearMinimapMarkers;
+end;
+
+procedure TYutaniRaylibSandbox.AddMinimapMarker(const Pos: TVector3; const Col: TColorB; Size: Single);
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.AddMinimapMarker(Pos, Col, Size);
+end;
+
+procedure TYutaniRaylibSandbox.RadarZoomIn;
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.RadarZoomIn;
+end;
+
+procedure TYutaniRaylibSandbox.RadarZoomOut;
+begin
+  if Assigned(FSpaceWorld) then
+    FSpaceWorld.RadarZoomOut;
 end;
 
 end.

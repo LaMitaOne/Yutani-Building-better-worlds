@@ -1,4 +1,4 @@
-unit Yutani.Worlds.Space;
+﻿unit Yutani.Worlds.Space;
 
 {==============================================================================*
  *  Yutani World: Space - Infinite Procedural Cosmos
@@ -223,6 +223,15 @@ type
     Size: Single;
     ColorR, ColorG, ColorB: Byte;
   end;
+  // External marker record. Populated by game logic (enemies, NPCs,
+  // waypoints, etc.) and rendered by the 3D minimap. The array is
+  // NOT auto-cleared - the caller must call ClearMinimapMarkers at
+  // the start of each frame or manage entries individually.
+  TMinimapMarker = record
+    Position: TVector3;
+    Color: TColorB;
+    Size: Single;
+  end;
   // Galaxy lifecycle phases. See the unit header for a description.
 
   TGalaxyPhase = (gpAtSystem, gpDeparting, gpTraveling, gpApproaching);
@@ -285,6 +294,21 @@ type
     FCurrentGalaxyPos: TVector3;   // Rounded galaxy cell of current sun
     FNextGalaxyPos: TVector3;       // Rounded galaxy cell of next sun
     FGalaxyDB: TYutaniSQLiteDB;     // Persisted explored systems
+    // Render-to-texture target for the 3D radar. The 3D scene
+    // (tilted disc + floating markers + connecting lines) is rendered
+    // into this texture with a transparent background, then drawn to
+    // the screen as a 2D overlay. The transparent corners let the
+    // game show through, so only the circular disc is visible.
+    FMinimapTexture: TRenderTexture2D;
+    // External markers for the 3D minimap. Populated by game logic
+    // (enemies, NPCs, waypoints). Rendered as colored spheres on top
+    // of the solar system view. Not auto-cleared - see
+    // ClearMinimapMarkers / AddMinimapMarker.
+    FMinimapMarkers: TArray<TMinimapMarker>;
+    // Radar zoom multiplier. 1.0 = default adaptive range.
+    // <1 = zoomed in (closer view), >1 = zoomed out (wider view).
+    // Adjusted by RadarZoomIn / RadarZoomOut. Clamped to [0.1, 10.0].
+    FRadarRangeMultiplier: Single;
     // Tunable distances for the phase machine. All exposed as properties
     // so a settings dialog can tweak them at runtime.
     FFadeStartDist: Single;
@@ -357,6 +381,27 @@ type
     // outside BeginMode3D so the 2D primitives land on top of the
     // 3D scene without perspective distortion.
     procedure RefreshDiscoveredSystemsCache;
+    // Resets the in-memory galaxy state back to the home system WITHOUT
+    // touching the DB. Used by ResetUniverse after the DB has been
+    // wiped, so we start clean with a fresh home system.
+    procedure ResetInMemoryState;
+    // Draws only the FRONT half of a circle in the XZ plane (angles
+    // 0..PI, going through +Z). The back half is skipped so the
+    // disc edge doesn't wrap around the markers above — only the
+    // bottom arc is visible, matching the reference diagram.
+    procedure DrawSemiCircle3D(Radius: Single; const Color: TColorB);
+    // Draws a FULL circle outline in the XZ plane (Y=0). Used for the
+    // radar rim and concentric rings so they form a complete ellipse
+    // when viewed from the tilted camera - matching the Elite Dangerous
+    // holographic disc look instead of just the front semicircle arc.
+    procedure DrawFullCircle3D(Radius: Single; const Color: TColorB);
+    // Draws a filled translucent disc in the XZ plane (Y=0) as a smooth
+    // triangle fan. Per-vertex alpha creates a radial gradient from
+    // CenterAlpha at the middle to EdgeAlpha at the rim, giving the
+    // soft half-transparent holographic glow of the reference radar.
+    // Depth-mask writes are left to the caller so the disc does not
+    // occlude markers floating above it.
+    procedure DrawFilledDisc3D(Radius: Single; CenterAlpha, EdgeAlpha: Byte);
     procedure DrawStarSprite(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
     procedure DrawCircularBillboard(const Pos, CamRight, CamUp: TVector3; Size: Single; Col: TColorB; Alpha: Byte);
     procedure GeneratePlanetAssets(const ALightShader: TShader);
@@ -384,6 +429,39 @@ type
     function GetLandedPlanetPos: TVector3;
     function GetLandedPlanetRadius: Single;
     procedure GetPlanetInfo(const Index: Integer; out OutPos: TVector3; out OutRadius: Single);
+    // ===== External galaxy control =====
+    // These methods let the VCL (YutaniWindow) control the galaxy
+    // persistence from buttons / menu items. Safe to call from the
+    // VCL thread - they only touch the SQLite DB + the in-memory
+    // caches, not the render thread's state.
+    // Wipes the galaxy.sqlite DB and resets the in-memory state back
+    // to the home system. The player stays where they are but all
+    // discovered systems are forgotten.
+    procedure ResetUniverse;
+    // Forces an immediate save of the current system to the DB +
+    // refreshes the discovered-systems cache. Normally this happens
+    // automatically on each system swap, but this lets the user
+    // trigger it manually (e.g. before quitting).
+    procedure SaveGalaxy;
+    // Forces a refresh of the discovered-systems cache from the DB.
+    // Useful after an external DB edit or after ResetUniverse.
+    procedure LoadGalaxy;
+    // Returns the full path to the galaxy.sqlite file so the VCL
+    // can show it in a label / open it in Explorer.
+    function GetGalaxyDBPath: string;
+    // ===== Minimap marker system =====
+    // External entities (enemies, NPCs, waypoints) can register
+    // markers here so they appear in the 3D minimap. The caller is
+    // responsible for clearing stale markers - we don't auto-clear
+    // so you can decide the lifecycle (per-frame, persistent, etc.).
+    procedure ClearMinimapMarkers;
+    procedure AddMinimapMarker(const Pos: TVector3; const Col: TColorB; Size: Single = 3.0);
+    // ===== Radar zoom control =====
+    // Zoom the 3D radar in / out. Each call multiplies the range
+    // by 0.7 (in) or 1.5 (out). Clamped to [0.1, 10.0].
+    // Safe to call from the VCL thread.
+    procedure RadarZoomIn;
+    procedure RadarZoomOut;
     // Galaxy lifecycle - exposed for HUD / settings dialogs.
     property Phase: TGalaxyPhase read FPhase;
     property CurrentVisibility: Single read FCurrentVis;
@@ -397,6 +475,9 @@ type
     property TargetApproachFadeStart: Single read FTargetApproachFadeStart write FTargetApproachFadeStart;
     property ArriveDistance: Single read FArriveDistance write FArriveDistance;
     property MinTravelTime: Single read FMinTravelTime write FMinTravelTime;
+    // Read-only access to the SQLite wrapper so the VCL can check
+    // DllAvailable / LastError for diagnostics.
+    property GalaxyDB: TYutaniSQLiteDB read FGalaxyDB;
   end;
 
 implementation
@@ -657,6 +738,57 @@ const
   MINIMAP_MARGIN = 20;                // pixel gap from screen edge
   MINIMAP_RANGE = 10000.0;            // world units shown across the minimap
   MINIMAP_CACHE_TTL = 10.0;           // seconds between DB refreshes
+  // Circular radar tuning (EVE Online style).
+  RADAR_RADIUS = 130;                 // pixel radius of the circular radar disc
+  RADAR_MARGIN = 25;                 // pixel gap from screen edge
+  RADAR_RING_COUNT = 3;               // concentric rings inside the disc
+  // --- Zoom glyph tuning ---
+  // Bare "+" and "-" text glyphs placed in the bottom-right corner
+  // of the radar texture. No circle background, just slightly
+  // transparent text that brightens on hover. Click handling uses
+  // Raylib input directly so no VCL wiring is needed - the glyphs
+  // call RadarZoomIn / RadarZoomOut internally.
+  RADAR_ZOOM_GLYPH_SIZE = 20;          // font size of the + / - glyphs
+  // RADAR_SWEEP_PERIOD removed - the rotating sweep line was removed
+  // from the radar per request. Kept as a comment so the constant
+  // block stays readable and the index of the remaining tunables
+  // (RADAR_PING_PERIOD below) is unchanged.
+  RADAR_PING_PERIOD = 2.5;           // seconds for one Aliens-style ping cycle
+  // 3D radar scene tuning (world-space units inside the render texture).
+  RADAR_3D_DISC_RADIUS = 90.0;        // radius of the circular disc in 3D
+  RADAR_3D_MARKER_HEIGHT = 25.0;     // height of markers floating above the disc
+  RADAR_3D_CAM_Y = 120.0;             // camera height above the disc center
+  RADAR_3D_CAM_Z = 130.0;             // camera distance behind the disc center
+  RADAR_3D_FOV = 55.0;                // perspective FOV for the 3D radar view
+  // --- Filled translucent disc tuning (Elite Dangerous style) ---
+  // The filled disc is rendered as a triangle fan with per-vertex
+  // alpha, producing a smooth radial gradient from a brighter center
+  // to a near-transparent edge. This gives the soft holographic glow
+  // seen in the reference image instead of a flat opaque circle.
+  RADAR_DISC_SEGMENTS = 64;           // triangle-fan segments (smoothness)
+  RADAR_DISC_ALPHA_CENTER = 70;       // center alpha (0..255) - moderate glow
+  RADAR_DISC_ALPHA_EDGE = 20;         // edge alpha (0..255) - fades out softly
+  // --- Marker color palette (Elite Dangerous style) ---
+  //   Suns    -> bright yellow (current + discovered + next)
+  //   Planets -> teal (overrides the procedural PlanetColor so all
+  //              planets read as a single consistent color)
+  //   Moons   -> dimmer teal (so they stay grouped with planets)
+  //   Enemies -> red (overrides the marker's own color so any NPC /
+  //              hostile registered via AddMinimapMarker reads red)
+  RADAR_TEAL_R = 0;
+  RADAR_TEAL_G = 200;
+  RADAR_TEAL_B = 200;
+  RADAR_MOON_TEAL_ALPHA = 130;        // dimmer teal for moons (0..255)
+  RADAR_RED_R = 255;
+  RADAR_RED_G = 60;
+  RADAR_RED_B = 60;
+  RADAR_ENEMY_ALPHA = 170;           // red alpha for enemy markers (translucent)
+  // --- Line / cylinder thickness ---
+  // Halved again (was 1.2/1.5/1.0) so the lines stay readable but
+  // feel lighter / more holographic instead of solid bars.
+  RADAR_LINE_THICK = 0.6;            // standard marker connecting line radius
+  RADAR_LINE_THICK_SUN = 0.75;       // thicker line for sun markers
+  RADAR_ARROW_THICK = 0.5;           // player look-direction arrow shaft radius
 
 function MakeCol(r, g, b: Byte): TColorB;
 begin
@@ -743,6 +875,13 @@ begin
   if DefaultShader.id > 0 then
     FSunModel.materials[0].shader := DefaultShader;
   FSunModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FSunTexture;
+  // Create the 3D radar render texture. The 3D tilted-disc scene is
+  // rendered into this with a transparent background, then drawn to
+  // the screen as a 2D overlay. The transparent corners let the game
+  // show through so only the circular holographic disc is visible.
+  FMinimapTexture := LoadRenderTexture(RADAR_RADIUS * 2, RADAR_RADIUS * 2);
+  // Default radar zoom = 1.0 (adaptive range, no override).
+  FRadarRangeMultiplier := 1.0;
   SpawnStarterPlanets;
   // After SpawnStarterPlanets the home sun lives at FSuns[0]. Capture
   // its position as the current galaxy cell so subsequent phase machine
@@ -777,6 +916,9 @@ begin
   SetLength(FCometParticles, 0);
   SetLength(FDust, 0);
   FDiscoveredSystemsCache := nil;
+  // Unload the 3D radar render texture.
+  if FMinimapTexture.id > 0 then
+    UnloadRenderTexture(FMinimapTexture);
   // Close the SQLite connection - the wrapper frees itself.
   FreeAndNil(FGalaxyDB);
   inherited;
@@ -2417,100 +2559,562 @@ begin
   end;
 end;
 
+procedure TSpaceWorld.ResetInMemoryState;
+begin
+  // Clear all in-memory galaxy state back to a fresh home system.
+  // This does NOT touch the SQLite DB - the caller (ResetUniverse)
+  // is responsible for wiping the DB first. After this call the
+  // phase machine is back at gpAtSystem with the home sun at the
+  // origin, exactly like a fresh Create().
+  SetLength(FSuns, 0);
+  SetLength(FPlanets, 0);
+  SetLength(FNextSuns, 0);
+  SetLength(FNextPlanets, 0);
+  SetLength(FComets, 0);
+  FPhase := gpAtSystem;
+  FCurrentVis := 1.0;
+  FNextVis := 0.0;
+  FTravelTimer := 0.0;
+  FCurrentSeed := 42;
+  FNextSeed := 0;
+  FCurrentGalaxyPos := Vector3Create(0, 0, 0);
+  FNextGalaxyPos := Vector3Create(0, 0, 0);
+  FIsLanded := False;
+  FLandingTargetIndex := -1;
+  FDiscoveredSystemsCache := nil;
+  FDiscoveredCacheAge := MINIMAP_CACHE_TTL + 1.0;
+  // Regenerate the home system at the origin.
+  SpawnStarterPlanets;
+  // Capture the home sun's galaxy position so subsequent DB upserts
+  // reference the correct cell.
+  if Length(FSuns) > 0 then
+  begin
+    FCurrentGalaxyPos.x := Round(FSuns[0].Position.x / GALAXY_GRID) * GALAXY_GRID;
+    FCurrentGalaxyPos.y := Round(FSuns[0].Position.y / GALAXY_GRID) * GALAXY_GRID;
+    FCurrentGalaxyPos.z := Round(FSuns[0].Position.z / GALAXY_GRID) * GALAXY_GRID;
+  end;
+end;
+
+procedure TSpaceWorld.ResetUniverse;
+const
+  SQL_DROP: AnsiString = 'DROP TABLE IF EXISTS star_systems;';
+  SQL_DROP_INDEX: AnsiString = 'DROP INDEX IF EXISTS idx_galaxy_pos;';
+begin
+  // Wipe the entire galaxy DB and reset the in-memory state back to
+  // the home system. The player's camera position is NOT touched -
+  // only the galaxy data. Safe to call from the VCL thread.
+  if (not Assigned(FGalaxyDB)) or (FGalaxyDB.DB = nil) then
+    Exit;
+  // Drop the table + index, then recreate them empty.
+  FGalaxyDB.Execute(SQL_DROP);
+  FGalaxyDB.Execute(SQL_DROP_INDEX);
+  EnsureGalaxySchema;
+  // Reset all in-memory state to a fresh home system.
+  ResetInMemoryState;
+  // Save the fresh home system so the DB has at least one row.
+  SaveCurrentSystemToDB;
+  // Refresh the (now nearly empty) discovered-systems cache.
+  RefreshDiscoveredSystemsCache;
+end;
+
+procedure TSpaceWorld.SaveGalaxy;
+begin
+  // Force an immediate save of the current system to the DB. This
+  // happens automatically on each system swap, but this method lets
+  // the user trigger it manually (e.g. "Save & Quit" button).
+  SaveCurrentSystemToDB;
+  // Also refresh the cache so the minimap is up to date immediately.
+  RefreshDiscoveredSystemsCache;
+end;
+
+procedure TSpaceWorld.LoadGalaxy;
+begin
+  // Force a refresh of the discovered-systems cache from the DB.
+  // Useful after an external DB edit (e.g. the user copied a
+  // galaxy.sqlite from another machine) or after ResetUniverse.
+  RefreshDiscoveredSystemsCache;
+end;
+
+function TSpaceWorld.GetGalaxyDBPath: string;
+begin
+  // Returns the full path to the galaxy.sqlite file so the VCL can
+  // show it in a label or offer to open it in Explorer / a DB browser.
+  if Assigned(FGalaxyDB) then
+    Result := FGalaxyDB.FileName
+  else
+    Result := '';
+end;
+
+procedure TSpaceWorld.ClearMinimapMarkers;
+begin
+  // Wipe all external markers. Call this at the start of each frame
+  // if you want per-frame markers (enemies that move), or call it
+  // only when an entity dies if you want persistent markers.
+  FMinimapMarkers := nil;
+end;
+
+procedure TSpaceWorld.AddMinimapMarker(const Pos: TVector3; const Col: TColorB; Size: Single);
+var
+  Idx: Integer;
+begin
+  // Append a marker to the array. Rendered as a colored sphere in
+  // the 3D minimap on the next RenderMinimap call.
+  Idx := Length(FMinimapMarkers);
+  SetLength(FMinimapMarkers, Idx + 1);
+  FMinimapMarkers[Idx].Position := Pos;
+  FMinimapMarkers[Idx].Color := Col;
+  FMinimapMarkers[Idx].Size := Size;
+end;
+
+procedure TSpaceWorld.DrawSemiCircle3D(Radius: Single; const Color: TColorB);
+var
+  J: Integer;
+  A1, A2: Single;
+  P1, P2: TVector3;
+const
+  SEG_COUNT = 32;
+begin
+  // Draws only the FRONT half of a circle in the XZ plane — angles
+  // 0..PI, going through +X → +Z → -X. This is the part visible at
+  // the BOTTOM of the tilted radar. The back half (through -Z,
+  // which would appear above the markers) is skipped.
+  for J := 0 to SEG_COUNT - 1 do
+  begin
+    A1 := (J / SEG_COUNT) * PI;
+    A2 := ((J + 1) / SEG_COUNT) * PI;
+    P1 := Vector3Create(Cos(A1) * Radius, 0, Sin(A1) * Radius);
+    P2 := Vector3Create(Cos(A2) * Radius, 0, Sin(A2) * Radius);
+    DrawLine3D(P1, P2, Color);
+  end;
+end;
+
+procedure TSpaceWorld.DrawFullCircle3D(Radius: Single; const Color: TColorB);
+var
+  J: Integer;
+  A1, A2: Single;
+  P1, P2: TVector3;
+const
+  SEG_COUNT = 48;
+begin
+  // Full circle outline in the XZ plane (Y=0). 48 segments are
+  // enough for a visually smooth ellipse at the tilted radar angle.
+  // Used for the disc rim and concentric rings so they form a
+  // complete ellipse matching the Elite Dangerous reference style.
+  for J := 0 to SEG_COUNT - 1 do
+  begin
+    A1 := (J / SEG_COUNT) * 2.0 * PI;
+    A2 := ((J + 1) / SEG_COUNT) * 2.0 * PI;
+    P1 := Vector3Create(Cos(A1) * Radius, 0, Sin(A1) * Radius);
+    P2 := Vector3Create(Cos(A2) * Radius, 0, Sin(A2) * Radius);
+    DrawLine3D(P1, P2, Color);
+  end;
+end;
+
+procedure TSpaceWorld.DrawFilledDisc3D(Radius: Single; CenterAlpha, EdgeAlpha: Byte);
+var
+  I: Integer;
+  A1, A2: Single;
+  P1, P2: TVector3;
+begin
+  // Filled translucent disc rendered as a triangle fan in the XZ
+  // plane (Y=0). Per-vertex alpha creates a smooth radial gradient
+  // from a brighter center to a transparent edge, giving the soft
+  // half-transparent holographic glow seen in the Elite Dangerous
+  // reference image. Backface culling is disabled so the disc is
+  // visible from both sides of the tilted radar camera. The caller
+  // is responsible for depth-mask state so the disc can be drawn
+  // without occluding markers that float above it.
+  rlDisableBackfaceCulling;
+  rlSetBlendMode(BLEND_ALPHA);
+  rlBegin(RL_TRIANGLES);
+  try
+    for I := 0 to RADAR_DISC_SEGMENTS - 1 do
+    begin
+      A1 := (I / RADAR_DISC_SEGMENTS) * 2.0 * PI;
+      A2 := ((I + 1) / RADAR_DISC_SEGMENTS) * 2.0 * PI;
+      P1 := Vector3Create(Cos(A1) * Radius, 0, Sin(A1) * Radius);
+      P2 := Vector3Create(Cos(A2) * Radius, 0, Sin(A2) * Radius);
+      // Center vertex - brighter alpha for the inner glow core.
+      rlColor4ub(255, 140, 40, CenterAlpha);
+      rlVertex3f(0, 0, 0);
+      // Edge vertices - fading to transparent at the rim so the
+      // disc blends smoothly into the background.
+      rlColor4ub(255, 140, 40, EdgeAlpha);
+      rlVertex3f(P1.x, P1.y, P1.z);
+      rlColor4ub(255, 140, 40, EdgeAlpha);
+      rlVertex3f(P2.x, P2.y, P2.z);
+    end;
+  finally
+    rlEnd;
+  end;
+  rlDrawRenderBatchActive;
+  rlSetBlendMode(BLEND_ALPHA);
+  rlEnableBackfaceCulling;
+end;
+
+procedure TSpaceWorld.RadarZoomIn;
+begin
+  // Zoom in: multiply range by 0.7 (see more detail, smaller area).
+  FRadarRangeMultiplier := EnsureRange(
+    FRadarRangeMultiplier * 0.7, 0.1, 10.0);
+end;
+
+procedure TSpaceWorld.RadarZoomOut;
+begin
+  // Zoom out: multiply range by 1.5 (see wider area, less detail).
+  FRadarRangeMultiplier := EnsureRange(
+    FRadarRangeMultiplier * 1.5, 0.1, 10.0);
+end;
+
 procedure TSpaceWorld.RenderMinimap(const Camera: TCamera3D);
 var
   ScreenW, ScreenH: Integer;
-  MapX, MapY, HalfSize: Integer;
-  i: Integer;
-  Pos: TVector3;
-  RelX, RelZ: Single;
-  DotX, DotY: Integer;
-  PlayerX, PlayerY: Integer;
-  CurX, CurY: Integer;
-  NextX, NextY: Integer;
-  Bg: TColorB;
+  TextureSize: Integer;
+  DstX, DstY: Integer;
+  I: Integer;
+  Range, ScaleFactor: Single;
+  MaxOrbit, PlayerDist: Single;
+  MiniCam: TCamera3D;
+  DiscRadius, MarkerHeight: Single;
+  PingPhase, PingRadius, PingAlpha: Single;
+  RelPos, ScaledPos, BasePos, MarkerPos: TVector3;
+  DistFromCenter: Single;
+  LookX, LookZ, LookLen: Single;
+  ArrowEnd: TVector3;
+  SrcRec: TRectangle;
+  DstPos: TVector2;
   TextBuf: AnsiString;
+  // --- Zoom glyph locals ---
+  MouseX, MouseY: Integer;
+  MousePos: TVector2;
+  BtnPlusX, BtnMinusX, BtnY: Integer;
+  PlusRec, MinusRec: TRectangle;
+  HoverPlus, HoverMinus: Boolean;
 begin
-  // Refresh the discovered-systems cache if it's stale. This avoids
-  // querying the DB every frame - we only re-query at most once per
-  // MINIMAP_CACHE_TTL seconds, which is more than enough for a
-  // minimap that the user glances at occasionally.
-  FDiscoveredCacheAge := FDiscoveredCacheAge + 0.016; // assume 60fps; close enough
+  // Refresh the discovered-systems cache if it's stale.
+  FDiscoveredCacheAge := FDiscoveredCacheAge + 0.016;
   if FDiscoveredCacheAge >= MINIMAP_CACHE_TTL then
     RefreshDiscoveredSystemsCache;
+  // Bail out if the render texture was never created.
+  if FMinimapTexture.id = 0 then
+    Exit;
+
   ScreenW := GetScreenWidth();
   ScreenH := GetScreenHeight();
-  HalfSize := MINIMAP_SIZE div 2;
-  MapX := ScreenW - MINIMAP_SIZE - MINIMAP_MARGIN;
-  MapY := MINIMAP_MARGIN;
-  // Background: dark semi-transparent square.
-  Bg.r := 0;
-  Bg.g := 0;
-  Bg.b := 0;
-  Bg.a := 200;
-  DrawRectangle(MapX, MapY, MINIMAP_SIZE, MINIMAP_SIZE, Bg);
-  // Border: bright frame so the minimap stands out against the scene.
-  DrawRectangleLines(MapX, MapY, MINIMAP_SIZE, MINIMAP_SIZE, WHITE);
-  // Center of the minimap = player position.
-  PlayerX := MapX + HalfSize;
-  PlayerY := MapY + HalfSize;
-  // Scale: MINIMAP_RANGE world units span MINIMAP_SIZE pixels.
-  // We display the XZ plane (top-down view); Y is ignored.
-  // Discovered systems as small gray dots.
-  for i := 0 to High(FDiscoveredSystemsCache) do
-  begin
-    Pos := FDiscoveredSystemsCache[i];
-    RelX := (Pos.x - Camera.position.x) / MINIMAP_RANGE;
-    RelZ := (Pos.z - Camera.position.z) / MINIMAP_RANGE;
-    // Skip dots that fall outside the minimap square.
-    if (Abs(RelX) > 0.5) or (Abs(RelZ) > 0.5) then
-      Continue;
-    DotX := PlayerX + Trunc(RelX * MINIMAP_SIZE);
-    DotY := PlayerY + Trunc(RelZ * MINIMAP_SIZE);
-    DrawCircle(DotX, DotY, 2, Fade(GRAY, 0.7));
-  end;
-  // Current system: green dot. Only drawn if within minimap range.
+  TextureSize := RADAR_RADIUS * 2;
+  // Bottom-right corner placement - moved from top-right so the
+  // radar sits in the lower right of the screen, matching the
+  // Elite Dangerous HUD layout.
+  DstX := ScreenW - TextureSize - RADAR_MARGIN;
+  DstY := ScreenH - TextureSize - RADAR_MARGIN;
+
+  // ====================================================================
+  // Adaptive range - same logic as the 2D radar.
+  // ====================================================================
+  MaxOrbit := 500.0;
   if Length(FSuns) > 0 then
   begin
-    Pos := FSuns[0].Position;
-    RelX := (Pos.x - Camera.position.x) / MINIMAP_RANGE;
-    RelZ := (Pos.z - Camera.position.z) / MINIMAP_RANGE;
-    if (Abs(RelX) <= 0.5) and (Abs(RelZ) <= 0.5) then
+    for I := 0 to High(FPlanets) do
+      if (not FPlanets[I].IsMoon) and (FPlanets[I].OrbitRadius > MaxOrbit) then
+        MaxOrbit := FPlanets[I].OrbitRadius;
+    Range := MaxOrbit * 1.3;
+    if Range < 1000.0 then
+      Range := 1000.0;
+    PlayerDist := Vector3Distance(Camera.position, FSuns[0].Position);
+    if PlayerDist > Range then
+      Range := PlayerDist * 1.2;
+  end
+  else
+    Range := 8000.0;
+  DiscRadius := RADAR_3D_DISC_RADIUS;
+  MarkerHeight := RADAR_3D_MARKER_HEIGHT;
+  // Apply user zoom (from + / - buttons via RadarZoomIn / RadarZoomOut).
+  Range := Range * FRadarRangeMultiplier;
+  ScaleFactor := DiscRadius / Range;
+
+  // ====================================================================
+  // 3D tilted-disc camera: above and behind the disc center, looking
+  // down at an angle. This makes the circular disc appear as a tilted
+  // ellipse, giving the holographic 3D feel. Markers float above the
+  // disc at MarkerHeight, connected by thin vertical lines.
+  // ====================================================================
+  MiniCam.position := Vector3Create(0, RADAR_3D_CAM_Y, RADAR_3D_CAM_Z);
+  MiniCam.target := Vector3Create(0, 0, 0);
+  MiniCam.up := Vector3Create(0, 1, 0);
+  MiniCam.fovy := RADAR_3D_FOV;
+  MiniCam.projection := CAMERA_PERSPECTIVE;
+
+  BeginTextureMode(FMinimapTexture);
+  // Clear with fully transparent background so only the disc + markers
+  // are visible when the texture is drawn to the screen. The corners
+  // of the square texture stay transparent, letting the game show
+  // through - no square frame, just the floating holographic disc.
+  ClearBackground(BLANK);
+
+  BeginMode3D(MiniCam);
+  try
+    // ==================================================================
+    // 0. Filled translucent disc - smooth half-transparent circle
+    //    forming the holographic radar base, matching the Elite
+    //    Dangerous reference style. Drawn FIRST with depth-mask
+    //    writes disabled so all rings, sweep, ping and markers
+    //    rendered afterwards appear correctly on top of the disc
+    //    without being occluded by its own depth values. The radial
+    //    alpha gradient gives the soft glowing edge instead of a
+    //    hard flat circle.
+    // ==================================================================
+    rlDisableDepthMask;
+    DrawFilledDisc3D(DiscRadius, RADAR_DISC_ALPHA_CENTER, RADAR_DISC_ALPHA_EDGE);
+    rlEnableDepthMask;
+
+    // ==================================================================
+    // 1. Concentric rings on the disc (full circles for the complete
+    //    holographic ellipse look, drawn on top of the filled disc).
+    //    Alpha raised so the rings are clearly visible against the
+    //    filled disc background.
+    // ==================================================================
+    for I := 1 to RADAR_RING_COUNT do
+      DrawFullCircle3D(
+        DiscRadius * I / (RADAR_RING_COUNT + 1),
+        Fade(ORANGE, 0.25));
+
+    // ==================================================================
+    // 2. Aliens-style radar ping - growing circle on the disc.
+    //    Ping alpha tuned back to a softer value for translucency.
+    // ==================================================================
+    PingPhase := Frac(FTime / RADAR_PING_PERIOD);
+    PingRadius := PingPhase * DiscRadius;
+    PingAlpha := (1.0 - PingPhase) * 0.4;
+    if PingRadius > 1.0 then
+      DrawFullCircle3D(PingRadius, Fade(SKYBLUE, PingAlpha));
+
+    // ==================================================================
+    // 5. Discovered systems - faint dots with thin connecting lines
+    // ==================================================================
+    for I := 0 to High(FDiscoveredSystemsCache) do
     begin
-      CurX := PlayerX + Trunc(RelX * MINIMAP_SIZE);
-      CurY := PlayerY + Trunc(RelZ * MINIMAP_SIZE);
-      DrawCircle(CurX, CurY, 4, GREEN);
-      DrawLine(PlayerX, PlayerY, CurX, CurY, Fade(GREEN, 0.4));
+      RelPos := Vector3Subtract(FDiscoveredSystemsCache[I], Camera.position);
+      ScaledPos := Vector3Scale(RelPos, ScaleFactor);
+      DistFromCenter := Sqrt(Sqr(ScaledPos.x) + Sqr(ScaledPos.z));
+      if DistFromCenter > DiscRadius then
+        Continue;
+      BasePos := Vector3Create(ScaledPos.x, 0, ScaledPos.z);
+      MarkerPos := Vector3Create(ScaledPos.x, MarkerHeight, ScaledPos.z);
+      // Thinner connecting cylinder + softer yellow tint so
+      // discovered (already visited) star systems read as faint
+      // yellow sun markers without overpowering the disc.
+      DrawCylinderEx(BasePos, MarkerPos,
+        RADAR_LINE_THICK, RADAR_LINE_THICK, 6, Fade(YELLOW, 0.55));
+      DrawSphere(MarkerPos, 2.0, Fade(YELLOW, 0.7));
     end;
+
+    // ==================================================================
+    // 6. Current system sun - yellow sphere + thicker connecting line
+    // ==================================================================
+    if Length(FSuns) > 0 then
+    begin
+      RelPos := Vector3Subtract(FSuns[0].Position, Camera.position);
+      ScaledPos := Vector3Scale(RelPos, ScaleFactor);
+      DistFromCenter := Sqrt(Sqr(ScaledPos.x) + Sqr(ScaledPos.z));
+      if DistFromCenter <= DiscRadius then
+      begin
+        BasePos := Vector3Create(ScaledPos.x, 0, ScaledPos.z);
+        MarkerPos := Vector3Create(ScaledPos.x, MarkerHeight, ScaledPos.z);
+        // Thinner cylinder + slightly translucent yellow so the
+        // active sun is the brightest marker but still feels
+        // holographic rather than a solid dot.
+        DrawCylinderEx(BasePos, MarkerPos,
+          RADAR_LINE_THICK_SUN, RADAR_LINE_THICK_SUN, 6, Fade(YELLOW, 0.85));
+        DrawSphere(MarkerPos, 5, Fade(YELLOW, 0.9));
+      end;
+    end;
+
+    // ==================================================================
+    // 7. Planets + moons - colored spheres + thin connecting lines
+    // ==================================================================
+    for I := 0 to High(FPlanets) do
+    begin
+      RelPos := Vector3Subtract(FPlanets[I].Position, Camera.position);
+      ScaledPos := Vector3Scale(RelPos, ScaleFactor);
+      DistFromCenter := Sqrt(Sqr(ScaledPos.x) + Sqr(ScaledPos.z));
+      if DistFromCenter > DiscRadius then
+        Continue;
+      BasePos := Vector3Create(ScaledPos.x, 0, ScaledPos.z);
+      MarkerPos := Vector3Create(ScaledPos.x, MarkerHeight, ScaledPos.z);
+      // Thinner teal connecting cylinder - all planets and moons use
+      // the same teal marker color so they group visually and don't
+      // clash with the yellow suns. Alpha reduced for translucency.
+      DrawCylinderEx(BasePos, MarkerPos,
+        RADAR_LINE_THICK, RADAR_LINE_THICK, 6,
+        ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), 170));
+      if FPlanets[I].IsMoon then
+        // Moons use a dimmer teal (partial alpha) so they stay grouped
+        // with their parent planet but read as smaller / weaker.
+        DrawSphere(MarkerPos, 1.8,
+          ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B),
+            RADAR_MOON_TEAL_ALPHA))
+      else
+        DrawSphere(MarkerPos, 3.5,
+          ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), 200));
+    end;
+
+    // ==================================================================
+    // 8. Next (target) system - faint yellow marker when approaching
+    // ==================================================================
+    if (Length(FNextSuns) > 0) and (FPhase = gpApproaching) then
+    begin
+      RelPos := Vector3Subtract(FNextSuns[0].Position, Camera.position);
+      ScaledPos := Vector3Scale(RelPos, ScaleFactor);
+      DistFromCenter := Sqrt(Sqr(ScaledPos.x) + Sqr(ScaledPos.z));
+      if DistFromCenter <= DiscRadius then
+      begin
+        BasePos := Vector3Create(ScaledPos.x, 0, ScaledPos.z);
+        MarkerPos := Vector3Create(ScaledPos.x, MarkerHeight, ScaledPos.z);
+        // Thinner yellow cylinder + softer fade so the next target
+        // sun stays readable as a yellow sun marker while approaching.
+        DrawCylinderEx(BasePos, MarkerPos,
+          RADAR_LINE_THICK, RADAR_LINE_THICK, 6, Fade(YELLOW, 0.55));
+        DrawSphere(MarkerPos, 4.5, Fade(YELLOW, 0.7));
+      end;
+    end;
+
+    // ==================================================================
+    // 9. External markers (enemies, NPCs, waypoints)
+    // ==================================================================
+    for I := 0 to High(FMinimapMarkers) do
+    begin
+      RelPos := Vector3Subtract(FMinimapMarkers[I].Position, Camera.position);
+      ScaledPos := Vector3Scale(RelPos, ScaleFactor);
+      DistFromCenter := Sqrt(Sqr(ScaledPos.x) + Sqr(ScaledPos.z));
+      if DistFromCenter > DiscRadius then
+        Continue;
+      BasePos := Vector3Create(ScaledPos.x, 0, ScaledPos.z);
+      MarkerPos := Vector3Create(ScaledPos.x, MarkerHeight, ScaledPos.z);
+      // Enemies are forced to a bright red marker color (overrides
+      // the marker's own color) so all hostiles / NPCs read as a
+      // single clear "red = enemy" signal on the radar. Thinner
+      // cylinder + translucent alpha so enemies don't overpower the
+      // rest of the radar.
+      DrawCylinderEx(BasePos, MarkerPos,
+        RADAR_LINE_THICK, RADAR_LINE_THICK, 6,
+        ColorAlpha(MakeCol(RADAR_RED_R, RADAR_RED_G, RADAR_RED_B),
+          RADAR_ENEMY_ALPHA));
+      DrawSphere(MarkerPos,
+        FMinimapMarkers[I].Size,
+        ColorAlpha(MakeCol(RADAR_RED_R, RADAR_RED_G, RADAR_RED_B),
+          RADAR_ENEMY_ALPHA));
+    end;
+
+    // ==================================================================
+    // 10. Player ship - aqua sphere at disc center + look-direction
+    //     arrow projected onto the disc plane.
+    //     The look direction is rotated by -45 degrees to compensate
+    //     for the perspective distortion of the tilted camera, which
+    //     causes a consistent clockwise offset on screen.
+    // ==================================================================
+    LookX := Camera.target.x - Camera.position.x;
+    LookZ := Camera.target.z - Camera.position.z;
+    LookLen := Sqrt(LookX * LookX + LookZ * LookZ);
+    if LookLen > 0.001 then
+    begin
+      LookX := LookX / LookLen;
+      LookZ := LookZ / LookLen;
+      // Rotate (LookX, LookZ) by -45 degrees in the XZ plane to
+      // cancel the camera's perspective clockwise offset.
+      var C := Cos(-PI * 0.25);
+      var S := Sin(-PI * 0.25);
+      var RotX := LookX * C - LookZ * S;
+      var RotZ := LookX * S + LookZ * C;
+      ArrowEnd := Vector3Create(RotX * 15, 2, RotZ * 15);
+      // Thinner arrow shaft (halved from RADAR_ARROW_THICK) and
+      // smaller arrowhead cube so the look-direction arrow stays
+      // subtle against the disc.
+      DrawCylinderEx(Vector3Create(0, 2, 0), ArrowEnd,
+        RADAR_ARROW_THICK, RADAR_ARROW_THICK, 6, Fade(SKYBLUE, 0.8));
+      DrawCube(ArrowEnd, 3.0, 3.0, 3.0, Fade(SKYBLUE, 0.85));
+    end;
+    DrawSphere(Vector3Create(0, 2, 0), 3.5, Fade(SKYBLUE, 0.85));
+
+    // ==================================================================
+    // 11. Radar rim - full bright circle outlining the disc edge plus
+    //     two soft outer glow rings for a subtle holographic bloom.
+    //     A full circle (not just the front semicircle) matches the
+    //     Elite Dangerous reference and frames the entire hologram
+    //     as a complete ellipse.
+    // ==================================================================
+    DrawFullCircle3D(DiscRadius, Fade(ORANGE, 0.7));
+    DrawFullCircle3D(DiscRadius * 1.015, Fade(ORANGE, 0.30));
+    DrawFullCircle3D(DiscRadius * 1.03, Fade(ORANGE, 0.15));
+  finally
+    EndMode3D();
   end;
-  // Next (target) system: yellow dot + connecting line. Only drawn
-  // when the phase machine actually has a target staged.
-  if (Length(FNextSuns) > 0) and (FPhase = gpApproaching) then
+  EndTextureMode();
+
+  // ====================================================================
+  // Draw the 3D radar texture to the screen at top-right corner.
+  // Negative source height flips the texture upright (OpenGL Y-flip).
+  // The transparent background lets the game show through the corners.
+  // ====================================================================
+  SrcRec.x := 0;
+  SrcRec.y := 0;
+  SrcRec.width := TextureSize;
+  SrcRec.height := -TextureSize;
+  DstPos.x := DstX;
+  DstPos.y := DstY;
+  DrawTextureRec(FMinimapTexture.texture, SrcRec, DstPos, WHITE);
+
+  // ====================================================================
+  // Zoom control glyphs - bare "+" and "-" text symbols tucked into
+  // the bottom-right corner of the radar texture. No circle
+  // background, just the glyphs themselves with light transparency
+  // so they sit unobtrusively on the holographic disc. Hover
+  // brightens the glyph; left-click triggers RadarZoomIn /
+  // RadarZoomOut directly via Raylib input (no VCL wiring needed).
+  // ====================================================================
+  MouseX := GetMouseX;
+  MouseY := GetMouseY;
+  MousePos.x := MouseX;
+  MousePos.y := MouseY;
+  // Glyph positions: side-by-side at the BOTTOM CENTER of the
+  // radar texture, where the disc area is free of rings / markers
+  // (the bottom of the disc is empty space below the player ship).
+  // "+" on the left, "-" on the right, both vertically anchored a
+  // few pixels above the bottom edge of the radar texture.
+  BtnPlusX := DstX + (TextureSize div 2) - 16;
+  BtnMinusX := DstX + (TextureSize div 2) + 4;
+  BtnY := DstY + TextureSize - 28;
+  // Hit-test rectangles - slightly larger than the glyph itself so
+  // the click target is forgiving even on the small glyphs.
+  PlusRec.x := BtnPlusX - 4;
+  PlusRec.y := BtnY - 4;
+  PlusRec.width := 18;
+  PlusRec.height := 26;
+  MinusRec.x := BtnMinusX - 4;
+  MinusRec.y := BtnY - 4;
+  MinusRec.width := 14;
+  MinusRec.height := 26;
+  HoverPlus := CheckCollisionPointRec(MousePos, PlusRec);
+  HoverMinus := CheckCollisionPointRec(MousePos, MinusRec);
+  // Click handling - trigger zoom on left mouse button press.
+  if IsMouseButtonPressed(MOUSE_LEFT_BUTTON) then
   begin
-    Pos := FNextSuns[0].Position;
-    RelX := (Pos.x - Camera.position.x) / MINIMAP_RANGE;
-    RelZ := (Pos.z - Camera.position.z) / MINIMAP_RANGE;
-    if (Abs(RelX) <= 0.5) and (Abs(RelZ) <= 0.5) then
-    begin
-      NextX := PlayerX + Trunc(RelX * MINIMAP_SIZE);
-      NextY := PlayerY + Trunc(RelZ * MINIMAP_SIZE);
-      DrawCircle(NextX, NextY, 4, YELLOW);
-      DrawLine(PlayerX, PlayerY, NextX, NextY, Fade(YELLOW, 0.6));
-    end;
+    if HoverPlus then
+      RadarZoomIn
+    else if HoverMinus then
+      RadarZoomOut;
   end;
-  // Player: white dot in the center with a small arrow pointing in
-  // the flight direction so the user can see which way they're
-  // heading at a glance.
-  DrawCircle(PlayerX, PlayerY, 3, WHITE);
-  // Arrow tip = player + forward * 12 pixels (clamped to minimap).
-  DotX := PlayerX + Trunc(FCamForward.x * 12);
-  DotY := PlayerY + Trunc(FCamForward.z * 12);
-  DrawLine(PlayerX, PlayerY, DotX, DotY, WHITE);
-  // Title + scale label.
-  TextBuf := AnsiString('GALAXY MAP');
-  DrawText(PAnsiChar(TextBuf), MapX + 4, MapY + 4, 12, RAYWHITE);
-  TextBuf := AnsiString(Format('%.0f u range', [MINIMAP_RANGE]));
-  DrawText(PAnsiChar(TextBuf), MapX + 4, MapY + MINIMAP_SIZE - 16, 10, GRAY);
+  // "+" glyph - slightly transparent normally, brighter on hover.
+  // White reads cleanly against both the orange disc and the dark
+  // background of the texture corner.
+  if HoverPlus then
+    DrawText('+', BtnPlusX, BtnY, RADAR_ZOOM_GLYPH_SIZE, Fade(WHITE, 0.95))
+  else
+    DrawText('+', BtnPlusX, BtnY, RADAR_ZOOM_GLYPH_SIZE, Fade(WHITE, 0.55));
+  // "-" glyph - same transparency pattern as "+".
+  if HoverMinus then
+    DrawText('-', BtnMinusX, BtnY, RADAR_ZOOM_GLYPH_SIZE, Fade(WHITE, 0.95))
+  else
+    DrawText('-', BtnMinusX, BtnY, RADAR_ZOOM_GLYPH_SIZE, Fade(WHITE, 0.55));
 end;
 {==============================================================================*
  *  SHADOW MAP RENDERING
@@ -2743,4 +3347,5 @@ begin
 end;
 
 end.
+
 
