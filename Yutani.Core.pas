@@ -4163,17 +4163,15 @@ begin
         if (Abs(ItemVel.x) > 2.0) or (Abs(ItemVel.y) > 2.0) or (Abs(ItemVel.z) > 2.0) then
           PItemData(FItems[i].UserData)^.LastHitTime := GetTime();
         IsTeal := (GetTime() - PItemData(FItems[i].UserData)^.LastHitTime) < 0.3;
-        FItems[i].CollisionHighlighting := IsTeal or (FItems[i] = FItemSelected) and not FIsDriving;
+        FItems[i].CollisionHighlighting := IsTeal or (FItems[i] = FItemSelected) and (not FIsDriving) and (FGizmoMode <> gmNone);
       end;
     end;
   end
   else
   begin
     for i := 0 to High(FItems) do
-    begin
       if Assigned(FItems[i]) then
-        FItems[i].CollisionHighlighting := (FItems[i] = FItemSelected) and not FIsDriving;
-    end;
+        FItems[i].CollisionHighlighting := (FItems[i] = FItemSelected) and (not FIsDriving) and (FGizmoMode <> gmNone);
   end;
   if FDragging and Assigned(FItemSelected) and (FGizmoMode = gmDragAndThrow) then
   begin
@@ -4600,8 +4598,7 @@ begin
     // World-specific rendering (skybox + floor + clouds + grid).
     // Each extracted world owns its own depth-mask / shader-state
     // management, so the Core just dispatches to the active world and
-    // lets it handle everything. Island is the only world still
-    // rendered inline because it hasn't been extracted yet.
+    // lets it handle everything.
     if FCurrentWorldBase = wbSpace then
     begin
       if Assigned(FSpaceWorld) then
@@ -4839,7 +4836,7 @@ begin
           rlPopMatrix;
         end
         // ====================================================================
-        // 3D UI BUTTON (100% RESTORED AND UNTOUCHED)
+        // 3D UI BUTTON
         // ====================================================================
         else if Actor.ShapeType = stButton then
         begin
@@ -5002,7 +4999,7 @@ begin
   if Assigned(FAliveHighlighter3D) and FAliveHighlighter3D.Active then
     FAliveHighlighter3D.Draw;
 
-  // NEW: Draw the shadow-receiving floor plane on top of the world floor.
+  // Draw the shadow-receiving floor plane on top of the world floor.
   // It is transparent everywhere except where shadows exist, so it
   // only ADDS shadow pixels - the world floor shows through unchanged.
   if FShadowFloorEnabled and (not FIsLoadingWorld) then
@@ -5012,7 +5009,7 @@ begin
 end;
 
 // ============================================================================
-// NEW: Draw the shadow-receiving floor plane.
+// Draw the shadow-receiving floor plane.
 // ----------------------------------------------------------------------------
 // Draws a 2000x2000 plane at y=0.1 using FShadowFloorShader. The shader
 // samples the shadow map and outputs transparent pixels everywhere except
@@ -6452,7 +6449,7 @@ begin
     // Base top is Y=0.6. Key is 0.2 high. Center at Y=0.7 means it goes from 0.6 to 0.8 exactly.
     // Add 0.02 spacing between keys to prevent Wireframe Z-Fighting
     Pos := Vector3Create((i * (WhiteKeyW + 0.02)) - (WhiteKeyCount * (WhiteKeyW + 0.02) * 0.5) + (WhiteKeyW * 0.5), 0.7, 0);
-    Request.Shape := stBox; // HARD FIX: Use stBox to bypass stButton physics offsets!
+    Request.Shape := stBox;
     Request.Pos := Pos;
     Request.Size := Vector3Create(WhiteKeyW, WhiteKeyH, WhiteKeyD);
     Request.IsStatic := True;
