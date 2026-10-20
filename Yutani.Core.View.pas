@@ -111,6 +111,7 @@ type
     tbMusicVOlume: TTrackBar;
     lblWorldTransition: TLabel;
     cbWorldTransitionEffect: TComboBox;
+    cbWallbomb: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -531,7 +532,7 @@ end;
 
 procedure TYutaniWindow.btnSpawnWallClick(Sender: TObject);
 begin
-  TVCL3D.SpawnDynamicWall(FSandbox, 10, 10, false, true, chkDestructable.Checked);
+  TVCL3D.SpawnDynamicWall(FSandbox, 10, 10, false, cbWallbomb.Checked, chkDestructable.Checked);
 end;
 
 procedure TYutaniWindow.btnSpawn3DModelClick(Sender: TObject);

@@ -11870,8 +11870,8 @@ object YutaniWindow: TYutaniWindow
         end
         object btnSpawnWall: TButton
           Left = 101
-          Top = 321
-          Width = 74
+          Top = 352
+          Width = 51
           Height = 25
           Caption = 'Wall'
           TabOrder = 8
@@ -11917,7 +11917,7 @@ object YutaniWindow: TYutaniWindow
         end
         object btnSpawnScreens: TButton
           Left = 101
-          Top = 352
+          Top = 321
           Width = 74
           Height = 25
           Caption = 'Screens'
@@ -12019,16 +12019,16 @@ object YutaniWindow: TYutaniWindow
           OnClick = Button1Click
         end
         object Button2: TButton
-          Left = 111
+          Left = 89
           Top = 245
           Width = 20
           Height = 25
-          Caption = 'p'
+          Caption = 'ca'
           TabOrder = 22
           OnClick = Button2Click
         end
         object Button3: TButton
-          Left = 89
+          Left = 111
           Top = 245
           Width = 20
           Height = 25
@@ -12041,7 +12041,7 @@ object YutaniWindow: TYutaniWindow
           Top = 245
           Width = 20
           Height = 25
-          Caption = 'ca'
+          Caption = 'py'
           TabOrder = 24
           OnClick = Button4Click
         end
@@ -12069,12 +12069,27 @@ object YutaniWindow: TYutaniWindow
           Top = 383
           Width = 97
           Height = 17
+          Hint = 'Show infos'
           Anchors = [akLeft, akBottom]
           Checked = True
+          ParentShowHint = False
+          ShowHint = True
           State = cbChecked
           TabOrder = 27
           OnClick = chkShowInfosClick
           ExplicitTop = 382
+        end
+        object cbWallbomb: TCheckBox
+          Left = 159
+          Top = 356
+          Width = 30
+          Height = 17
+          Hint = 'with bomb'
+          Checked = True
+          ParentShowHint = False
+          ShowHint = True
+          State = cbChecked
+          TabOrder = 28
         end
       end
       object tsEngine: TTabSheet
