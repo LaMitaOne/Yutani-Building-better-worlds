@@ -26,16 +26,12 @@ unit Yutani.Worlds.YourWorld;
  *    8. In UpdateGame: call FYourWorld.Update(dt, CameraPos, FDayTime)
  *    9. In destructor: FreeAndNil(FYourWorld)
  *==============================================================================}
-
 {$POINTERMATH ON}
 {$Q-}
 {$R-}
-
 interface
-
 uses
   System.SysUtils, System.Math, Raylib, RayMath, rlgl;
-
 type
   /// <summary>
   /// Skeleton world class. Override Update / Render / RenderShadows
@@ -51,7 +47,6 @@ type
   public
     constructor Create(const ALightShader: TShader);
     destructor Destroy; override;
-
     /// <summary>
     /// Called every frame from UpdateGame. dt is the unscaled frame
     /// delta. CameraPos is the current camera position in world space.
@@ -59,8 +54,7 @@ type
     /// - ignore it if your world doesn't have a day/night rhythm.
     /// </summary>
     procedure Update(dt: Single; const CameraPos: TVector3;
-      DayTime: Single = 0.5); virtual;
-
+  DayTime: Single; DaySpeed: Single; RhythmActive: Boolean);
     /// <summary>
     /// Called from Render3DSceneCore while inside BeginMode3D. Draw
     /// your skybox, floor, terrain, background objects, etc. here.
@@ -68,7 +62,6 @@ type
     /// shader uniform updates or custom projection tricks.
     /// </summary>
     procedure Render(const Camera: TCamera3D); virtual;
-
     /// <summary>
     /// Called from DrawSceneShadows while inside BeginMode3D with the
     /// light camera. Draw solid-black silhouettes of everything that
@@ -77,11 +70,8 @@ type
     /// </summary>
     procedure RenderShadows; virtual;
   end;
-
 implementation
-
 { TYourWorld }
-
 constructor TYourWorld.Create(const ALightShader: TShader);
 begin
   inherited Create;
@@ -90,41 +80,33 @@ begin
   FFloorSize := 500.0;
   // TODO: Load textures, generate meshes, init procedural systems, etc.
 end;
-
 destructor TYourWorld.Destroy;
 begin
   // TODO: Unload textures, free models, release GPU resources, etc.
   inherited;
 end;
-
 procedure TYourWorld.Update(dt: Single; const CameraPos: TVector3;
-  DayTime: Single);
+  DayTime: Single; DaySpeed: Single; RhythmActive: Boolean);
 begin
   FTime := FTime + dt;
   FCameraPos := CameraPos;
   // TODO: Advance procedural animations, update particle systems,
   // move orbiting objects, etc.
 end;
-
 procedure TYourWorld.Render(const Camera: TCamera3D);
 begin
   // Basic starter world: a dark gray floor + a reference grid so the
   // void is not empty. Replace with your own rendering when you build
   // your custom world.
-
   // 1. Skybox: draw the skybox model if passed by the Core (optional
   //    - the constructor doesn't take one, so skip for now).
-
   // 2. Floor: dark gray plane so the ground is visible
   DrawPlane(Vector3Create(0, 0, 0),
-    Vector2Create(FFloorSize, FFloorSize), DARKGRAY);
-
+    Vector2Create(FFloorSize, FFloorSize), BLACK);
   // 3. Grid: Raylib's built-in grid for spatial reference
   DrawGrid(40, 10.0);
-
   // TODO: Add your custom objects, particles, terrain, etc. here.
 end;
-
 procedure TYourWorld.RenderShadows;
 begin
   // Draw the floor as a shadow-casting surface.
@@ -132,6 +114,5 @@ begin
     Vector2Create(FFloorSize, FFloorSize), BLACK);
   // TODO: Add shadow silhouettes for your custom objects here.
 end;
-
 end.
 

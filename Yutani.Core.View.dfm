@@ -12548,9 +12548,9 @@ object YutaniWindow: TYutaniWindow
       ExplicitHeight = 617
     end
     object lblInfo: TLabel
-      Left = 333
+      Left = 295
       Top = 5
-      Width = 512
+      Width = 550
       Height = 22
       Alignment = taCenter
       Anchors = [akLeft, akTop, akRight]

@@ -393,7 +393,6 @@ end;
 
 procedure TYutaniWindow.cbFPSChange(Sender: TObject);
 begin
-  // TargetFPS is just an indicator, real limit is removed in RaylibSandbox to allow 144+ FPS if VSync is off
   FSandbox.TargetFPS := StrToInt(cbFPS.Items[cbFPS.ItemIndex]);
 end;
 

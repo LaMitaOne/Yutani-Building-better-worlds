@@ -89,6 +89,10 @@ v0.649
  - New Engine tab Combobox for transition effect setting
  - Space reset/load/save functions added
  - Space radar minimap now real 3d & added zoom btns
+ - Alt + Q/E now for select object
+ - Ctrl while in vehicle/avatar shows/hides mouse cursor
+ - Added checkbox beside Wall spawn btn for bomb on/off
+
  *==============================================================================}
 {$POINTERMATH ON}
 {$Q-}
@@ -2241,8 +2245,18 @@ begin
     end;
     FMouseLeftHandled := True;
   end;
-  // Select next/prev object
-  if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
+  // ====================================================================
+  // ALT + Q/E : Select previous/next object
+  // --------------------------------------------------------------------
+  // Moved here from Ctrl+Q/E so CTRL is free for the Black-Desert-style
+  // cursor toggle while driving (see further below). Uses VK_MENU
+  // (Alt) instead of VK_CONTROL. Edges on Q/E (one-shot via $1 mask)
+  // so a single tap selects exactly one item. Exits the procedure
+  // because selection also rewrites FItemSelected / CollisionHighlighting
+  // and we don't want any further click handlers to fight over that
+  // this frame.
+  // ====================================================================
+  if (GetAsyncKeyState(VK_MENU) and $8000) <> 0 then
   begin
     if (GetAsyncKeyState(Ord('Q')) and $1) <> 0 then
     begin
@@ -2271,24 +2285,55 @@ begin
   bLeftMouseDown := (GetAsyncKeyState(VK_LBUTTON) and $8000) <> 0;
   bLeftMouseClicked := bLeftMouseDown and not FMouseLeftPressed;
   FMouseLeftPressed := bLeftMouseDown;
+  // ====================================================================
+  // CTRL-EDGE HANDLING (Cursor Toggle while driving, Gizmo Cycle otherwise)
+  // --------------------------------------------------------------------
+  // Two responsibilities sharing the existing FCtrlWasPressed edge
+  // detector so we don't need a new field:
+  //
+  //   * FIsDriving = True  -> Toggle OS cursor (Black Desert style).
+  //                          Suppresses the gizmo cycle because gizmos
+  //                          are not drawn while driving anyway.
+  //   * FIsDriving = False -> Original editor gizmo-mode cycle
+  //                          (Translate / Rotate / Scale / ...).
+  //
+  // NOTE: TYutaniFirstPersonController uses CTRL as a HELD key for
+  // crouching, and TYutaniFlightController / TYutaniSpectatorController
+  // use it for descending. A quick tap of CTRL will therefore also
+  // flip the cursor once in those modes - the edge detector prevents
+  // continuous toggling while the key is held. If you want a stricter
+  // separation, gate the toggle on a controller-type allowlist
+  // (Vehicle / ThirdPerson / RigidBody / Orbit).
+  // ====================================================================
   if (GetAsyncKeyState(VK_CONTROL) and $8000) <> 0 then
   begin
     if not FCtrlWasPressed then
     begin
-      // Cycle through tools
-      if FGizmoMode = gmTranslate then
-        FGizmoMode := gmRotate
-      else if FGizmoMode = gmRotate then
-        FGizmoMode := gmScale
-      else if FGizmoMode = gmScale then
-        FGizmoMode := gmUniformScale
-      else if FGizmoMode = gmUniformScale then
-        FGizmoMode := gmDragAndThrow
-      else if FGizmoMode = gmDragAndThrow then
-        FGizmoMode := gmNone
-      else if FGizmoMode = gmNone then
-        FGizmoMode := gmTranslate;
       FCtrlWasPressed := True;
+      if FIsDriving and Assigned(FInputManager) then
+      begin
+        // Driving: toggle OS cursor (Black Desert style)
+        if FInputManager.MouseLookActive then
+          FInputManager.StopMouseLook               // Reveal OS cursor for UI clicks
+        else
+          FInputManager.StartMouseLook(FRaylibWnd); // Hide cursor, resume mouselook
+      end
+      else
+      begin
+        // Editor mode: original gizmo cycle behaviour
+        if FGizmoMode = gmTranslate then
+          FGizmoMode := gmRotate
+        else if FGizmoMode = gmRotate then
+          FGizmoMode := gmScale
+        else if FGizmoMode = gmScale then
+          FGizmoMode := gmUniformScale
+        else if FGizmoMode = gmUniformScale then
+          FGizmoMode := gmDragAndThrow
+        else if FGizmoMode = gmDragAndThrow then
+          FGizmoMode := gmNone
+        else if FGizmoMode = gmNone then
+          FGizmoMode := gmTranslate;
+      end;
     end;
   end
   else
@@ -2300,11 +2345,6 @@ begin
   // items in the scene become the avatars - useful for quick testing.
   // For production use, call EnableSplitScreen explicitly from your
   // VCL with the specific avatars you want.
-  //
-  // Key swap: split-screen used to live on F12, but F12 has been
-  // reassigned to "exit driving mode" so the user has an obvious
-  // escape key that does not require clicking outside the viewport.
-  // Split-screen moved to F2 to make room.
   // ====================================================================
   if (GetAsyncKeyState(VK_F2) and $1) <> 0 then
   begin
@@ -2318,10 +2358,6 @@ begin
   // releases the currently possessed avatar, restores the editor
   // cursor and smoothly blends the camera back to the editor orbit
   // view. Safe to call when not driving - it is a no-op in that case.
-  //
-  // This replaces the old "click outside + F11 to leave" escape path
-  // that was unreliable while mouselook was hiding the cursor or when
-  // the possessed vehicle was large enough to fill the viewport.
   // ====================================================================
   if (GetAsyncKeyState(VK_F12) and $1) <> 0 then
   begin
@@ -2340,19 +2376,12 @@ begin
     FMouseLeftHandled := True;
   end;
   // ====================================================================
-  // Avatar Flight Control (F11)
+  // Avatar Control (F11)
   // --------------------------------------------------------------------
-  // F11 keeps its two original behaviours:
   //   1. When NOT driving and an object is selected -> possess it using
   //      the controller type stored in FAvatarControllerType.
   //   2. When ALREADY driving a Vehicle controller -> rotate the chase
   //      cam by 45 degrees around the avatar.
-  //
-  // The exit-driving path that used to live on F11 (for non-vehicle
-  // controllers and on a no-selection press) has been REMOVED.
-  // Exiting driving mode now lives on the dedicated F12 key. This
-  // fixes the unreliability where mouselook hid the cursor and the
-  // "click outside + F11" gesture could not be performed.
   // ====================================================================
   // Shift+F11: cycle the selected controller type. Always allowed, even
   // while driving - the current controller is rebuilt in place so yaw
@@ -2444,8 +2473,13 @@ begin
   ray := GetScreenToWorldRay(FMousePos, FCamera);
   // ====================================================================
   // SECOND LIFE STYLE CAMERA FOCUS (ALT + Left Click)
+  // --------------------------------------------------------------------
   // Holding ALT and clicking an object sets the camera target to it.
   // If the object is dynamic, the camera target keeps following it.
+  //
+  // NOTE: Alt+Q/E (object selection) is handled earlier in this proc
+  // and exits before we get here, so the two ALT bindings don't fight.
+  // Plain ALT + LMB still triggers focus tracking.
   // ====================================================================
   bAltIsDown := (GetAsyncKeyState(VK_MENU) and $8000) <> 0;
   if bAltIsDown then
@@ -3799,7 +3833,7 @@ begin
     if Assigned(FLandWorld) and (FCurrentWorldBase = wbLand) then
       FLandWorld.Update(dt, FCamera.position, FDayTime, FDaySpeed, FDayNightRhythmActive);
     if Assigned(FYourWorld) and (FCurrentWorldBase = wbYourWorld) then
-      FYourWorld.Update(dt, FCamera.position, FDayTime);
+      FYourWorld.Update(dt, FCamera.position, FDayTime, FDaySpeed, FDayNightRhythmActive);
     if Assigned(FParticleEngine) then
       FParticleEngine.Update(PhysDt);
   end;
