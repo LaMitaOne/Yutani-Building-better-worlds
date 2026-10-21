@@ -15,13 +15,13 @@ This folder contains lightweight 3D models  used strictly for sandbox testing an
 * **License:** CC Attribution
 
 ### 3. Low Poly Mannequin Free
-* **Source:** https://sketchfab.com/3d-models/low-poly-mannequin-free-eb9daa49948f47169b3670169c042599#download
+* **Source:** https://sketchfab.com/3d-models/spaceship-fighter-version-2-meshy-6-ff69bc6de8584bb4b2d6fac0b5a1d2ed
 * **Creator:** W3DGEx
 * **License:** CC Attribution
 
-### 4. Kruschke Good Karma 4V R6 Beams 120x40 Frame
-* **Source:** https://sketchfab.com/3d-models/kruschke-good-karma-4v-r6-beams-120x40-frame-a58f21b823944ae286ac3a3a14b76d94
-* **Creator:** Martin Prochazka
+### 4. AJF-12 "Dvergr"
+* **Source:** https://sketchfab.com/3d-models/ajf-12-dvergr-ecc16e103e79448faf9730f172a1d7e8
+* **Creator:** Star Conflict
 * **License:** CC Attribution
 
 ---
@@ -31,3 +31,5 @@ This folder contains lightweight 3D models  used strictly for sandbox testing an
 
 
 
+
+https://sketchfab.com/3d-models/low-poly-mannequin-free-eb9daa49948f47169b3670169c042599#download
