@@ -28,8 +28,3 @@ This folder contains lightweight 3D models  used strictly for sandbox testing an
 
 *Note: All assets in this folder are open-source compatible and safe for distribution within this Apache-2.0 repository.*
 
-
-
-
-
-https://sketchfab.com/3d-models/low-poly-mannequin-free-eb9daa49948f47169b3670169c042599#download
