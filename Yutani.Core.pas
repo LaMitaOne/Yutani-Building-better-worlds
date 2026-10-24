@@ -81,6 +81,26 @@ unit Yutani.Core;
 
 v0.649
 
+ - Refactored TPiano class out of Yutani.Core into Yutani.VCL3D
+ - Sandbox no longer owns a FPiano reference; TPiano is now instantiated
+   and owned by the caller via TVCL3D.SpawnPiano
+ - Piano gizmo linking now uses Name='PianoBody' + IsPianoKey scan
+   instead of the FPiano pointer, so the feature keeps working
+   without the sandbox knowing about TPiano
+ - Added TVCL3D.SpawnTrackbar and TVCL3D.SpawnProgressBar std
+   controls alongside the existing SpawnButton
+ - Added new shape types stTrackbar and stProgressBar to TShapeType.
+   Both render as a composite actor (dark base block + protruding
+   front part) styled like the existing stButton.
+ - Added generic published Integer property 'ItemPosition' on
+   TA3DComponent. For stTrackbar / stProgressBar this holds the
+   current value as a 0..1000 promille (caller maps to Min..Max).
+   For other actors the field is unused and free for any future
+   integer state the caller wants to attach to an actor.
+ - 3D Trackbar is now fully interactive: click+drag the knob to
+   change ItemPosition live (mouse X maps to 0..1000 promille).
+ - 3D Progress Bar is driven externally via ItemPosition (use
+   TVCL3D.SetProgressBarValue or the Object Inspector).
  - F12 now leaves posessed object, split screen moved to F2
  - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
  - Added world bones unit Yutani.Worlds.YourWorld
@@ -107,7 +127,8 @@ uses
   Yutani.Worlds.Holodeck, Yutani.Worlds.Land, Yutani.Worlds.YourWorld,
   Yutani.Worlds.WorldTransitions, Yutani.Render.Shaders, Yutani.Render.Particles,
   Yutani.Render.NanoFog, Yutani.Render.LoadingScreen, GameNetworkingSockets,
-  VerySimple.Lua, Yutani.Avatar.Controls, Yutani.Video.MPV, Yutani.Chaos.Skia;
+  VerySimple.Lua, Yutani.Avatar.Controls, Yutani.Video.MPV, Yutani.Chaos.Skia,
+  Yutani.Render.PathTracing;
   //RN_InputGeom, RN_Recast, RN_SampleInterfaces, RN_Sample, RN_SampleSoloMesh, RN_SampleTileMesh,
   //dglOpenGL, KromOGLUtils;
 
@@ -138,6 +159,20 @@ type
     HoverColor: TColorB;
     OnClick: TNotifyEvent;
     GenerateTestTexture: Boolean;
+    // Generic integer slot forwarded to TA3DComponent.ItemPosition on spawn.
+    // Yutani.VCL3D uses this to seed stTrackbar / stProgressBar with an
+    // initial 0..1000 promille value (caller maps to [Min..Max]).
+    ItemPosition: Integer;
+    // Knob / fill REST color for stTrackbar / stProgressBar. The knob /
+    // fill lerps back to this color when neither hovered nor pressed.
+    // Ignored for stButton (button face cycles between BaseColor and
+    // HoverColor). Default to WHITE so unset records are still visible.
+    FillColor: TColorB;
+    // Generic "value changed" callback. Forwarded to TA3DComponent.OnChange
+    // on spawn. For stTrackbar this fires (via TThread.Queue, safe to call
+    // from VCL) every time ItemPosition changes during a drag. Sender is the
+    // actor. Ignored for shape types that don't trigger OnChange.
+    OnChange: TNotifyEvent;
   end;
 
   TParticleSpawnRequest = record
@@ -188,23 +223,13 @@ type
   TEngineExceptionEvent = procedure(Sender: TObject; const Args: TEngineExceptionEventArgs) of object;
 
   TGizmoMode = (gmNone, gmTranslate, gmRotate, gmScale, gmUniformScale, gmDragAndThrow);
-  // Independent Piano Component
-  // Encapsulates the piano base and all keys as a single logical unit
 
-  TPiano = class
-  private
-    FSandbox: TYutaniRaylibSandbox;
-    FBase: TA3DComponent;
-    FKeys: TArray<TA3DComponent>;
-  public
-    constructor Create(ASandbox: TYutaniRaylibSandbox);
-    destructor Destroy; override;
-    procedure PressKey(Index: Integer);
-    procedure ReleaseKey(Index: Integer);
-    function GetKey(Index: Integer): TA3DComponent;
-    function KeyCount: Integer;
-    property Base: TA3DComponent read FBase;
-  end;
+  // Note: TPiano has been moved to Yutani.VCL3D. The sandbox no longer owns
+  // an FPiano reference; callers create TPiano instances via TVCL3D.SpawnPiano
+  // and own their lifetime themselves. The sandbox still recognises piano
+  // keys through the IsPianoKey flag on TA3DComponent and the 'PianoBody'
+  // name on the base, so rendering / clicking / gizmo linking keep working
+  // without any direct TPiano reference.
 
   TYutaniRaylibSandbox = class(TWinControl)
   private
@@ -346,6 +371,12 @@ type
     FCustomSpawnQueue: TArray<TSpawnRequest>;
     FCustomSpawnTimer: Single;
     FIsMaterializingActor: Boolean;
+    // Active 3D Trackbar drag target. Set when the user clicks an
+    // stTrackbar actor with the left mouse button; cleared on release.
+    // While non-nil, HandleDesktopInput maps the mouse X position onto
+    // the actor's ItemPosition (0..1000 promille) so the knob follows
+    // the cursor even if the cursor leaves the actor's hit box.
+    FDraggingTrackbar: TA3DComponent;
     // Bomb System Variables
     FBombActor: TA3DComponent;
     FBombTimer: Single;
@@ -389,8 +420,6 @@ type
     FActiveSpawnEffects: TArray<TSpawnEffect>;
     FAntiAliasing: Boolean;
     FGravity: Single;
-    // Independent Piano Component
-    FPiano: TPiano;
     // Voronoi Fracture System
     FFractureQueue: TArray<TFragment>;
     FFractureTimer: Single;
@@ -491,6 +520,10 @@ type
     // even if anything goes wrong during split-screen setup.
     procedure HandleF12SplitScreenToggle;
     procedure HandleDesktopInput;
+    // Maps the current mouse position onto the given stTrackbar actor's
+    // ItemPosition (0..1000 promille). Called from HandleDesktopInput
+    // both on initial click and every frame while the drag is held.
+    procedure UpdateTrackbarFromMouse(Actor: TA3DComponent);
     procedure UpdateGame;
     procedure RenderGame;
     procedure Render3DScene;
@@ -565,7 +598,7 @@ type
     function GetSimulationRunning: Boolean;
     function GetActorBoundingBoxWS(Actor: TA3DComponent): TBoundingBox;
     procedure SpawnAtMouse(Pos: TVector3);
-    procedure SpawnPiano;
+    // Note: SpawnPiano has been moved to TVCL3D.SpawnPiano (Yutani.VCL3D unit).
     procedure SelectNextObject;
     procedure SelectPrevObject;
     // Exposes the custom spawn queue to external threads/UI
@@ -778,6 +811,7 @@ begin
   FLock := TCriticalSection.Create;
   FThreadActive := False;
   FIsMaterializingActor := False;
+  FDraggingTrackbar := nil;
   FPaused := True;
   FActive := False;
   FTargetFPS := 60;
@@ -844,8 +878,6 @@ begin
   FActiveSpawnEffects := nil;
   FAntiAliasing := True;
   FGravity := -9.81;
-  // Piano Component init
-  FPiano := nil;
    // ====================================================================
     // Initialize Avatar Controls
     // ====================================================================
@@ -882,7 +914,8 @@ begin
   // invisible cursor after the window closes.
   if Assigned(FInputManager) then
     FInputManager.StopMouseLook;
-  FreeAndNil(FPiano);
+  // Note: TPiano instances are now owned by the caller (Yutani.VCL3D),
+  // so the sandbox destructor no longer frees a piano here.
   FreeAndNil(FAvatarController);
   // Tear down split-screen explicitly so the controllers are freed and
   // the avatars get their gravity factor reset to 1.0.
@@ -1643,9 +1676,15 @@ begin
     FCustomSpawnQueue := nil;
     FBombActor := nil;
     FBombExploded := False;
+    // Cancel any in-flight trackbar drag so the next frame doesn't try to
+    // write ItemPosition on a freed actor.
+    FDraggingTrackbar := nil;
     SetBrush(TShapeType(-1));
     FActiveSpawnEffects := nil;
-    FreeAndNil(FPiano); // Free independent Piano component
+    // Note: TPiano is now owned by the caller (Yutani.VCL3D). The caller
+    // is responsible for freeing its TPiano instance when the scene is
+    // cleared. The piano base + keys themselves live in FItems and are
+    // freed by the generic FItems cleanup below.
     FFocusTrackingActor := nil; // Clear focus tracking on scene clear
   finally
     FLock.Leave;
@@ -2540,19 +2579,49 @@ begin
   if GroundHit.hit then
     FMouseWorldPos := Vector3Create(GroundHit.point.x, 2.0, GroundHit.point.z);
   // ====================================================================
-  // 3D BUTTON INTERACTION LOGIC (Hover & Click)
-  // Handles UI clicks independent from physics tools
+  // 3D TRACKBAR DRAGGING (must run before button hover logic so a held
+  // drag keeps driving ItemPosition even if the cursor leaves the
+  // actor's hit box)
+  // --------------------------------------------------------------------
+  // When FDraggingTrackbar is set, the user is currently holding LMB on
+  // a stTrackbar actor. Every frame we recompute the mouse X position
+  // on the actor's local plane and map it to a 0..1000 promille value
+  // written to Actor.ItemPosition. The render block picks that up and
+  // moves the knob.
+  // ====================================================================
+  if Assigned(FDraggingTrackbar) then
+  begin
+    if bLeftMouseDown then
+    begin
+      UpdateTrackbarFromMouse(FDraggingTrackbar);
+      FMouseLeftHandled := True;
+      // Suppress further interaction while dragging
+      Exit;
+    end
+    else
+    begin
+      // Mouse released - end drag
+      FDraggingTrackbar.IsPressed := False;
+      FDraggingTrackbar := nil;
+      FMouseLeftHandled := True;
+    end;
+  end;
+  // ====================================================================
+  // 3D BUTTON / TRACKBAR / PROGRESSBAR INTERACTION LOGIC (Hover & Click)
+  // Handles UI clicks independent from physics tools. The hover scan
+  // below now also picks up stTrackbar and stProgressBar so the hover
+  // color lerp works for those too.
   // ====================================================================
   var ClosestButtonDist: Single := 1e9;
   var HoveredButton: TA3DComponent := nil;
-  // Reset hover states for all buttons
+  // Reset hover states for all interactive UI actors
   for i := 0 to High(FItems) do
-    if Assigned(FItems[i]) and ((FItems[i].ShapeType = stButton) or (FItems[i].IsPianoKey)) then
+    if Assigned(FItems[i]) and ((FItems[i].ShapeType in [stButton, stTrackbar, stProgressBar]) or FItems[i].IsPianoKey) then
       FItems[i].IsHovered := False;
-  // Find the closest button under the mouse cursor
+  // Find the closest interactive UI actor under the mouse cursor
   for i := 0 to High(FItems) do
   begin
-    if Assigned(FItems[i]) and ((FItems[i].ShapeType = stButton) or (FItems[i].IsPianoKey)) then
+    if Assigned(FItems[i]) and ((FItems[i].ShapeType in [stButton, stTrackbar, stProgressBar]) or FItems[i].IsPianoKey) then
     begin
       // FIXED: Use FULL Scale for Piano Keys so the click box matches the visual size!
       if FItems[i].IsPianoKey then
@@ -2582,6 +2651,24 @@ begin
     HoveredButton.IsHovered := True;
     if bLeftMouseClicked then
     begin
+      // ----------------------------------------------------------------
+      // TRACKBAR: Start a drag instead of firing OnClick. The drag is
+      // driven by FDraggingTrackbar at the top of this procedure, so
+      // we set the flag, immediately update ItemPosition from the
+      // current mouse position, and bail out for this frame.
+      // ----------------------------------------------------------------
+      if HoveredButton.ShapeType = stTrackbar then
+      begin
+        FDraggingTrackbar := HoveredButton;
+        HoveredButton.IsPressed := True;
+        UpdateTrackbarFromMouse(HoveredButton);
+        FMouseLeftHandled := True;
+        Exit;
+      end;
+      // ----------------------------------------------------------------
+      // BUTTON / PIANO KEY / PROGRESS BAR: Original click behaviour
+      // (progress bars just light up; they have no OnClick).
+      // ----------------------------------------------------------------
       HoveredButton.IsPressed := True;
       FMouseLeftHandled := True;
       if HoveredButton.IsPianoKey and Assigned(FYutaniAudio) then
@@ -2589,7 +2676,8 @@ begin
     end
     else if (not FMouseLeftPressed) and HoveredButton.IsPressed then
     begin
-      // Mouse released -> Trigger OnClick!
+      // Mouse released -> Trigger OnClick (only for actual buttons;
+      // trackbars / progress bars have no OnClick handler)
       HoveredButton.IsPressed := False;
       FMouseLeftHandled := True;
       // Fire Event thread-safe to avoid VCL cross-thread exceptions
@@ -2616,7 +2704,7 @@ begin
     if not FMouseLeftPressed then
     begin
       for i := 0 to High(FItems) do
-        if Assigned(FItems[i]) and ((FItems[i].ShapeType = stButton) or (FItems[i].IsPianoKey)) then
+        if Assigned(FItems[i]) and ((FItems[i].ShapeType in [stButton, stTrackbar, stProgressBar]) or FItems[i].IsPianoKey) then
           FItems[i].IsPressed := False;
     end;
   end;
@@ -2905,6 +2993,81 @@ begin
   end
   else
     FDragging := False;
+end;
+
+// ============================================================================
+// UpdateTrackbarFromMouse
+// ----------------------------------------------------------------------------
+// Raycasts the current mouse position onto a thin slab that sits on the
+// trackbar actor's local X axis (at the actor's Y and Z). The hit point's
+// X is then mapped from [left edge .. right edge] of the base block to
+// [0 .. 1000] promille and written to Actor.ItemPosition. The render
+// block reads ItemPosition every frame to move the knob.
+//
+// This is called from HandleDesktopInput both on the initial click and
+// every frame while the drag is held (via FDraggingTrackbar), so the
+// knob tracks the cursor smoothly even if the cursor leaves the actor's
+// hit box.
+// ============================================================================
+procedure TYutaniRaylibSandbox.UpdateTrackbarFromMouse(Actor: TA3DComponent);
+var
+  LocalRay: TRay;
+  Slab: TBoundingBox;
+  Hit: TRayCollision;
+  T: Single;
+  NewPromille: Integer;
+  Callback: TNotifyEvent;
+  ActorRef: TA3DComponent;
+begin
+  if not Assigned(Actor) then
+    Exit;
+
+  // Build a thin slab on the actor's X axis. We extend it a bit in X so
+  // the user can drag past either edge without losing the grab, and
+  // make it 2 units thick in Y and Z so the ray reliably hits it from
+  // any reasonable camera angle.
+  Slab.min := Vector3Create(Actor.Position.x - Actor.Scale.x * 0.5 - 1.0, Actor.Position.y - 1.0, Actor.Position.z - 1.0);
+  Slab.max := Vector3Create(Actor.Position.x + Actor.Scale.x * 0.5 + 1.0, Actor.Position.y + 1.0, Actor.Position.z + 1.0);
+
+  LocalRay := GetScreenToWorldRay(FMousePos, FCamera);
+  Hit := GetRayCollisionBox(LocalRay, Slab);
+  if not Hit.hit then
+    Exit;
+
+  // Map Hit.point.x from [leftEdge .. rightEdge] to [0 .. 1]
+  T := (Hit.point.x - (Actor.Position.x - Actor.Scale.x * 0.5)) / Actor.Scale.x;
+  // Clamp to [0..1] so the knob never escapes the base block
+  if T < 0 then
+    T := 0;
+  if T > 1 then
+    T := 1;
+
+  NewPromille := Round(T * 1000.0);
+
+  // Only fire the OnChange callback when the promille value actually
+  // changed this frame. This avoids flooding the VCL message queue
+  // when the user holds the mouse still on the knob without moving.
+  if NewPromille = Actor.ItemPosition then
+    Exit;
+
+  // SetItemPosition clamps to 0..1000 internally for stTrackbar.
+  Actor.ItemPosition := NewPromille;
+
+  // Fire the value-changed callback if the caller registered one.
+  // We marshal it to the VCL thread via TThread.Queue so the user's
+  // callback can safely touch VCL controls (Labels, other actors, etc).
+  // Sender is the actor itself - the callback can read Actor.ItemPosition
+  // and convert to its own [Min..Max] range via TVCL3D.GetTrackbarValue.
+  if not Assigned(Actor.OnChange) then
+    Exit;
+
+  Callback := Actor.OnChange;
+  ActorRef := Actor;
+  TThread.Queue(nil,
+    procedure
+    begin
+      Callback(ActorRef);
+    end);
 end;
 
 procedure TYutaniRaylibSandbox.HandlePopupInput;
@@ -3216,16 +3379,19 @@ begin
     // ====================================================================
     // QUICK & DIRTY PIANO LINKING:
     // If we are moving the Piano Base, move all keys with it!
+    // --------------------------------------------------------------------
+    // TPiano is no longer owned by the sandbox, so we identify the piano
+    // base by its Name ('PianoBody') and find the keys via the IsPianoKey
+    // flag. This keeps the feature working regardless of who owns the
+    // TPiano instance.
     // ====================================================================
-    if Assigned(FPiano) and (FItemSelected = FPiano.FBase) then
+    if Assigned(FItemSelected) and (FItemSelected.Name = 'PianoBody') then
     begin
       DeltaPos := Vector3Subtract(NewPos, OldBasePos);
-      for i := 0 to High(FPiano.FKeys) do
+      for i := 0 to High(FItems) do
       begin
-        if Assigned(FPiano.FKeys[i]) then
-        begin
-          FPiano.FKeys[i].SetPosition(Vector3Add(FPiano.FKeys[i].Position, DeltaPos));
-        end;
+        if Assigned(FItems[i]) and FItems[i].IsPianoKey then
+          FItems[i].SetPosition(Vector3Add(FItems[i].Position, DeltaPos));
       end;
     end;
   end
@@ -4903,6 +5069,171 @@ begin
           FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
           DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
           rlPopMatrix();
+        end
+        // ====================================================================
+        // 3D TRACKBAR
+        // --------------------------------------------------------------------
+        // Single composite actor styled like the 3D button: a dark base
+        // block sits at the actor's position, and a smaller knob sticks
+        // out the front (Z+ face). The knob's X position is driven by
+        // ItemPosition (0..1000 promille, 0 = left edge, 1000 = right edge).
+        // The user drags the knob with the left mouse button - see
+        // HandleDesktopInput / UpdateTrackbarFromMouse.
+        //
+        // IMPORTANT: The knob is positioned in LOCAL actor space (relative
+        // to the actor's center) - do NOT add Actor.Position here. The
+        // outer rlTranslatef(Actor.Position) at the top of the loop has
+        // already moved the model matrix to the actor's world position,
+        // so any further translation we do here is relative to that.
+        // ====================================================================
+        else if Actor.ShapeType = stTrackbar then
+        begin
+          // 1. Base block (dark frame, full size, at actor origin).
+          //    Color is sourced from Actor.BaseColor so the user can change
+          //    it in the Object Inspector (default DARKGRAY from VCL3D).
+          rlPushMatrix();
+          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+          ModelMat := rlGetMatrixTransform();
+          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+          FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
+
+          var BaseCol: TColorB := Actor.BaseColor;
+          C := BaseCol;
+          ColorShaderVec[0] := C.r / 255.0;
+          ColorShaderVec[1] := C.g / 255.0;
+          ColorShaderVec[2] := C.b / 255.0;
+          ColorShaderVec[3] := C.A / 255.0;
+          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, BaseCol);
+          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+          rlPopMatrix();
+
+          // 2. Knob (small, sits INSIDE the base block but sticks out the
+          //    front face in Z+ so it is easy to grab with the mouse ray).
+          //    All coordinates here are LOCAL to the actor (no Actor.Position
+          //    added) - the outer rlTranslatef at the top of the actor loop
+          //    has already placed us at the actor's world position.
+          var T: Single := EnsureRange(Actor.ItemPosition / 1000.0, 0.0, 1.0);
+          var KnobW: Single := Actor.Scale.x * 0.12;
+          if KnobW < 0.2 then
+            KnobW := 0.2;
+          // Knob taller than the base so it stands out top+bottom like a
+          // real slider cap that you can grab.
+          var KnobH: Single := Actor.Scale.y * 1.4;
+          // Knob sticks out the front face in Z+ by half its own depth,
+          // the other half sits inside the base block.
+          var KnobD: Single := Actor.Scale.z * 0.8 + 0.2;
+          // Local X: ranges from left edge of base (with knob width offset)
+          // to right edge of base. Knob center sits at:
+          //   -Scale.x/2 + KnobW/2 + T * (Scale.x - KnobW)
+          var KnobX: Single := -Actor.Scale.x * 0.5 + KnobW * 0.5 + T * (Actor.Scale.x - KnobW);
+          // Local Y: 0 = centered vertically on the base block. Because
+          // KnobH > Scale.y the knob pokes out top + bottom.
+          var KnobY: Single := 0.0;
+          // Local Z: half of the knob depth pokes out the front face of
+          // the base block. Base front face is at +Scale.z/2, so the knob
+          // center is at Scale.z/2 (knob extends from there +/- KnobD/2,
+          // so the inner half is inside the base, the outer half sticks out).
+          var KnobZ: Single := Actor.Scale.z * 0.5;
+
+          rlPushMatrix();
+          rlTranslatef(KnobX, KnobY, KnobZ);
+          rlScalef(KnobW, KnobH, KnobD);
+          ModelMat := rlGetMatrixTransform();
+          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+
+          // Knob color: Actor.ActColor carries the lerped value
+          // (Update() in Yutani.Core.ModelEngine lerps ActColor toward
+          // BaseColor at rest, toward HoverColor on hover, and toward a
+          // darkened BaseColor when pressed). We just draw ActColor here
+          // so the smooth transition is visible.
+          var KnobCol: TColorB := Actor.ActColor;
+          C := KnobCol;
+          ColorShaderVec[0] := C.r / 255.0;
+          ColorShaderVec[1] := C.g / 255.0;
+          ColorShaderVec[2] := C.b / 255.0;
+          ColorShaderVec[3] := C.A / 255.0;
+          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, KnobCol);
+          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+          rlPopMatrix();
+        end
+        // ====================================================================
+        // 3D PROGRESS BAR
+        // --------------------------------------------------------------------
+        // Same composite design as the trackbar: dark base block (the
+        // "frame") plus a green fill that pokes out the front face (Z+).
+        // The fill width grows from the left edge based on ItemPosition.
+        // Progress bars are NOT interactive - their ItemPosition is set
+        // externally via TVCL3D.SetProgressBarValue / the published
+        // ItemPosition property in the Object Inspector.
+        //
+        // IMPORTANT: Same as the trackbar, all knob/fill coordinates here
+        // are LOCAL to the actor (no Actor.Position added).
+        // ====================================================================
+        else if Actor.ShapeType = stProgressBar then
+        begin
+          // 1. Base block (dark frame, full size, at actor origin).
+          //    Color is sourced from Actor.BaseColor so the user can change
+          //    it in the Object Inspector (default DARKGRAY from VCL3D).
+          rlPushMatrix();
+          rlScalef(Actor.Scale.x, Actor.Scale.y, Actor.Scale.z);
+          ModelMat := rlGetMatrixTransform();
+          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+          FBoxModel.materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FDefaultWhiteTex;
+
+          var BaseCol: TColorB := Actor.BaseColor;
+          C := BaseCol;
+          ColorShaderVec[0] := C.r / 255.0;
+          ColorShaderVec[1] := C.g / 255.0;
+          ColorShaderVec[2] := C.b / 255.0;
+          ColorShaderVec[3] := C.A / 255.0;
+          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, BaseCol);
+          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+          rlPopMatrix();
+
+          // 2. Fill (anchored left, width from ItemPosition, pokes out
+          //    the front face in Z+ so the green fill is clearly visible
+          //    from the camera's point of view, like a progress bar in a
+          //    frame).
+          var T: Single := EnsureRange(Actor.ItemPosition / 1000.0, 0.0, 1.0);
+          var MinFillW: Single := Actor.Scale.x * 0.02;  // Sliver at 0% scaled to actor
+          if MinFillW < 0.05 then
+            MinFillW := 0.05;
+          var FillW: Single := Max(Actor.Scale.x * T, MinFillW);
+          // Fill is slightly shorter than the base in Y so it looks like a
+          // bar sitting inside a frame (with a dark border top + bottom).
+          var FillH: Single := Actor.Scale.y * 0.7;
+          // Fill pokes out the front face by half its depth; the other
+          // half sits inside the base block.
+          var FillD: Single := Actor.Scale.z * 0.6 + 0.2;
+          // Local X: anchored to the left edge of the base block.
+          //   Base left edge = -Scale.x/2. Fill center = Base left + FillW/2.
+          var FillX: Single := -Actor.Scale.x * 0.5 + FillW * 0.5;
+          // Local Y: 0 = centered vertically (FillH < Scale.y so we get a
+          // dark border top + bottom of the base).
+          var FillY: Single := 0.0;
+          // Local Z: half the fill depth pokes out the front face. Base
+          // front face is at +Scale.z/2, fill center at Scale.z/2 means
+          // the inner half is inside the base, outer half sticks out.
+          var FillZ: Single := Actor.Scale.z * 0.5;
+
+          rlPushMatrix();
+          rlTranslatef(FillX, FillY, FillZ);
+          rlScalef(FillW, FillH, FillD);
+          ModelMat := rlGetMatrixTransform();
+          SetShaderValueMatrix(FLightShader, ModelMatLoc, ModelMat);
+
+          C := Actor.ActColor;
+          ColorShaderVec[0] := C.r / 255.0;
+          ColorShaderVec[1] := C.g / 255.0;
+          ColorShaderVec[2] := C.b / 255.0;
+          ColorShaderVec[3] := C.A / 255.0;
+          SetShaderValue(FLightShader, ActorColorLoc, @ColorShaderVec, SHADER_UNIFORM_VEC4);
+          DrawModel(FBoxModel, Vector3Create(0, 0, 0), 1.0, Actor.ActColor);
+          DrawCubeWires(Vector3Create(0, 0, 0), 1.0, 1.0, 1.0, BLACK);
+          rlPopMatrix();
         end;
         EndShaderMode();
       end;
@@ -5620,9 +5951,31 @@ begin
       TxtSize := 10;
     if Req.Caption <> '' then
       Obj.FButtonTexture := DrawTextToTexture(Req.Caption, TxtSize, BLACK, Req.BaseColor);
+  end
+  else if Req.Shape in [stTrackbar, stProgressBar] then
+  begin
+    // For stTrackbar / stProgressBar the colors are split into three roles:
+    //   BaseColor  = the dark base block color (default DARKGRAY)
+    //   HoverColor = the knob / fill HOVER highlight color
+    //   FillColor  = the knob / fill REST color (lerp target in normal state)
+    //   Color      = the initial ActColor (so frame 0 looks right before the
+    //                first Update() tick runs the color lerp)
+    // If the caller did not set them explicitly, we fall back to safe
+    // defaults here so the actor is always visible.
+    Obj.BaseColor := Req.BaseColor;
+    Obj.HoverColor := Req.HoverColor;
+    Obj.FillColor := Req.FillColor;
+    // Forward the value-changed callback. For stTrackbar this fires
+    // from UpdateTrackbarFromMouse (render thread) via TThread.Queue
+    // whenever ItemPosition changes during a drag.
+    Obj.OnChange := Req.OnChange;
   end;
   Obj.TargetColor := Req.Color;
   Obj.ActColor := Req.Color;
+  // Forward the generic integer slot. For stTrackbar / stProgressBar this
+  // is the initial 0..1000 promille value computed by Yutani.VCL3D from
+  // the caller's [Min..Max] range.
+  Obj.ItemPosition := Req.ItemPosition;
   // Force position just in case, though it shouldn't be needed anymore
   Obj.SetPosition(Vector3Create(JPos.x, JPos.y, JPos.z));
   if Req.Name = 'THE_BOMB' then
@@ -5657,12 +6010,10 @@ begin
         Obj.FVideoTexture := LoadTextureFromImage(GenImageColor(640, 360, RED));
     end;
   end;
-  // Register Piano Keys to the standalone component
-  if Assigned(FPiano) and Obj.IsPianoKey then
-  begin
-    SetLength(FPiano.FKeys, Length(FPiano.FKeys) + 1);
-    FPiano.FKeys[High(FPiano.FKeys)] := Obj;
-  end;
+  // Note: Piano keys used to be registered to FPiano.FKeys here. Since
+  // TPiano moved to Yutani.VCL3D and is no longer owned by the sandbox,
+  // we skip that registration. The TPiano instance finds its keys on
+  // demand by scanning Sandbox.FItems for IsPianoKey=True actors.
   FItems[oldLen] := Obj;
   DoActorSpawned(Obj, oldLen);
 end;
@@ -6032,8 +6383,8 @@ begin
     // Stop and free MPV player when the scene is cleared!
     if Assigned(FMPVPlayer) then
       FreeAndNil(FMPVPlayer);
-    // Free independent Piano Component
-    FreeAndNil(FPiano);
+    // Note: TPiano is now owned by the caller (Yutani.VCL3D). The caller
+    // must free its TPiano instance manually when the scene is cleared.
     // Only clear dynamic items, keep FFloorActor and Engine alive!
     var i: Integer;
     for i := High(FItems) downto 0 do
@@ -6065,6 +6416,7 @@ begin
     SetLength(FItems, 0);
     FBombActor := nil;
     FBombExploded := False;
+    FDraggingTrackbar := nil;
     FActiveSpawnEffects := nil;
     FFocusTrackingActor := nil;
   finally
@@ -6407,152 +6759,14 @@ begin
     end;
   end;
 end;
-{ TPiano }
-
-constructor TPiano.Create(ASandbox: TYutaniRaylibSandbox);
-var
-  i: Integer;
-  Pos: TVector3;
-  Request: TSpawnRequest;
-  JPos: JPH_RVec3;
-  JRot: JPH_Quat;
-  WhiteKeyCount, Note: Integer;
-  WhiteKeyW, WhiteKeyH, WhiteKeyD: Single;
-  BlackKeyW, BlackKeyH, BlackKeyD: Single;
-  HasBlack: Boolean;
-  BlackOffset: Single;
-  WoodColor: TColorB;
-  WhiteBaseColor, WhiteHoverColor, BlackBaseColor, BlackHoverColor: TColorB;
-  BaseCube: TA3DComponent;
-begin
-  FSandbox := ASandbox;
-  FKeys := nil;
-  // Dimensions
-  WhiteKeyW := 1.0;
-  WhiteKeyH := 0.2;
-  WhiteKeyD := 3.0;
-  BlackKeyW := 0.6;
-  BlackKeyH := 0.3;
-  BlackKeyD := 1.5;
-  // 1. Spawn the Piano Base
-  // Base height is 0.6. Center at Y=0.3 -> bottom is 0.0, top is 0.6
-  JPos.x := 0;
-  JPos.y := 0.3;
-  JPos.z := 0;
-  JRot.x := 0;
-  JRot.y := 0;
-  JRot.z := 0;
-  JRot.w := 1;
-  // Width is 14.0 to perfectly match 14 white keys
-  BaseCube := TA3DComponent.Create('', FSandbox.FEngine, stBox, Vector3Create(15.0, 0.6, WhiteKeyD + 1.0), True, False, @JPos, @JRot);
-  BaseCube.Name := 'PianoBody';
-  WoodColor.r := 101;
-  WoodColor.g := 67;
-  WoodColor.b := 33;
-  WoodColor.a := 255;
-  BaseCube.ActColor := WoodColor;
-  BaseCube.TargetColor := WoodColor;
-  BaseCube.Visible := True;
-  FBase := BaseCube;
-  SetLength(FSandbox.FItems, Length(FSandbox.FItems) + 1);
-  FSandbox.FItems[High(FSandbox.FItems)] := BaseCube;
-  // Setup Colors
-  WhiteBaseColor.r := 255;
-  WhiteBaseColor.g := 255;
-  WhiteBaseColor.b := 255;
-  WhiteBaseColor.a := 255;
-  WhiteHoverColor.r := 255;
-  WhiteHoverColor.g := 255;
-  WhiteHoverColor.b := 0;
-  WhiteHoverColor.a := 255;
-  BlackBaseColor.r := 0;
-  BlackBaseColor.g := 0;
-  BlackBaseColor.b := 0;
-  BlackBaseColor.a := 255;
-  BlackHoverColor.r := 255;
-  BlackHoverColor.g := 165;
-  BlackHoverColor.b := 0;
-  BlackHoverColor.a := 255;
-  // 2. Spawn the White and Black Keys
-  WhiteKeyCount := 14; // 2 Octaves
-  Note := 60; // Start at Middle C (MIDI Note 60)
-  for i := 0 to WhiteKeyCount - 1 do
-  begin
-    HasBlack := not ((i mod 7 = 2) or (i mod 7 = 6)); // No black key after E and B
-    // --- Spawn White Key ---
-    // Base top is Y=0.6. Key is 0.2 high. Center at Y=0.7 means it goes from 0.6 to 0.8 exactly.
-    // Add 0.02 spacing between keys to prevent Wireframe Z-Fighting
-    Pos := Vector3Create((i * (WhiteKeyW + 0.02)) - (WhiteKeyCount * (WhiteKeyW + 0.02) * 0.5) + (WhiteKeyW * 0.5), 0.7, 0);
-    Request.Shape := stBox;
-    Request.Pos := Pos;
-    Request.Size := Vector3Create(WhiteKeyW, WhiteKeyH, WhiteKeyD);
-    Request.IsStatic := True;
-    Request.IsDestructable := False;
-    Request.Name := 'Key_White_' + IntToStr(Note);
-    Request.Color := WhiteBaseColor;
-    Request.BaseColor := WhiteBaseColor;
-    Request.HoverColor := WhiteHoverColor;
-    Request.Caption := '';
-    Request.GenerateTestTexture := False;
-    Request.OnClick := nil;
-    FSandbox.QueueCustomSpawn(Request);
-    // --- Spawn Black Key (if applicable) ---
-    if HasBlack then
-    begin
-      BlackOffset := Pos.x + (WhiteKeyW * 0.5);
-      // Base top is Y=0.6. Key is 0.3 high. Center at Y=0.75 means it goes from 0.6 to 0.9 exactly.
-      Request.Pos := Vector3Create(BlackOffset, 0.75, -0.76);
-      Request.Size := Vector3Create(BlackKeyW, BlackKeyH, BlackKeyD);
-      Request.Name := 'Key_Black_' + IntToStr(Note + 1);
-      Request.Color := BlackBaseColor;
-      Request.BaseColor := BlackBaseColor;
-      Request.HoverColor := BlackHoverColor;
-      FSandbox.QueueCustomSpawn(Request);
-      Inc(Note, 2);
-    end
-    else
-      Inc(Note);
-  end;
-end;
-
-destructor TPiano.Destroy;
-begin
-  FKeys := nil;
-  FBase := nil;
-  inherited;
-end;
-
-procedure TPiano.PressKey(Index: Integer);
-begin
-  if (Index >= 0) and (Index < Length(FKeys)) and Assigned(FKeys[Index]) then
-    FKeys[Index].IsPressed := True;
-end;
-
-procedure TPiano.ReleaseKey(Index: Integer);
-begin
-  if (Index >= 0) and (Index < Length(FKeys)) and Assigned(FKeys[Index]) then
-    FKeys[Index].IsPressed := False;
-end;
-
-function TPiano.GetKey(Index: Integer): TA3DComponent;
-begin
-  if (Index >= 0) and (Index < Length(FKeys)) then
-    Result := FKeys[Index]
-  else
-    Result := nil;
-end;
-
-function TPiano.KeyCount: Integer;
-begin
-  Result := Length(FKeys);
-end;
-
-procedure TYutaniRaylibSandbox.SpawnPiano;
-begin
-  // Create the standalone Piano component
-  if not Assigned(FPiano) then
-    FPiano := TPiano.Create(Self);
-end;
+// ============================================================================
+// Note: TPiano and TYutaniRaylibSandbox.SpawnPiano have been moved to the
+// Yutani.VCL3D unit. The sandbox keeps the piano-key rendering, click and
+// gizmo-linking logic because those operate purely on TA3DComponent flags
+// (IsPianoKey, IsPressed, Name='PianoBody') without needing a TPiano
+// reference. Spawn a piano from the VCL via TVCL3D.SpawnPiano(Sandbox) and
+// hold the returned TPiano instance yourself.
+// ============================================================================
 
 procedure TYutaniRaylibSandbox.SetHighlighterActive(Active: Boolean);
 begin

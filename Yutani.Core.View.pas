@@ -17,8 +17,8 @@ uses
   Winapi.Windows, System.SysUtils, System.Math, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   Yutani.Core, Yutani.Core.ModelEngine, TypInfo, Vcl.Grids, Raylib,
-  Vcl.WinXPickers, Vcl.Samples.Spin, Yutani.VCL3D, Yutani.Worlds.WorldTransitions,
-  Yutani.SkiaIntro, MiniAudio4Delphi;
+  Vcl.WinXPickers, Vcl.Samples.Spin, Yutani.VCL3D,
+  Yutani.Worlds.WorldTransitions, Yutani.SkiaIntro, MiniAudio4Delphi;
 
 type
   TYutaniWindow = class(TForm)
@@ -112,6 +112,8 @@ type
     lblWorldTransition: TLabel;
     cbWorldTransitionEffect: TComboBox;
     cbWallbomb: TCheckBox;
+    btnTrackbar: TButton;
+    btnProgressbar: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btnSpawnCubesClick(Sender: TObject);
     procedure btnSpawnSpheresClick(Sender: TObject);
@@ -177,6 +179,8 @@ type
     procedure tbSFXVolumeChange(Sender: TObject);
     procedure tbMusicVOlumeChange(Sender: TObject);
     procedure cbWorldTransitionEffectChange(Sender: TObject);
+    procedure btnProgressbarClick(Sender: TObject);
+    procedure btnTrackbarClick(Sender: TObject);
   private
     FSandbox: TYutaniRaylibSandbox;
     FSelectedComponent: TA3DComponent;
@@ -192,6 +196,12 @@ type
     procedure SelectActorInUI(AActor: TA3DComponent);
     procedure HandleObjectSelected(Sender: TObject; Actor: TA3DComponent);
     procedure My3DButtonClick(Sender: TObject);
+    { Called from the render thread (via TThread.Queue) every time the
+      trackbar's ItemPosition changes during a drag. Sender is the
+      TA3DComponent trackbar actor - we read its current value and
+      mirror it onto the spawned ProgressBar so both controls move
+      in sync as a visual demo. }
+    procedure HandleTrackbarChange(Sender: TObject);
   public
     { Public declarations }
   end;
@@ -332,7 +342,8 @@ end;
 
 procedure TYutaniWindow.btnTestSFXClick(Sender: TObject);
 begin
-  FSandbox.FYutaniAudio.PlaySoundEffect('ressources\audio\test.wav', 1.0);;
+  FSandbox.FYutaniAudio.PlaySoundEffect('ressources\audio\test.wav', 1.0);
+  ;
 end;
 
 procedure TYutaniWindow.btnToolDragThrowClick(Sender: TObject);
@@ -369,7 +380,7 @@ end;
 
 procedure TYutaniWindow.btnControlsClick(Sender: TObject);
 begin
-  Splitter1.Visible:= not Splitter1.Visible;
+  Splitter1.Visible := not Splitter1.Visible;
   pnlLeft.Visible := Splitter1.Visible;
   pnlRight.Visible := Splitter1.Visible;
   Splitter3.Visible := Splitter1.Visible;
@@ -656,7 +667,12 @@ end;
 
 procedure TYutaniWindow.btnPianoClick(Sender: TObject);
 begin
-  FSandbox.SpawnPiano;
+  // Spawn a complete 2-octave 3D piano (wooden base + 14 white keys +
+  // 10 black keys). TPiano is now owned by the caller (Yutani.VCL3D),
+  // so we use TVCL3D.SpawnPiano here. The underlying actors live in
+  // Sandbox.FItems and are freed by the sandbox on scene clear.
+  TVCL3D.SpawnPiano(FSandbox);
+  lblInfo.Caption := 'Piano spawned (14 white + 10 black keys).';
 end;
 
 procedure TYutaniWindow.btnPlayPauseClick(Sender: TObject);
@@ -674,6 +690,49 @@ begin
     lblInfo.Caption := 'Simulation Running.';
   end;
 end;
+
+procedure TYutaniWindow.btnProgressbarClick(Sender: TObject);
+begin
+  // Spawn a 3D progress bar at (10,5,0) with initial value 50/100.
+  // The bar is 4 wide, 1 high and 0.5 deep. Two actors are queued:
+  // 'ProgressBar_ProgressBar_BG' (dark gray) and
+  // 'ProgressBar_ProgressBar_Fill' (green, anchored to the left edge).
+  TVCL3D.SpawnProgressBar(FSandbox, 'ProgressBar', Vector3Create(10, 5, 0), Vector3Create(4, 1, 0.5), 50.0, 100.0);
+  lblInfo.Caption := 'Progress bar spawned (initial value: 50/100).';
+end;
+
+procedure TYutaniWindow.btnTrackbarClick(Sender: TObject);
+begin
+  // Spawn a trackbar (TEAL knob) and a progress bar (GREEN fill) together
+  // so we can demo the OnChange callback. The trackbar sits above the
+  // progress bar; dragging the trackbar knob fires HandleTrackbarChange
+  // which mirrors the trackbar value onto the progress bar's fill.
+  TVCL3D.SpawnTrackbar(FSandbox, 'Trackbar', Vector3Create(5, 5, 0),       // Trackbar position (above)
+    Vector3Create(4, 1, 0.5),     // Trackbar size
+    0.0, 100.0, 50.0,            // Min, Max, initial Value
+    HandleTrackbarChange);        // OnChange callback
+  TVCL3D.SpawnProgressBar(FSandbox, 'ProgressBar', Vector3Create(5, 2, 0),       // Progress bar position (below trackbar)
+    Vector3Create(4, 1, 0.5),     // Progress bar size
+    50.0, 100.0);                 // Initial Value, Max
+  lblInfo.Caption := 'Trackbar + ProgressBar spawned. Drag the TEAL knob - the GREEN fill will follow!';
+end;
+
+procedure TYutaniWindow.HandleTrackbarChange(Sender: TObject);
+var
+  V: Single;
+begin
+  // Sender is the TA3DComponent trackbar actor that just changed.
+  // Read its current value in [0..100] and mirror it onto the spawned
+  // ProgressBar so the green fill tracks the teal knob 1:1.
+  if not Assigned(Sender) then
+    Exit;
+  V := TVCL3D.GetTrackbarValue(FSandbox, 'Trackbar', 0.0, 100.0);
+  TVCL3D.SetProgressBarValue(FSandbox, 'ProgressBar', V, 100.0);
+  // Show the live value in the status bar so the user can see the
+  // OnChange callback firing on every drag tick.
+  lblInfo.Caption := Format('Trackbar -> Progress: %.1f%%', [V]);
+end;
+
 // === Object Inspector Logic ===
 
 procedure TYutaniWindow.LoadPropertiesIntoGrid(AComponent: TA3DComponent);

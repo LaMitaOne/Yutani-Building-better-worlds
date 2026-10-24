@@ -27,7 +27,9 @@ uses
   Yutani.Worlds.Land in 'Yutani.Worlds.Land.pas',
   Yutani.Worlds.Holodeck in 'Yutani.Worlds.Holodeck.pas',
   Yutani.Worlds.YourWorld in 'Yutani.Worlds.YourWorld.pas',
-  Yutani.Worlds.WorldTransitions in 'Yutani.Worlds.WorldTransitions.pas';
+  Yutani.Worlds.WorldTransitions in 'Yutani.Worlds.WorldTransitions.pas',
+  Yutani.Chaos.Skia in 'Yutani.Chaos.Skia.pas',
+  Yutani.Render.PathTracing in 'Yutani.Render.PathTracing.pas';
 
 {$R *.res}
 

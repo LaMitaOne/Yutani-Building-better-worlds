@@ -112,7 +112,6 @@
         <VerInfo_MajorVer>0</VerInfo_MajorVer>
         <VerInfo_MinorVer>6</VerInfo_MinorVer>
         <VerInfo_Release>4</VerInfo_Release>
-        <VerInfo_AutoIncVersion>true</VerInfo_AutoIncVersion>
         <VerInfo_Keys>CompanyName=LaMitaOne;FileDescription=Yutani - Building better worlds;FileVersion=0.6.4.9;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=0.649;Comments=</VerInfo_Keys>
         <VerInfo_Build>9</VerInfo_Build>
     </PropertyGroup>
@@ -167,6 +166,8 @@
         <DCCReference Include="Yutani.Worlds.Holodeck.pas"/>
         <DCCReference Include="Yutani.Worlds.YourWorld.pas"/>
         <DCCReference Include="Yutani.Worlds.WorldTransitions.pas"/>
+        <DCCReference Include="Yutani.Chaos.Skia.pas"/>
+        <DCCReference Include="Yutani.Render.PathTracing.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -1,7 +1,7 @@
 ﻿unit Yutani.Core.ModelEngine;
 
 {==============================================================================*
- *  ModelEngine v0.648 - Actor Layer combining Raylib rendering with Jolt Physics
+ *  ModelEngine - Actor Layer combining Raylib rendering with Jolt Physics
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
@@ -29,6 +29,16 @@
  *      an automatic fallback to a 0.0 convex radius if the scale drops
  *      below Jolt's safe threshold (0.2m), allowing paper-thin walls.
  *
+ *  v0.649 changes:
+ *    - Added stTrackbar and stProgressBar to TShapeType. These are rendered
+ *      by Yutani.Core as composite actors (a dark base block plus a
+ *      protruding front part) so they look like the existing stButton.
+ *    - Added a generic published Integer property 'ItemPosition' on
+ *      TA3DComponent. For stTrackbar / stProgressBar this holds the
+ *      current value as a 0..1000 promille (caller maps to Min..Max).
+ *      For other actors the field is unused and free for any future
+ *      integer state the caller wants to attach to an actor.
+ *
  *  Memory Management:
  *    - TModelEngine creates all native Jolt resources in the constructor and
  *      must destroy them in the destructor.
@@ -44,7 +54,7 @@ uses
   Math, JoltPhysics;
 
 type
-  TShapeType = (stBox, stSphere, stCapsule, stPyramid, stPrism, stModel, stBomb, stButton);
+  TShapeType = (stBox, stSphere, stCapsule, stPyramid, stPrism, stModel, stBomb, stButton, stTrackbar, stProgressBar);
 
   TA3DComponent = class;
 
@@ -97,11 +107,26 @@ type
     FBaseColor: TColorB;
     FHoverColor: TColorB;
     FButtonCaption: string;
+    FItemPosition: Integer; // Generic integer slot (0..1000 promille for Trackbar/ProgressBar)
+    // Knob / fill REST color for stTrackbar / stProgressBar. This is the
+    // color the knob / fill lerps back to when the actor is neither
+    // hovered nor pressed. FBaseColor is reserved for the dark base
+    // block (frame) color. For stButton this field is unused because
+    // the button face cycles between BaseColor and HoverColor.
+    FFillColor: TColorB;
+    // Generic "value changed" callback. For stTrackbar this fires from
+    // the render thread (via TThread.Queue) whenever ItemPosition
+    // changes during a drag. Sender is the TA3DComponent itself - the
+    // VCL callback can read ItemPosition and convert to its own
+    // [Min..Max] range via TVCL3D.GetTrackbarValue. For other shape
+    // types this field is currently unused.
+    FOnChange: TNotifyEvent;
     procedure SetFriction(const Value: Single);
     procedure SetRestitution(const Value: Single);
     procedure SetMass(const Value: Single);
     procedure SetName(const Value: string);
     procedure SetModelPath(const Value: string);
+    procedure SetItemPosition(const Value: Integer);
   protected
     FShapeType: TShapeType;
     FVisible: boolean;
@@ -177,12 +202,25 @@ type
     property IsHovered: Boolean read FIsHovered write FIsHovered;
     property IsPressed: Boolean read FIsPressed write FIsPressed;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
+    { Generic "value changed" callback. For stTrackbar this fires (via
+      TThread.Queue, so safe to call from VCL) every time ItemPosition
+      changes during a drag. Sender is the TA3DComponent. }
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property BaseColor: TColorB read FBaseColor write FBaseColor;
     property HoverColor: TColorB read FHoverColor write FHoverColor;
+    { Knob / fill REST color for stTrackbar / stProgressBar. The knob /
+      fill lerps back to this color when the actor is neither hovered nor
+      pressed. For stButton this property is unused. }
+    property FillColor: TColorB read FFillColor write FFillColor;
     property Caption: string read FButtonCaption write FButtonCaption;
     property Name: string read FName write SetName;
     property ModelPath: string read FModelPath write SetModelPath;
     property IsDestructable: Boolean read FIsDestructable write FIsDestructable;
+    { Generic integer slot on every actor. Used by Yutani.VCL3D as a 0..1000
+      promille value for stTrackbar / stProgressBar (current slider / fill
+      position). Free for any other integer state a caller wants to attach
+      to an actor in the future. }
+    property ItemPosition: Integer read FItemPosition write SetItemPosition;
   end;
 
 implementation
@@ -413,6 +451,12 @@ begin
   FModelPath := '-';
   // CRITICAL FIX: Initialize GravityFactor to 1.0 to prevent Jolt auto-launch!
   FGravityFactor := 1.0;
+  // Generic integer slot - defaults to 0 (== 0 promille for trackbar/progressbar)
+  FItemPosition := 0;
+  // Knob / fill REST color for stTrackbar / stProgressBar. Default to WHITE
+  // so even if a caller forgets to set FillColor the knob / fill remains
+  // visible instead of falling back to all-zero (black).
+  FFillColor := WHITE;
 end;
 
 constructor TA3DComponent.Create(const AModelPath: string; AParent: TModelEngine; AShapeType: TShapeType; ASize: TVector3; IsStatic: Boolean; IsDestructable: Boolean; APos: PJPH_RVec3; ARot: PJPH_Quat);
@@ -493,6 +537,17 @@ begin
         ShapeSettings := JPH_BoxShapeSettings_Create(@HalfExtents, JPH_DEFAULT_CONVEX_RADIUS);
         FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
       end;
+    stButton, stTrackbar, stProgressBar:
+      begin
+        // UI controls use a flat box collider matching the base block.
+        // The protruding front part (knob / fill) is purely visual and
+        // does not collide - so we only need the base box here.
+        HalfExtents.x := ASize.x * 0.5;
+        HalfExtents.y := ASize.y * 0.5;
+        HalfExtents.z := ASize.z * 0.5;
+        ShapeSettings := JPH_BoxShapeSettings_Create(@HalfExtents, JPH_DEFAULT_CONVEX_RADIUS);
+        FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
+      end;
   else
     begin
       // Handle standard boxes
@@ -568,9 +623,11 @@ begin
   // Manage button color states dynamically
   if FShapeType = stButton then
   begin
+    // For stButton, ActColor is the bright button face and BaseColor is
+    // the darker frame. The lerp cycles between BaseColor (normal) and a
+    // darkened BaseColor (pressed) / HoverColor (hover).
     if FIsPressed then
     begin
-      // Darken color when pressed
       FTargetColor.r := Max(0, Round(FBaseColor.r * 0.6));
       FTargetColor.g := Max(0, Round(FBaseColor.g * 0.6));
       FTargetColor.b := Max(0, Round(FBaseColor.b * 0.6));
@@ -580,6 +637,31 @@ begin
       FTargetColor := FHoverColor
     else
       FTargetColor := FBaseColor;
+  end
+  else if FShapeType in [stTrackbar, stProgressBar] then
+  begin
+    // For stTrackbar / stProgressBar the colors are split into three
+    // distinct roles:
+    //   BaseColor  = the dark base block (frame) color (default DARKGRAY,
+    //                editable in the Object Inspector)
+    //   FillColor  = the knob / fill REST color (TEAL for trackbar,
+    //                GREEN for progress bar). This is the color the knob
+    //                / fill lerps back to when neither hovered nor pressed.
+    //   HoverColor = the knob / fill HOVER highlight color (Yellow / Lime).
+    // ActColor lerps between these three states.
+    if FIsPressed then
+    begin
+      // Slightly darken the knob color when pressed so the user gets
+      // feedback that the drag is active.
+      FTargetColor.r := Max(0, Round(FFillColor.r * 0.7));
+      FTargetColor.g := Max(0, Round(FFillColor.g * 0.7));
+      FTargetColor.b := Max(0, Round(FFillColor.b * 0.7));
+      FTargetColor.a := 255;
+    end
+    else if FIsHovered then
+      FTargetColor := FHoverColor
+    else
+      FTargetColor := FFillColor;
   end;
   UpdateLerp(DeltaTime);
   if FBodyID <> 0 then
@@ -747,6 +829,18 @@ begin
     JPH_BodyInterface_SetRestitution(FEngine.BodyInterface, FBodyID, Value);
 end;
 
+procedure TA3DComponent.SetItemPosition(const Value: Integer);
+begin
+  // Generic integer slot. For stTrackbar / stProgressBar the convention is
+  // 0..1000 promille (caller maps to [Min..Max]); the render thread in
+  // Yutani.Core reads this every frame to position the knob / size the fill.
+  // We clamp to [0..1000] so the visual never escapes the base block.
+  if FShapeType in [stTrackbar, stProgressBar] then
+    FItemPosition := EnsureRange(Value, 0, 1000)
+  else
+    FItemPosition := Value;
+end;
+
 procedure TA3DComponent.DetachFromPhysics;
 begin
   if (FBodyID <> 0) and Assigned(FEngine) then
@@ -852,6 +946,15 @@ begin
         FModelOffset.x := -FBBoxMin.x * FScale.x;
         FModelOffset.y := -FBBoxMin.y * FScale.y - (FScale.y * FMeshSize.y * 0.5);
         FModelOffset.z := -FBBoxMin.z * FScale.z;
+      end;
+    stButton, stTrackbar, stProgressBar:
+      begin
+        // UI controls: only the base block collides. Rebuild as a flat box.
+        HalfExtents.x := FScale.x * 0.5;
+        HalfExtents.y := FScale.y * 0.5;
+        HalfExtents.z := FScale.z * 0.5;
+        ShapeSettings := JPH_BoxShapeSettings_Create(@HalfExtents, ConvexRadius);
+        FShape := JPH_BoxShapeSettings_CreateShape(ShapeSettings);
       end;
   else
     begin

@@ -1,4 +1,4 @@
-unit Yutani.Worlds.Space;
+﻿unit Yutani.Worlds.Space;
 
 {==============================================================================*
  *  Yutani World: Space - Infinite Procedural Cosmos
@@ -28,6 +28,98 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Math, Raylib, RayMath, rlgl,
   Yutani.Worlds.Space.Textures;
+
+const
+  DISTANT_STAR_COUNT = 3000;
+  CHUNK_SIZE = 2000.0;
+  CHUNK_RADIUS = 1;
+  STAR_CLUSTER_CHANCE = 0.6;
+  NEBULA_CHANCE = 0.08;
+  SUN_CHANCE = 0.04;
+  COMET_SHELL_RADIUS = 500.0;
+  MAX_COMETS = 6;
+  NEBULA_BASE_SIZE = 150.0;
+  DISTANT_SHELL_RADIUS = 950.0;
+  FADE_START_DIST = 700.0;
+  FADE_END_DIST = 940.0;
+  MAX_COMET_PARTICLES = 8000;
+  COMET_PARTICLE_RATE = 7;
+  PLANET_MIN_RADIUS = 60.0;
+  PLANET_MAX_RADIUS = 180.0;
+  // Coarse galaxy grid for star system placement. Two systems can't
+  // spawn closer than this; galaxy positions are rounded to this grid
+  // before DB lookups and procedural seed hashing.
+  GALAXY_GRID = 1000.0;
+  // Default SQLite DB filename - placed next to the executable in a
+  // "ressources" subfolder so it stays organized alongside other data.
+  GALAXY_DB_FILENAME = 'ressources\galaxy.sqlite';
+  // Ambient dust particle system
+  DUST_PARTICLE_COUNT = 800;
+  DUST_SHELL_INNER = 50.0;
+  DUST_SHELL_OUTER = 350.0;
+  DUST_RESPAWN_DIST = 400.0;
+  DUST_MIN_SIZE = 0.1;
+  DUST_MAX_SIZE = 0.3;
+  DUST_MIN_SPEED = 3.0;
+  DUST_MAX_SPEED = 12.0;
+  // Minimap
+  MINIMAP_SIZE = 200;                 // pixel size of the square overlay
+  MINIMAP_MARGIN = 20;                // pixel gap from screen edge
+  MINIMAP_RANGE = 10000.0;            // world units shown across the minimap
+  MINIMAP_CACHE_TTL = 10.0;           // seconds between DB refreshes
+  // Circular radar
+  RADAR_RADIUS = 130;                 // pixel radius of the circular radar disc
+  RADAR_MARGIN = 25;                 // pixel gap from screen edge
+  RADAR_RING_COUNT = 3;               // concentric rings inside the disc
+  // --- Zoom glyph ---
+  // Bare "+" and "-" text glyphs placed in the bottom-right corner
+  // of the radar texture. No circle background, just slightly
+  // transparent text that brightens on hover. Click handling uses
+  // Raylib input directly so no VCL wiring is needed - the glyphs
+  // call RadarZoomIn / RadarZoomOut internally.
+  RADAR_ZOOM_GLYPH_SIZE = 20;          // font size of the + / - glyphs
+  // RADAR_SWEEP_PERIOD removed - the rotating sweep line was removed
+  // from the radar per request. Kept as a comment so the constant
+  // block stays readable and the index of the remaining tunables
+  // (RADAR_PING_PERIOD below) is unchanged.
+  RADAR_PING_PERIOD = 2.5;           // seconds for one Aliens-style ping cycle
+  // 3D radar scene tuning (world-space units inside the render texture).
+  RADAR_3D_DISC_RADIUS = 90.0;        // radius of the circular disc in 3D
+  RADAR_3D_MARKER_HEIGHT = 25.0;     // height of markers floating above the disc
+  RADAR_3D_CAM_Y = 120.0;             // camera height above the disc center
+  RADAR_3D_CAM_Z = 130.0;             // camera distance behind the disc center
+  RADAR_3D_FOV = 55.0;                // perspective FOV for the 3D radar view
+  // --- Filled translucent disc tuning (Elite Dangerous style) ---
+  // The filled disc is rendered as a triangle fan with per-vertex
+  // alpha, producing a smooth radial gradient from a brighter center
+  // to a near-transparent edge. This gives the soft holographic glow
+  // seen in the reference image instead of a flat opaque circle.
+  RADAR_DISC_SEGMENTS = 64;           // triangle-fan segments (smoothness)
+  RADAR_DISC_ALPHA_CENTER = 70;       // center alpha (0..255) - moderate glow
+  RADAR_DISC_ALPHA_EDGE = 20;         // edge alpha (0..255) - fades out softly
+  // --- Marker color palette (Elite Dangerous style) ---
+  //   Suns    -> bright yellow (current + discovered + next)
+  //   Planets -> teal (overrides the procedural PlanetColor so all
+  //              planets read as a single consistent color)
+  //   Moons   -> dimmer teal (so they stay grouped with planets)
+  //   Enemies -> red (overrides the marker's own color so any NPC /
+  //              hostile registered via AddMinimapMarker reads red)
+  RADAR_TEAL_R = 0;
+  RADAR_TEAL_G = 200;
+  RADAR_TEAL_B = 200;
+  RADAR_MOON_TEAL_ALPHA = 130;        // dimmer teal for moons (0..255)
+  RADAR_RED_R = 255;
+  RADAR_RED_G = 60;
+  RADAR_RED_B = 60;
+  RADAR_ENEMY_ALPHA = 170;           // red alpha for enemy markers (translucent)
+  // --- Line / cylinder thickness ---
+  // Halved again (was 1.2/1.5/1.0) so the lines stay readable but
+  // feel lighter / more holographic instead of solid bars.
+  RADAR_LINE_THICK = 0.6;            // standard marker connecting line radius
+  RADAR_LINE_THICK_SUN = 0.75;       // thicker line for sun markers
+  RADAR_ARROW_THICK = 0.5;           // player look-direction arrow shaft radius
+
+
 // ============================================================================
 // Inlined SQLite bindings + thin wrapper
 // ============================================================================
@@ -227,6 +319,7 @@ type
   // waypoints, etc.) and rendered by the 3D minimap. The array is
   // NOT auto-cleared - the caller must call ClearMinimapMarkers at
   // the start of each frame or manage entries individually.
+
   TMinimapMarker = record
     Position: TVector3;
     Color: TColorB;
@@ -389,11 +482,6 @@ type
     // 0..PI, going through +Z). The back half is skipped so the
     // disc edge doesn't wrap around the markers above — only the
     // bottom arc is visible, matching the reference diagram.
-    procedure DrawSemiCircle3D(Radius: Single; const Color: TColorB);
-    // Draws a FULL circle outline in the XZ plane (Y=0). Used for the
-    // radar rim and concentric rings so they form a complete ellipse
-    // when viewed from the tilted camera - matching the Elite Dangerous
-    // holographic disc look instead of just the front semicircle arc.
     procedure DrawFullCircle3D(Radius: Single; const Color: TColorB);
     // Draws a filled translucent disc in the XZ plane (Y=0) as a smooth
     // triangle fan. Per-vertex alpha creates a radial gradient from
@@ -691,104 +779,6 @@ class function TYutaniSQLiteDB.ColumnTextW(Stmt: TSQLiteStmt; Idx: Integer): str
 begin
   Result := string(ColumnText(Stmt, Idx));
 end;
-
-const
-  DISTANT_STAR_COUNT = 3000;
-  CHUNK_SIZE = 2000.0;
-  CHUNK_RADIUS = 1;
-  STAR_CLUSTER_CHANCE = 0.6;
-  NEBULA_CHANCE = 0.08;
-  SUN_CHANCE = 0.04;
-  COMET_SHELL_RADIUS = 500.0;
-  MAX_COMETS = 8;
-  NEBULA_BASE_SIZE = 150.0;
-  DISTANT_SHELL_RADIUS = 950.0;
-  FADE_START_DIST = 700.0;
-  FADE_END_DIST = 940.0;
-  MAX_COMET_PARTICLES = 10000;
-  COMET_PARTICLE_RATE = 7;
-  PLANET_MIN_RADIUS = 60.0;
-  PLANET_MAX_RADIUS = 180.0;
-  // Coarse galaxy grid for star system placement. Two systems can't
-  // spawn closer than this; galaxy positions are rounded to this grid
-  // before DB lookups and procedural seed hashing.
-  GALAXY_GRID = 1000.0;
-  // Default SQLite DB filename - placed next to the executable in a
-  // "ressources" subfolder so it stays organized alongside other data.
-  GALAXY_DB_FILENAME = 'ressources\galaxy.sqlite';
-  // Ambient dust particle system tuning.
-  // Tuned for visibility against black space + bright suns/planets.
-  // The previous values (600 / 200-1000 / 0.5-3.0 / 0.5-4.0) produced
-  // mostly sub-pixel specks even after the spawn-init bug was fixed -
-  // at 1000u distance a 0.5u billboard is ~0.7px and a 3.0u billboard
-  // is only ~4px. The new values pull the shell much closer, double
-  // the particle count, scale up sizes and bump the drift speed so the
-  // player actually sees rocks drifting past the cockpit instead of
-  // static invisible pinpricks.
-  DUST_PARTICLE_COUNT = 1000;
-  DUST_SHELL_INNER = 30.0;
-  DUST_SHELL_OUTER = 350.0;
-  DUST_RESPAWN_DIST = 400.0;
-  DUST_MIN_SIZE = 0.1;
-  DUST_MAX_SIZE = 0.3;
-  DUST_MIN_SPEED = 3.0;
-  DUST_MAX_SPEED = 12.0;
-  // Minimap tuning.
-  MINIMAP_SIZE = 200;                 // pixel size of the square overlay
-  MINIMAP_MARGIN = 20;                // pixel gap from screen edge
-  MINIMAP_RANGE = 10000.0;            // world units shown across the minimap
-  MINIMAP_CACHE_TTL = 10.0;           // seconds between DB refreshes
-  // Circular radar tuning (EVE Online style).
-  RADAR_RADIUS = 130;                 // pixel radius of the circular radar disc
-  RADAR_MARGIN = 25;                 // pixel gap from screen edge
-  RADAR_RING_COUNT = 3;               // concentric rings inside the disc
-  // --- Zoom glyph tuning ---
-  // Bare "+" and "-" text glyphs placed in the bottom-right corner
-  // of the radar texture. No circle background, just slightly
-  // transparent text that brightens on hover. Click handling uses
-  // Raylib input directly so no VCL wiring is needed - the glyphs
-  // call RadarZoomIn / RadarZoomOut internally.
-  RADAR_ZOOM_GLYPH_SIZE = 20;          // font size of the + / - glyphs
-  // RADAR_SWEEP_PERIOD removed - the rotating sweep line was removed
-  // from the radar per request. Kept as a comment so the constant
-  // block stays readable and the index of the remaining tunables
-  // (RADAR_PING_PERIOD below) is unchanged.
-  RADAR_PING_PERIOD = 2.5;           // seconds for one Aliens-style ping cycle
-  // 3D radar scene tuning (world-space units inside the render texture).
-  RADAR_3D_DISC_RADIUS = 90.0;        // radius of the circular disc in 3D
-  RADAR_3D_MARKER_HEIGHT = 25.0;     // height of markers floating above the disc
-  RADAR_3D_CAM_Y = 120.0;             // camera height above the disc center
-  RADAR_3D_CAM_Z = 130.0;             // camera distance behind the disc center
-  RADAR_3D_FOV = 55.0;                // perspective FOV for the 3D radar view
-  // --- Filled translucent disc tuning (Elite Dangerous style) ---
-  // The filled disc is rendered as a triangle fan with per-vertex
-  // alpha, producing a smooth radial gradient from a brighter center
-  // to a near-transparent edge. This gives the soft holographic glow
-  // seen in the reference image instead of a flat opaque circle.
-  RADAR_DISC_SEGMENTS = 64;           // triangle-fan segments (smoothness)
-  RADAR_DISC_ALPHA_CENTER = 70;       // center alpha (0..255) - moderate glow
-  RADAR_DISC_ALPHA_EDGE = 20;         // edge alpha (0..255) - fades out softly
-  // --- Marker color palette (Elite Dangerous style) ---
-  //   Suns    -> bright yellow (current + discovered + next)
-  //   Planets -> teal (overrides the procedural PlanetColor so all
-  //              planets read as a single consistent color)
-  //   Moons   -> dimmer teal (so they stay grouped with planets)
-  //   Enemies -> red (overrides the marker's own color so any NPC /
-  //              hostile registered via AddMinimapMarker reads red)
-  RADAR_TEAL_R = 0;
-  RADAR_TEAL_G = 200;
-  RADAR_TEAL_B = 200;
-  RADAR_MOON_TEAL_ALPHA = 130;        // dimmer teal for moons (0..255)
-  RADAR_RED_R = 255;
-  RADAR_RED_G = 60;
-  RADAR_RED_B = 60;
-  RADAR_ENEMY_ALPHA = 170;           // red alpha for enemy markers (translucent)
-  // --- Line / cylinder thickness ---
-  // Halved again (was 1.2/1.5/1.0) so the lines stay readable but
-  // feel lighter / more holographic instead of solid bars.
-  RADAR_LINE_THICK = 0.6;            // standard marker connecting line radius
-  RADAR_LINE_THICK_SUN = 0.75;       // thicker line for sun markers
-  RADAR_ARROW_THICK = 0.5;           // player look-direction arrow shaft radius
 
 function MakeCol(r, g, b: Byte): TColorB;
 begin
@@ -1765,7 +1755,7 @@ end;
 
 procedure TSpaceWorld.GenerateSystemAt(var Suns: TArray<TSun>; var Planets: TArray<TSpacePlanet>; const SunPos: TVector3; Seed: Cardinal; Append: Boolean);
 var
-  i, j, idx, PlanetCount, PlanetType: Integer;
+  j, idx, PlanetCount, PlanetType: Integer;
   OrbitR, SunRadius: Single;
   HasMoon: Boolean;
   SunIdx: Integer;
@@ -1904,8 +1894,6 @@ begin
 end;
 
 procedure TSpaceWorld.SwapToNextSystem;
-var
-  i: Integer;
 begin
   // Save the current system's metadata to the DB before promoting
   // next to current - this is the only write that happens during the
@@ -2666,28 +2654,6 @@ begin
   FMinimapMarkers[Idx].Size := Size;
 end;
 
-procedure TSpaceWorld.DrawSemiCircle3D(Radius: Single; const Color: TColorB);
-var
-  J: Integer;
-  A1, A2: Single;
-  P1, P2: TVector3;
-const
-  SEG_COUNT = 32;
-begin
-  // Draws only the FRONT half of a circle in the XZ plane — angles
-  // 0..PI, going through +X → +Z → -X. This is the part visible at
-  // the BOTTOM of the tilted radar. The back half (through -Z,
-  // which would appear above the markers) is skipped.
-  for J := 0 to SEG_COUNT - 1 do
-  begin
-    A1 := (J / SEG_COUNT) * PI;
-    A2 := ((J + 1) / SEG_COUNT) * PI;
-    P1 := Vector3Create(Cos(A1) * Radius, 0, Sin(A1) * Radius);
-    P2 := Vector3Create(Cos(A2) * Radius, 0, Sin(A2) * Radius);
-    DrawLine3D(P1, P2, Color);
-  end;
-end;
-
 procedure TSpaceWorld.DrawFullCircle3D(Radius: Single; const Color: TColorB);
 var
   J: Integer;
@@ -2755,15 +2721,13 @@ end;
 procedure TSpaceWorld.RadarZoomIn;
 begin
   // Zoom in: multiply range by 0.7 (see more detail, smaller area).
-  FRadarRangeMultiplier := EnsureRange(
-    FRadarRangeMultiplier * 0.7, 0.1, 10.0);
+  FRadarRangeMultiplier := EnsureRange(FRadarRangeMultiplier * 0.7, 0.1, 10.0);
 end;
 
 procedure TSpaceWorld.RadarZoomOut;
 begin
   // Zoom out: multiply range by 1.5 (see wider area, less detail).
-  FRadarRangeMultiplier := EnsureRange(
-    FRadarRangeMultiplier * 1.5, 0.1, 10.0);
+  FRadarRangeMultiplier := EnsureRange(FRadarRangeMultiplier * 1.5, 0.1, 10.0);
 end;
 
 procedure TSpaceWorld.RenderMinimap(const Camera: TCamera3D);
@@ -2783,7 +2747,6 @@ var
   ArrowEnd: TVector3;
   SrcRec: TRectangle;
   DstPos: TVector2;
-  TextBuf: AnsiString;
   // --- Zoom glyph locals ---
   MouseX, MouseY: Integer;
   MousePos: TVector2;
@@ -2798,7 +2761,6 @@ begin
   // Bail out if the render texture was never created.
   if FMinimapTexture.id = 0 then
     Exit;
-
   ScreenW := GetScreenWidth();
   ScreenH := GetScreenHeight();
   TextureSize := RADAR_RADIUS * 2;
@@ -2807,7 +2769,6 @@ begin
   // Elite Dangerous HUD layout.
   DstX := ScreenW - TextureSize - RADAR_MARGIN;
   DstY := ScreenH - TextureSize - RADAR_MARGIN;
-
   // ====================================================================
   // Adaptive range - same logic as the 2D radar.
   // ====================================================================
@@ -2831,7 +2792,6 @@ begin
   // Apply user zoom (from + / - buttons via RadarZoomIn / RadarZoomOut).
   Range := Range * FRadarRangeMultiplier;
   ScaleFactor := DiscRadius / Range;
-
   // ====================================================================
   // 3D tilted-disc camera: above and behind the disc center, looking
   // down at an angle. This makes the circular disc appear as a tilted
@@ -2843,14 +2803,12 @@ begin
   MiniCam.up := Vector3Create(0, 1, 0);
   MiniCam.fovy := RADAR_3D_FOV;
   MiniCam.projection := CAMERA_PERSPECTIVE;
-
   BeginTextureMode(FMinimapTexture);
   // Clear with fully transparent background so only the disc + markers
   // are visible when the texture is drawn to the screen. The corners
   // of the square texture stay transparent, letting the game show
   // through - no square frame, just the floating holographic disc.
   ClearBackground(BLANK);
-
   BeginMode3D(MiniCam);
   try
     // ==================================================================
@@ -2866,7 +2824,6 @@ begin
     rlDisableDepthMask;
     DrawFilledDisc3D(DiscRadius, RADAR_DISC_ALPHA_CENTER, RADAR_DISC_ALPHA_EDGE);
     rlEnableDepthMask;
-
     // ==================================================================
     // 1. Concentric rings on the disc (full circles for the complete
     //    holographic ellipse look, drawn on top of the filled disc).
@@ -2874,10 +2831,7 @@ begin
     //    filled disc background.
     // ==================================================================
     for I := 1 to RADAR_RING_COUNT do
-      DrawFullCircle3D(
-        DiscRadius * I / (RADAR_RING_COUNT + 1),
-        Fade(ORANGE, 0.25));
-
+      DrawFullCircle3D(DiscRadius * I / (RADAR_RING_COUNT + 1), Fade(ORANGE, 0.25));
     // ==================================================================
     // 2. Aliens-style radar ping - growing circle on the disc.
     //    Ping alpha tuned back to a softer value for translucency.
@@ -2887,7 +2841,6 @@ begin
     PingAlpha := (1.0 - PingPhase) * 0.4;
     if PingRadius > 1.0 then
       DrawFullCircle3D(PingRadius, Fade(SKYBLUE, PingAlpha));
-
     // ==================================================================
     // 5. Discovered systems - faint dots with thin connecting lines
     // ==================================================================
@@ -2903,11 +2856,9 @@ begin
       // Thinner connecting cylinder + softer yellow tint so
       // discovered (already visited) star systems read as faint
       // yellow sun markers without overpowering the disc.
-      DrawCylinderEx(BasePos, MarkerPos,
-        RADAR_LINE_THICK, RADAR_LINE_THICK, 6, Fade(YELLOW, 0.55));
+      DrawCylinderEx(BasePos, MarkerPos, RADAR_LINE_THICK, RADAR_LINE_THICK, 6, Fade(YELLOW, 0.55));
       DrawSphere(MarkerPos, 2.0, Fade(YELLOW, 0.7));
     end;
-
     // ==================================================================
     // 6. Current system sun - yellow sphere + thicker connecting line
     // ==================================================================
@@ -2923,12 +2874,10 @@ begin
         // Thinner cylinder + slightly translucent yellow so the
         // active sun is the brightest marker but still feels
         // holographic rather than a solid dot.
-        DrawCylinderEx(BasePos, MarkerPos,
-          RADAR_LINE_THICK_SUN, RADAR_LINE_THICK_SUN, 6, Fade(YELLOW, 0.85));
+        DrawCylinderEx(BasePos, MarkerPos, RADAR_LINE_THICK_SUN, RADAR_LINE_THICK_SUN, 6, Fade(YELLOW, 0.85));
         DrawSphere(MarkerPos, 5, Fade(YELLOW, 0.9));
       end;
     end;
-
     // ==================================================================
     // 7. Planets + moons - colored spheres + thin connecting lines
     // ==================================================================
@@ -2944,20 +2893,14 @@ begin
       // Thinner teal connecting cylinder - all planets and moons use
       // the same teal marker color so they group visually and don't
       // clash with the yellow suns. Alpha reduced for translucency.
-      DrawCylinderEx(BasePos, MarkerPos,
-        RADAR_LINE_THICK, RADAR_LINE_THICK, 6,
-        ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), 170));
+      DrawCylinderEx(BasePos, MarkerPos, RADAR_LINE_THICK, RADAR_LINE_THICK, 6, ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), 170));
       if FPlanets[I].IsMoon then
         // Moons use a dimmer teal (partial alpha) so they stay grouped
         // with their parent planet but read as smaller / weaker.
-        DrawSphere(MarkerPos, 1.8,
-          ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B),
-            RADAR_MOON_TEAL_ALPHA))
+        DrawSphere(MarkerPos, 1.8, ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), RADAR_MOON_TEAL_ALPHA))
       else
-        DrawSphere(MarkerPos, 3.5,
-          ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), 200));
+        DrawSphere(MarkerPos, 3.5, ColorAlpha(MakeCol(RADAR_TEAL_R, RADAR_TEAL_G, RADAR_TEAL_B), 200));
     end;
-
     // ==================================================================
     // 8. Next (target) system - faint yellow marker when approaching
     // ==================================================================
@@ -2972,12 +2915,10 @@ begin
         MarkerPos := Vector3Create(ScaledPos.x, MarkerHeight, ScaledPos.z);
         // Thinner yellow cylinder + softer fade so the next target
         // sun stays readable as a yellow sun marker while approaching.
-        DrawCylinderEx(BasePos, MarkerPos,
-          RADAR_LINE_THICK, RADAR_LINE_THICK, 6, Fade(YELLOW, 0.55));
+        DrawCylinderEx(BasePos, MarkerPos, RADAR_LINE_THICK, RADAR_LINE_THICK, 6, Fade(YELLOW, 0.55));
         DrawSphere(MarkerPos, 4.5, Fade(YELLOW, 0.7));
       end;
     end;
-
     // ==================================================================
     // 9. External markers (enemies, NPCs, waypoints)
     // ==================================================================
@@ -2995,16 +2936,9 @@ begin
       // single clear "red = enemy" signal on the radar. Thinner
       // cylinder + translucent alpha so enemies don't overpower the
       // rest of the radar.
-      DrawCylinderEx(BasePos, MarkerPos,
-        RADAR_LINE_THICK, RADAR_LINE_THICK, 6,
-        ColorAlpha(MakeCol(RADAR_RED_R, RADAR_RED_G, RADAR_RED_B),
-          RADAR_ENEMY_ALPHA));
-      DrawSphere(MarkerPos,
-        FMinimapMarkers[I].Size,
-        ColorAlpha(MakeCol(RADAR_RED_R, RADAR_RED_G, RADAR_RED_B),
-          RADAR_ENEMY_ALPHA));
+      DrawCylinderEx(BasePos, MarkerPos, RADAR_LINE_THICK, RADAR_LINE_THICK, 6, ColorAlpha(MakeCol(RADAR_RED_R, RADAR_RED_G, RADAR_RED_B), RADAR_ENEMY_ALPHA));
+      DrawSphere(MarkerPos, FMinimapMarkers[I].Size, ColorAlpha(MakeCol(RADAR_RED_R, RADAR_RED_G, RADAR_RED_B), RADAR_ENEMY_ALPHA));
     end;
-
     // ==================================================================
     // 10. Player ship - aqua sphere at disc center + look-direction
     //     arrow projected onto the disc plane.
@@ -3029,12 +2963,10 @@ begin
       // Thinner arrow shaft (halved from RADAR_ARROW_THICK) and
       // smaller arrowhead cube so the look-direction arrow stays
       // subtle against the disc.
-      DrawCylinderEx(Vector3Create(0, 2, 0), ArrowEnd,
-        RADAR_ARROW_THICK, RADAR_ARROW_THICK, 6, Fade(SKYBLUE, 0.8));
+      DrawCylinderEx(Vector3Create(0, 2, 0), ArrowEnd, RADAR_ARROW_THICK, RADAR_ARROW_THICK, 6, Fade(SKYBLUE, 0.8));
       DrawCube(ArrowEnd, 3.0, 3.0, 3.0, Fade(SKYBLUE, 0.85));
     end;
     DrawSphere(Vector3Create(0, 2, 0), 3.5, Fade(SKYBLUE, 0.85));
-
     // ==================================================================
     // 11. Radar rim - full bright circle outlining the disc edge plus
     //     two soft outer glow rings for a subtle holographic bloom.
@@ -3049,7 +2981,6 @@ begin
     EndMode3D();
   end;
   EndTextureMode();
-
   // ====================================================================
   // Draw the 3D radar texture to the screen at top-right corner.
   // Negative source height flips the texture upright (OpenGL Y-flip).
@@ -3062,7 +2993,6 @@ begin
   DstPos.x := DstX;
   DstPos.y := DstY;
   DrawTextureRec(FMinimapTexture.texture, SrcRec, DstPos, WHITE);
-
   // ====================================================================
   // Zoom control glyphs - bare "+" and "-" text symbols tucked into
   // the bottom-right corner of the radar texture. No circle
@@ -3191,7 +3121,6 @@ var
   Dist, Nearest: Single;
   P: ^TSpacePlanet;
 begin
-  Result := False;
   OutIndex := -1;
   Nearest := 1e9;
   for i := 0 to High(FPlanets) do
@@ -3291,15 +3220,13 @@ end;
 
 procedure TSpaceWorld.InitializeDistantStars;
 var
-  i, c, j: Integer;
+  i, j: Integer;
   St: ^TSpaceStar;
-  ClusterCount, StarsInCluster: Integer;
+  StarsInCluster: Integer;
   BaseDir: TVector3;
   theta, phi: Single;
 begin
   SeedRand(98765);
-  // Determine number of clusters
-  ClusterCount := 60 + Trunc(NextRand * 40); // 60-100 clusters
   i := 0;
   while i < DISTANT_STAR_COUNT do
   begin
@@ -3347,5 +3274,4 @@ begin
 end;
 
 end.
-
 

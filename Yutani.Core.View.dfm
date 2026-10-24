@@ -11954,8 +11954,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = btnPianoClick
         end
         object btnFog: TButton
-          Left = 13
-          Top = 290
+          Left = 101
+          Top = 259
           Width = 74
           Height = 25
           Caption = 'Fog'
@@ -12010,8 +12010,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = btnToolDragThrowClick
         end
         object Button1: TButton
-          Left = 67
-          Top = 245
+          Left = 65
+          Top = 225
           Width = 20
           Height = 25
           Caption = 'c'
@@ -12019,8 +12019,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = Button1Click
         end
         object Button2: TButton
-          Left = 89
-          Top = 245
+          Left = 87
+          Top = 225
           Width = 20
           Height = 25
           Caption = 'ca'
@@ -12028,8 +12028,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = Button2Click
         end
         object Button3: TButton
-          Left = 111
-          Top = 245
+          Left = 109
+          Top = 225
           Width = 20
           Height = 25
           Caption = 's'
@@ -12037,8 +12037,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = Button3Click
         end
         object Button4: TButton
-          Left = 133
-          Top = 245
+          Left = 131
+          Top = 225
           Width = 20
           Height = 25
           Caption = 'py'
@@ -12046,8 +12046,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = Button4Click
         end
         object Button5: TButton
-          Left = 155
-          Top = 245
+          Left = 153
+          Top = 225
           Width = 20
           Height = 25
           Caption = 'pr'
@@ -12055,8 +12055,8 @@ object YutaniWindow: TYutaniWindow
           OnClick = Button5Click
         end
         object spRain: TSpinEdit
-          Left = 18
-          Top = 245
+          Left = 16
+          Top = 225
           Width = 43
           Height = 24
           MaxValue = 1000
@@ -12090,6 +12090,24 @@ object YutaniWindow: TYutaniWindow
           ShowHint = True
           State = cbChecked
           TabOrder = 28
+        end
+        object btnTrackbar: TButton
+          Left = 13
+          Top = 259
+          Width = 74
+          Height = 25
+          Caption = 'Trackbar'
+          TabOrder = 29
+          OnClick = btnTrackbarClick
+        end
+        object btnProgressbar: TButton
+          Left = 13
+          Top = 290
+          Width = 74
+          Height = 25
+          Caption = 'Progressbar'
+          TabOrder = 30
+          OnClick = btnProgressbarClick
         end
       end
       object tsEngine: TTabSheet
