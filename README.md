@@ -1,4 +1,4 @@
-# Yutani-Building-better-worlds (Alpha v0.648)    
+# Yutani-Building-better-worlds (Alpha v0.649)    
 A high-performance, multi-threaded 3D Sandbox &amp; Multimedia Framework for Delphi.    
 Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, RecastNavigation, VerySimpleLua, GameNetworkingSockets, and Skia4delphi.    
           
@@ -25,7 +25,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
-Status: Work in Progress (Alpha v0.647)    
+Status: Work in Progress (Alpha v0.649)    
          
 <img width="1917" height="1081" alt="Unbenannt" src="https://github.com/user-attachments/assets/0e5bc929-34fc-4636-a5b1-f33af976b065" />
     
@@ -103,6 +103,42 @@ slowly getting ready to explore the new universe
   Exe and sample project included    
       
 Latest Changes:    
+      
+v0.649:    
+     
+  - Refactored TPiano class out of Yutani.Core into Yutani.VCL3D
+  - Sandbox no longer owns a FPiano reference; TPiano is now instantiated
+    and owned by the caller via TVCL3D.SpawnPiano
+  - Piano gizmo linking now uses Name='PianoBody' + IsPianoKey scan
+    instead of the FPiano pointer, so the feature keeps working
+    without the sandbox knowing about TPiano
+  - Added TVCL3D.SpawnTrackbar and TVCL3D.SpawnProgressBar std
+    controls alongside the existing SpawnButton
+  - Added new shape types stTrackbar and stProgressBar to TShapeType.
+    Both render as a composite actor (dark base block + protruding
+    front part) styled like the existing stButton.
+  - Added generic published Integer property 'ItemPosition' on
+    TA3DComponent. For stTrackbar / stProgressBar this holds the
+    current value as a 0..1000 promille (caller maps to Min..Max).
+    For other actors the field is unused and free for any future
+    integer state the caller wants to attach to an actor.
+  - 3D Trackbar is now fully interactive: click+drag the knob to
+    change ItemPosition live (mouse X maps to 0..1000 promille).
+  - 3D Progress Bar is driven externally via ItemPosition (use
+    TVCL3D.SetProgressBarValue or the Object Inspector).
+  - F12 now leaves posessed object, split screen moved to F2
+  - Moved holodeck & Land in single units Yutani.Worlds.Land, Yutani.Worlds.Holodeck
+  - Added world bones unit Yutani.Worlds.YourWorld
+  - Added unit Yutani.Worlds.WorldTransitions
+  - New world Transition effects: Warp, BlinkEye, Fade
+  - New Engine tab Combobox for transition effect setting
+  - Space reset/load/save functions added
+  - Space radar minimap now real 3d & added zoom btns
+  - Alt + Q/E now for select object
+  - Ctrl while in vehicle/avatar shows/hides mouse cursor
+  - Added checkbox beside Wall spawn btn for bomb on/off
+ <img width="950" height="652" alt="Unbenannt" src="https://github.com/user-attachments/assets/7bb56b38-46b8-41f6-ac59-5841005105dc" />
+
       
 v0.648:        
 
