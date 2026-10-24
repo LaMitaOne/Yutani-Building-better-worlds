@@ -1,0 +1,1151 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(rgba32f, binding = 0) uniform image2D accumBuffer;
+layout(rgba32f, binding = 1) uniform image2D finalBuffer;
+layout(rgba32f, binding = 2) uniform image2D causticsBuffer;
+
+struct PTMaterial {
+    vec4 albedo_roughness;
+    vec4 specular_metalness;
+    vec4 emission_intensity;
+    vec4 absorption_amount;
+    vec4 volume_density;
+    vec4 extraParams;
+};
+
+struct Tri {
+    PTMaterial mat;
+
+    vec4 a;
+    vec4 b;
+    vec4 c;
+    vec4 aN;
+    vec4 bN;
+    vec4 cN;
+    vec4 eA;
+    vec4 eB;
+    vec4 normal;
+    vec4 min;
+    vec4 max;
+    vec4 center;
+
+    uint id;
+    uint doubleSided;
+    uint modelId;
+    uint padding;
+};
+
+
+layout(std430, binding = 3) readonly buffer TriangleBuffer {
+    Tri tris[];
+};
+
+struct CompactBVH {
+    vec4 min;
+    vec4 max;
+    uint indexData;
+    uint triCount;
+    uint pad0;
+    uint pad1;
+};
+
+layout(std430, binding = 4) readonly buffer BVHBuffer {
+    CompactBVH nodes[];
+};
+
+layout(std140, binding = 5) uniform MaterialBlock {
+    PTMaterial rmMat;
+};
+
+struct PathRay {
+	vec3 src;
+	vec3 dir;
+	vec3 invDir;
+};
+
+struct PathRayState {
+	vec3 hitPos;
+	vec3 col;
+	vec3 causticsCol;
+	vec3 throughput;
+	vec3 rmNormal;
+	float len;
+	uint triIdx;
+	float rmMinLen;
+	float rmTotalLen;
+	int rmSteps;
+
+	bool hit;
+	bool isActive;
+	bool isRefraction;
+	bool isCaustic;
+	bool isVolume;
+};
+
+uint seed;
+
+float rand() {
+	seed ^= seed >> 16;
+	seed *= 0x7feb352d;
+	seed ^= seed >> 15;
+	seed *= 0x846ca68b;
+	seed ^= seed >> 16;
+
+	return seed * 2.3283064365386963e-10f;
+}
+
+// Global Params
+uniform float time;
+uniform float blur;
+
+uniform float screenRatio;
+uniform int resX;
+uniform int resY;
+
+uniform int currentSample;
+uniform int maxSamples;
+uniform bool shouldSample;
+
+uniform bool rayMarcher;
+uniform bool pathTracer;
+
+uniform bool enableCaustics;
+
+uniform float skyIntensity;
+uniform bool enableSky;
+uniform vec3 skyTop;
+uniform vec3 skyBase;
+uniform bool enableHDRI;
+uniform bool enableSun;
+uniform float sunAngle;
+uniform vec3 sunColor;
+uniform float sunIntensity;
+uniform vec3 sunDir;
+uniform int maxBounces;
+
+uniform int raysPerPixel;
+
+// Ray Marching Params
+uniform int rmMaxSteps;
+uniform float rmNearPlane;
+uniform float rmFarPlane;
+uniform float rmNormalPrecision;
+
+// Camera Params
+uniform float aperture;
+uniform vec3 camPos;
+uniform vec3 right;
+uniform vec3 up;
+uniform vec3 camNormal;
+uniform float sensorSize;
+uniform float ISO;
+uniform vec3 focalPoint;
+uniform float focusDist;
+
+// Scene Data
+uniform uint nodeCount;
+uniform sampler2D hdri;
+
+ivec2 idx;
+float x;
+float y;
+
+const float PI = 3.14159265359;
+const float FLT_MAX = 3.4028235e38;
+const uint UINT_MAX = 4294967295;
+const float airIOR = 1.0;
+
+PathRay ray;
+PathRayState rayState;
+
+void rayGeneration() {
+
+	float jitterX = rand() - 0.5;
+	float jitterY = rand() - 0.5;
+
+	float angle = rand() * 2.0 * PI;
+	float radius = aperture * sqrt(rand());
+	vec2 diskSample = vec2(cos(angle), sin(angle)) * radius;
+
+	float srcOffsetX = (float(x) + 0.5 + jitterX * blur) / float(resX) - 0.5;
+	float srcOffsetY = (float(y) + 0.5 + jitterY * blur) / float(resY) - 0.5;
+
+	vec3 src = camPos;
+
+	src -= right * (srcOffsetX) * (sensorSize / 1000.0);
+	src += up * (srcOffsetY) * ((sensorSize / 1000.0) / screenRatio);
+
+	vec3 dir = normalize(focalPoint - src);
+
+	vec3 focusPoint = camPos + (dir * (focusDist / dot(dir, camNormal)));
+
+	src -= right * (diskSample.x) * (sensorSize / 1000.0);
+	src += up * (diskSample.y) * ((sensorSize / 1000.0) / screenRatio);
+
+	dir = normalize(focusPoint - src);
+
+	ray.src = src;
+	ray.dir = dir;
+	ray.invDir = 1.0 / dir;
+	rayState.hitPos = src;
+	rayState.col = vec3(0.0);
+	rayState.causticsCol = vec3(0.0);
+	rayState.throughput = vec3(1.0) * ISO;
+
+	rayState.len = FLT_MAX;
+	rayState.triIdx = UINT_MAX;
+
+	rayState.hit = false;
+	rayState.isActive = true;
+	rayState.isRefraction = false;
+	rayState.isCaustic = false;
+	rayState.isVolume = false;
+
+	rayState.rmMinLen = FLT_MAX;
+	rayState.rmTotalLen = 0.0;
+	rayState.rmSteps = 0;
+	rayState.rmNormal = vec3(0.0);
+}
+
+bool rayAABB(uint idx, float maxT){
+
+	vec3 boxMin = vec3(nodes[idx].min);
+	vec3 boxMax = vec3(nodes[idx].max);
+
+	float tx1 = (boxMin.x - ray.src.x) * ray.invDir.x;
+	float tx2 = (boxMax.x - ray.src.x) * ray.invDir.x;
+
+	float tmin = min(tx1, tx2);
+	float tmax = max(tx1, tx2);
+
+	float ty1 = (boxMin.y - ray.src.y) * ray.invDir.y;
+	float ty2 = (boxMax.y - ray.src.y) * ray.invDir.y;
+
+	tmin = max(tmin, min(ty1, ty2));
+	tmax = min(tmax, max(ty1, ty2));
+
+	float tz1 = (boxMin.z - ray.src.z) * ray.invDir.z;
+	float tz2 = (boxMax.z - ray.src.z) * ray.invDir.z;
+
+	tmin = max(tmin, min(tz1, tz2));
+	tmax = min(tmax, max(tz1, tz2));
+
+	return tmax >= max(tmin, 0.0) && tmin < maxT;
+}
+
+bool rayIntersectsTriangle(uint i, inout float t){
+	const float EPSILON = 0.000001;
+
+	vec3 a = vec3(tris[i].a);
+	vec3 b = vec3(tris[i].b);
+	vec3 c = vec3(tris[i].c);
+
+	vec3 edge1 = b - a;
+	vec3 edge2 = c - a;
+
+	vec3 h = cross(ray.dir, edge2);
+	float det = dot(edge1, h);
+
+	if(tris[i].doubleSided == 1){
+
+		if (det > -EPSILON && det < EPSILON) {
+			return false;
+		}
+	}
+	else {
+		if (det < EPSILON) {
+			return false;
+		}
+	}
+
+	float invDet = 1.0 / det;
+
+	vec3 s = ray.src - a;
+	float u = invDet * dot(s, h);
+
+	if (u < 0.0 || u > 1.0) {
+		return false;
+	}
+
+	vec3 q = cross(s, edge1);
+	float v = invDet * dot(ray.dir, q);
+
+	if (v < 0.0 || u + v > 1.0) {
+		return false;
+	}
+
+	t = invDet * dot(edge2, q);
+
+	if (t > EPSILON) {
+		return true;
+	}
+
+	return false;
+}
+
+void traverse(inout float closestT){
+
+	uint nIdx = 0;
+
+	if(nodeCount == 0){
+		return;
+	}
+
+	while(nIdx < nodeCount){
+
+		if(!rayAABB(nIdx, closestT)){
+
+			if(nodes[nIdx].triCount > 0){
+				nIdx++;
+			}
+			else{
+				nIdx = nodes[nIdx].indexData;
+			}
+
+			continue;
+		}
+
+		if(nodes[nIdx].triCount > 0){
+
+			for(uint i = 0; i < nodes[nIdx].triCount; i++){
+
+				float t;
+				uint triIdx = nodes[nIdx].indexData + i;
+
+				if(rayIntersectsTriangle(triIdx, t)){
+					if(t < closestT){
+						closestT = t;
+						rayState.hit = true;
+						rayState.hitPos = ray.src + ray.dir * t;
+						rayState.triIdx = triIdx;
+					}
+				}
+			}
+
+			nIdx++;
+		}
+		else{
+			nIdx++;
+		}
+	}
+}
+
+uniform float hdriRotation;
+uniform float hdriBrigthest;
+uniform float hdriThreshold;
+
+vec3 hdriLogic() {
+
+	float phi = atan(ray.dir.y, ray.dir.x);
+    float theta = asin(ray.dir.z);
+
+    vec2 uv = vec2(
+        (phi + PI) / (2.0 * PI),
+        (theta + PI * 0.5) / PI
+    );
+
+    float rotation = radians(hdriRotation);
+    uv.x += rotation / (2.0 * PI);
+    uv.x = fract(uv.x);
+
+	uv.y *= -1.0;
+
+    vec3 envColor = texture(hdri, uv).rgb;
+
+	float val = (envColor.x + envColor.y + envColor.z) / 3.0;
+
+	if (val / hdriBrigthest <= hdriThreshold) {
+
+		envColor = vec3(0.0);
+	}
+
+	return envColor * skyIntensity;
+}
+
+vec3 environmentLogic() {
+
+	vec3 skyCol = vec3(skyIntensity);
+
+	if (enableSky) {
+		vec3 worldUp = { 0.0, 0.0, 1.0 };
+
+		float upAmount = pow(max(dot(ray.dir, worldUp), 0.0), 0.5);
+
+		skyCol = mix(skyBase, skyTop, upAmount) * skyIntensity;
+	}
+
+	if (enableHDRI) {
+		skyCol = hdriLogic();
+	}
+
+	if (enableSun) {
+		float sunAngleCriteria = acos(dot(ray.dir, sunDir));
+
+		if (degrees(sunAngleCriteria) < sunAngle) {
+			skyCol = sunColor * sunIntensity;
+		}
+	}
+
+	return skyCol;
+}
+
+float distanceEstimator(vec3 p0) {
+	 vec4 p = vec4(p0, 1.);
+    for(int i = 0; i < 8; i++){
+      p.xyz = mod(p.xyz-1.,2.)-1.;
+      p*=1.4/dot(p.xyz,p.xyz);
+    }
+    return (length(p.xz/p.w)*0.25);
+}
+
+vec3 rmGetNormal(vec3 pos) {
+
+	float e = rmNormalPrecision;
+	vec3 n = vec3(
+		distanceEstimator(pos + vec3(e, 0.0, 0.0)) - distanceEstimator(pos - vec3(e, 0.0, 0.0)),
+		distanceEstimator(pos + vec3(0.0, e, 0.0)) - distanceEstimator(pos - vec3(0.0, e, 0.0)),
+		distanceEstimator(pos + vec3(0.0, 0.0, e)) - distanceEstimator(pos - vec3(0.0, 0.0, e)) );
+
+	return normalize(n);
+}
+
+vec3 sampleGGX(const vec3 normal, float roughness, float r1, float r2) {
+	float a = roughness * roughness;
+
+	float theta = atan(a * sqrt(r1) / sqrt(1.0 - r1));
+	float phi = 2.0 * PI * r2;
+
+	vec3 h = vec3(
+		sin(theta) * cos(phi),
+		sin(theta) * sin(phi),
+		cos(theta)
+	);
+
+	vec3 up = abs(normal.z) < 0.999 ? vec3(0, 0, 1) : vec3(1, 0, 0);
+	vec3 tangent = normalize(cross(up, normal));
+	vec3 bitangent = cross(normal, tangent);
+
+	return normalize(tangent * h.x + bitangent * h.y + normal * h.z);
+}
+
+bool rmSpecularLighting() {
+
+	float r1 = rand();
+	float r2 = rand();
+	vec3 microfacetNormal = sampleGGX(rayState.rmNormal, rmMat.albedo_roughness.w, r1, r2);
+
+	float IOR = rmMat.extraParams.x;
+
+	float r0Dielectric = ((airIOR - IOR) / (airIOR + IOR));
+	r0Dielectric = r0Dielectric * r0Dielectric;
+
+	float r0 = mix(r0Dielectric, 1.0, rmMat.specular_metalness.w);
+
+	float cosThetaI = clamp(-dot(ray.dir, microfacetNormal), 0.0, 1.0);
+	float rTheta = r0 + (1.0 - r0) * pow(1.0 - cosThetaI, 5.0);
+
+	if (rand() > rTheta) {
+		return false;
+	}
+
+	vec3 reflectedDir = reflect(ray.dir, microfacetNormal);
+
+	if (dot(reflectedDir, rayState.rmNormal) <= 0.0 ||
+		dot(reflectedDir, rayState.rmNormal) <= 0.0) {
+		return false;
+	}
+
+	ray.dir = reflectedDir;
+	return true;
+}
+
+void rmRefractionLighting() {
+
+	float IOR = rmMat.extraParams.x;
+
+	float n1 = airIOR;
+	float n2 = IOR;
+
+	float cosi = dot(ray.dir, rayState.rmNormal);
+
+	bool isExiting = cosi > 0.0;
+
+	if (isExiting) {
+		float nTemp = n1;
+		n1 = n2;
+		n2 = nTemp;
+
+		rayState.rmNormal = -rayState.rmNormal;
+
+		float dist = distance(rayState.hitPos, ray.src);
+
+		float absorptionFactor = dist * rmMat.absorption_amount.w;
+
+		vec3 absorptionCol = rmMat.absorption_amount.rgb;
+
+		vec3 absorptionScale = exp(-absorptionCol * absorptionFactor);
+
+		rayState.throughput *= absorptionScale;
+	}
+
+	float eta = n1 / n2;
+
+	float k = 1.0 - eta * eta * (1.0 - cosi * cosi);
+
+	if (k < 0.0) {
+		ray.dir = reflect(ray.dir, rayState.rmNormal);
+		ray.src = rayState.hitPos + rayState.rmNormal * 0.001;
+		rayState.isRefraction = true;
+		return;
+	}
+
+	ray.dir = normalize(refract(ray.dir, rayState.rmNormal, eta));
+
+	if (isExiting) {
+		ray.src = rayState.hitPos - rayState.rmNormal * 0.001;
+		rayState.isRefraction = false;
+	}
+	else {
+		ray.src = rayState.hitPos - rayState.rmNormal * 0.001;
+		rayState.isRefraction = true;
+	}
+}
+
+void rmDiffuseLighting() {
+
+	float u1 = rand();
+	float u2 = rand();
+	float r = sqrt(u1);
+	float phi = 2.0 * PI * u2;
+
+	vec3 localDir = vec3(
+		r * cos(phi),
+		r * sin(phi),
+		sqrt(1.0 - u1)
+	);
+
+	vec3 up = abs(rayState.rmNormal.z) < 0.999 ? vec3(0, 0, 1) : vec3(1, 0, 0);
+	vec3 tangent = normalize(cross(up, rayState.rmNormal));
+	vec3 bitangent = cross(rayState.rmNormal, tangent);
+
+	vec3 worldDir = vec3(
+		localDir.x * tangent +
+		localDir.y * bitangent +
+		localDir.z * rayState.rmNormal);
+
+	worldDir = normalize(worldDir);
+
+	ray.dir = worldDir;
+}
+
+uniform bool rmPBR;
+uniform float rmLodMinDistMult;
+uniform float rmLodAmount;
+
+int internalMaxBounces = 5;
+
+void rayMarchingLogic() {
+
+    float minSceneDist = FLT_MAX;
+    float minRayLength = FLT_MAX;
+
+    bool isInside = false;
+
+    if (!rmPBR && rayMarcher) {
+        internalMaxBounces = 0;
+    }
+    else if (rmPBR && rayMarcher) {
+        internalMaxBounces = maxBounces;
+    }
+
+    for (int bounce = 0; bounce <= internalMaxBounces; bounce++) {
+
+        if (!rayState.isActive) {
+            break;
+        }
+
+        bool volumeScattered = false;
+        int bounceSteps = max(1, int((1.0 / max(float(bounce), 1.0)) * rmMaxSteps));
+
+        for (int iter = 0; iter < bounceSteps; iter++) {
+
+            minSceneDist = distanceEstimator(ray.src);
+
+            if (minSceneDist < 0.0) {
+                isInside = true;
+            }
+            else {
+                isInside = false;
+            }
+
+            minSceneDist = minSceneDist;
+
+            if (rmPBR) {
+                float closestT = minSceneDist;
+
+                rayState.hit = false;
+                rayState.triIdx = UINT_MAX;
+
+                traverse(closestT);
+
+                if (rayState.isVolume) {
+
+					float randomVal = max(rand(), 0.0001);
+					float scatterDist = -log(randomVal) / max(rmMat.volume_density.w, 0.0001);
+
+					if (scatterDist < minSceneDist) {
+
+						rayState.hitPos = ray.src + ray.dir * scatterDist;
+						ray.src = rayState.hitPos;
+
+						vec3 randDir;
+						int safetyEscape = 0;
+        			do {
+            			randDir = vec3(rand() * 2.0 - 1.0, rand() * 2.0 - 1.0, rand() * 2.0 - 1.0);
+            			safetyEscape++;
+        			} while ((length(randDir) > 1.0 || length(randDir) < 0.001) && safetyEscape < 10);
+
+        			if (safetyEscape >= 10) {
+            			randDir = vec3(0.0, 1.0, 0.0);
+        			}
+
+						ray.dir = normalize(randDir);
+
+						vec3 volCol = vec3(rmMat.volume_density);
+
+						rayState.throughput *= volCol;
+
+						volumeScattered = true;
+
+						ray.invDir = 1.0 / ray.dir;
+
+						break;
+					}
+                }
+
+				if (rayState.triIdx != UINT_MAX && rayState.isActive) {
+
+                	float emissionVal = (
+                    	tris[rayState.triIdx].mat.emission_intensity.x +
+                    	tris[rayState.triIdx].mat.emission_intensity.y +
+                    	tris[rayState.triIdx].mat.emission_intensity.z) / 3.0;
+
+                	bool isEmissive = tris[rayState.triIdx].mat.emission_intensity.w > 0.0 && emissionVal > 0.0;
+
+                	if (isEmissive) {
+                    	rayState.col += rayState.throughput * tris[rayState.triIdx].mat.emission_intensity.rgb * tris[rayState.triIdx].mat.emission_intensity.w;
+
+                    	rayState.isActive = false;
+                    	break;
+                	}
+            	}
+            }
+
+			float camRayDistSq = dot(ray.src - camPos, ray.src - camPos);
+
+			float lod = mix(rmNearPlane, rmNearPlane * rmLodMinDistMult, camRayDistSq * rmLodAmount);
+
+			if(minSceneDist < lod){
+
+				rayState.hit = true;
+				rayState.rmMinLen = minSceneDist;
+				rayState.rmSteps = iter;
+				rayState.hitPos = ray.src + ray.dir * minSceneDist;
+
+				rayState.rmNormal = rmGetNormal(rayState.hitPos);
+
+				ray.src = rayState.hitPos + rayState.rmNormal * 0.001f;
+
+				vec3 orientedNormal = isInside ? -rayState.rmNormal : rayState.rmNormal;
+
+				if(rmPBR){
+					bool isSpecular = false;
+
+					if (!rayState.isRefraction) {
+						isSpecular = rmSpecularLighting();
+					}
+
+					if(!isSpecular){
+						bool isVolumeMaterial = rand() < rmMat.extraParams.z;
+
+						if(isVolumeMaterial){
+							ray.src = rayState.hitPos - orientedNormal * 0.001;
+
+							if (!isInside) {
+								rayState.isVolume = true;
+							}
+							else {
+								rayState.isVolume = false;
+							}
+						}
+						else {
+
+							if (rand() < rmMat.extraParams.y) {
+
+								rmRefractionLighting();
+							}
+							else {
+
+								rayState.throughput *= rmMat.albedo_roughness.rgb;
+
+								rmDiffuseLighting();
+							}
+						}
+					}
+					else{
+						rayState.throughput *= rmMat.specular_metalness.rgb;
+					}
+				}
+
+				break;
+			}
+
+			minRayLength = min(minRayLength, minSceneDist);
+			ray.src += ray.dir * minSceneDist;
+			ray.invDir = 1.0 / ray.dir;
+
+			rayState.rmSteps++;
+			rayState.rmTotalLen += minSceneDist;
+
+			if (minSceneDist > rmFarPlane) {
+				rayState.rmMinLen = minRayLength;
+
+				rayState.isActive = false;
+
+				if (rmPBR) {
+					rayState.col += rayState.throughput * environmentLogic();
+				}
+
+				break;
+			}
+        }
+
+		if (!volumeScattered && rayState.hit == false && !rayState.isActive) {
+			break;
+		}
+    }
+}
+
+void diffuseLighting(vec3 normal) {
+
+	float u1 = rand();
+	float u2 = rand();
+	float r = sqrt(u1);
+	float phi = 2.0 * PI * u2;
+
+	vec3 localDir = vec3(
+		r * cos(phi),
+		r * sin(phi),
+		sqrt(1.0 - u1)
+		);
+
+	vec3 up = abs(normal.z) < 0.999 ? vec3(0, 0, 1) : vec3(1, 0, 0);
+	vec3 tangent = normalize(cross(up, normal));
+	vec3 bitangent = cross(normal, tangent);
+
+	vec3 worldDir = vec3(
+		localDir.x * tangent +
+		localDir.y * bitangent +
+		localDir.z * normal);
+
+	worldDir = normalize(worldDir);
+
+	vec3 triNormal = vec3(tris[rayState.triIdx].normal);
+
+	if (dot(worldDir, triNormal) < 0.0) {
+		worldDir = -worldDir;
+	}
+
+	ray.dir = worldDir;
+}
+
+bool specularLighting(vec3 normal) {
+
+	float r1 = rand();
+	float r2 = rand();
+	vec3 microfacetNormal = sampleGGX(normal, tris[rayState.triIdx].mat.albedo_roughness.w, r1, r2);
+
+	float matIOR = tris[rayState.triIdx].mat.extraParams.x;
+
+	float r0Dielectric = ((airIOR - matIOR) / (airIOR + matIOR));
+	r0Dielectric = r0Dielectric * r0Dielectric;
+
+	float metalness = tris[rayState.triIdx].mat.specular_metalness.w;
+
+	float r0 = mix(r0Dielectric, 1.0f, metalness);
+
+	float cosThetaI = clamp(-dot(ray.dir, microfacetNormal), 0.0, 1.0);
+	float rTheta = r0 + (1.0f - r0) * pow(1.0 - cosThetaI, 5.0);
+
+	if (rand() > rTheta) {
+		return false;
+	}
+
+	vec3 reflectedDir = reflect(ray.dir, microfacetNormal);
+
+	if (dot(reflectedDir, normal) <= 0.0f ||
+		dot(reflectedDir, vec3(tris[rayState.triIdx].normal)) <= 0.0) {
+		return false;
+	}
+
+	ray.dir = reflectedDir;
+	return true;
+}
+
+void refractionLighting(inout vec3 normal) {
+
+	float n1 = airIOR;
+	float n2 = tris[rayState.triIdx].mat.extraParams.x;
+
+	float cosi = dot(ray.dir, normal);
+
+	bool isExiting = cosi > 0.0;
+
+	if (isExiting) {
+
+		float nTemp = n1;
+		n1 = n2;
+		n2 = nTemp;
+
+		normal = -normal;
+
+		float dist = distance(rayState.hitPos, ray.src);
+
+		float absorption = tris[rayState.triIdx].mat.absorption_amount.w;
+
+		float absorptionFactor = dist * absorption;
+		vec3 absorptionScale = exp(-vec3(tris[rayState.triIdx].mat.absorption_amount) * absorptionFactor);
+
+		rayState.throughput *= absorptionScale;
+	}
+
+	float eta = n1 / n2;
+
+	float k = 1.0 - eta * eta * (1.0 - cosi * cosi);
+
+	if (k < 0.0) {
+		ray.dir = reflect(ray.dir, normal);
+		ray.src = rayState.hitPos + normal * 0.001;
+		rayState.isRefraction = true;
+		return;
+	}
+
+	ray.dir = normalize(refract(ray.dir, normal, eta));
+
+	if (isExiting) {
+		ray.src = rayState.hitPos - normal * 0.001;
+		rayState.isRefraction = false;
+	}
+	else {
+		ray.src = rayState.hitPos - normal * 0.001;
+		rayState.isRefraction = true;
+	}
+}
+
+vec3 InterpolateNormal() {
+
+	vec3 a = vec3(tris[rayState.triIdx].a);
+	vec3 b = vec3(tris[rayState.triIdx].b);
+	vec3 c = vec3(tris[rayState.triIdx].c);
+
+	vec3 e0 = b - a;
+	vec3 e1 = c - a;
+	vec3 d = rayState.hitPos - a;
+
+	float d00 = dot(e0, e0);
+	float d01 = dot(e0, e1);
+	float d11 = dot(e1, e1);
+	float d20 = dot(d, e0);
+	float d21 = dot(d, e1);
+
+	float denom = d00 * d11 - d01 * d01;
+
+	float v = (d11 * d20 - d01 * d21) / denom;
+	float w = (d00 * d21 - d01 * d20) / denom;
+	float u = 1.0f - v - w;
+
+	vec3 interpolatedNormal = vec3(
+		u * tris[rayState.triIdx].aN +
+		v * tris[rayState.triIdx].bN +
+		w * tris[rayState.triIdx].cN);
+
+	return normalize(interpolatedNormal);
+}
+
+void pathTracingLogic(){
+
+	bool causticsReceiver = false;
+    bool refracted = false;
+
+	for (int bounce = 0; bounce <= maxBounces; bounce++) {
+
+		if (!rayState.isActive) {
+			break;
+		}
+
+		float closestT = FLT_MAX;
+
+		rayState.hit = false;
+		rayState.triIdx = UINT_MAX;
+
+		traverse(closestT);
+
+		if (rayState.isVolume && rayState.triIdx != UINT_MAX) {
+			float randomVal = max(rand(), 0.0001);
+			float scatterDist = -log(randomVal) / max(tris[rayState.triIdx].mat.volume_density.w, 0.0001);
+
+			if (scatterDist < closestT) {
+
+				rayState.hitPos = ray.src + ray.dir * scatterDist;
+				ray.src = rayState.hitPos;
+
+				vec3 randDir;
+				int safetyEscape = 0;
+        	do {
+            	randDir = vec3(rand() * 2.0 - 1.0, rand() * 2.0 - 1.0, rand() * 2.0 - 1.0);
+            	safetyEscape++;
+        	} while ((length(randDir) > 1.0 || length(randDir) < 0.001) && safetyEscape < 10);
+
+        	if (safetyEscape >= 10) {
+            	randDir = vec3(0.0, 1.0, 0.0);
+        	}
+
+				ray.dir = normalize(randDir);
+
+				vec3 volCol = vec3(tris[rayState.triIdx].mat.volume_density);
+
+				rayState.throughput *= volCol;
+
+				ray.invDir = 1.0 / ray.dir;
+
+				continue;
+			}
+		}
+
+		if(rayState.triIdx != UINT_MAX && rayState.isActive){
+
+			vec3 interpolatedNormal = InterpolateNormal();
+
+			float cosTheta = dot(ray.dir, interpolatedNormal);
+			bool isInside = cosTheta > 0.0;
+
+			vec3 orientedNormal = isInside ? -interpolatedNormal : interpolatedNormal;
+
+			vec3 triNormal = vec3(tris[rayState.triIdx].normal);
+
+			if (!rayState.isRefraction) {
+
+				ray.src = rayState.hitPos + triNormal * 0.001;
+			}
+
+			float emissionVal = (
+				tris[rayState.triIdx].mat.emission_intensity.x +
+				tris[rayState.triIdx].mat.emission_intensity.y +
+				tris[rayState.triIdx].mat.emission_intensity.z) / 3.0;
+
+			bool isEmissive = tris[rayState.triIdx].mat.emission_intensity.w > 0.0 && emissionVal > 0.0;
+
+			if (isEmissive) {
+
+				vec3 emissionCol = vec3(tris[rayState.triIdx].mat.emission_intensity);
+
+				if (!refracted) {
+					rayState.col += rayState.throughput * emissionCol * tris[rayState.triIdx].mat.emission_intensity.w;
+				}
+				else {
+					rayState.isCaustic = true;
+					rayState.causticsCol += rayState.throughput * emissionCol * tris[rayState.triIdx].mat.emission_intensity.w;
+				}
+			}
+
+			bool isSpecular = false;
+
+			if (!rayState.isRefraction) {
+				isSpecular = specularLighting(interpolatedNormal);
+			}
+
+			if (!isSpecular) {
+
+				float volume = tris[rayState.triIdx].mat.extraParams.z;
+
+				bool isVolumeMaterial = rand() < volume;
+
+				if (isVolumeMaterial) {
+					ray.src = rayState.hitPos - orientedNormal * 0.001;
+
+					if (!isInside) {
+						rayState.isVolume = true;
+					}
+					else {
+						rayState.isVolume = false;
+					}
+				}
+				else {
+
+					float refraction = tris[rayState.triIdx].mat.extraParams.y;
+
+					if (rand() < refraction) {
+
+						if (causticsReceiver) {
+
+							if (!enableCaustics) {
+								break;
+							}
+
+							refracted = true;
+						}
+
+						refractionLighting(interpolatedNormal);
+					}
+					else {
+
+						vec3 albedo = vec3(tris[rayState.triIdx].mat.albedo_roughness);
+
+						rayState.throughput *= albedo;
+
+						diffuseLighting(interpolatedNormal);
+						causticsReceiver = true;
+					}
+				}
+			}
+			else {
+				vec3 specCol = vec3(tris[rayState.triIdx].mat.specular_metalness);
+
+				rayState.throughput *= specCol;
+			}
+		}
+
+		if (!rayState.hit && !rayState.isVolume) {
+			rayState.isActive = false;
+
+			if (!refracted) {
+				rayState.col += rayState.throughput * environmentLogic();
+			}
+			else {
+				rayState.isCaustic = true;
+				rayState.causticsCol += rayState.throughput * environmentLogic();
+			}
+
+			break;
+		}
+
+		ray.invDir = 1.0 / ray.dir;
+	}
+}
+
+float applySCurve(float v, float c) {
+    v = clamp(v, 0.0, 1.0);
+
+    if (v < 0.5) {
+        return 0.5 * pow(max(0.0, 2.0 * v), 1.0 + c);
+    } else {
+        return 1.0 - 0.5 * pow(max(0.0, 2.0 * (1.0 - v)), 1.0 + c);
+    }
+}
+
+vec4 contrastSCurve(vec4 x, float c) {
+    vec4 curvedCol = vec4(
+        applySCurve(x.r, c),
+        applySCurve(x.g, c),
+        applySCurve(x.b, c),
+        x.a
+    );
+    return clamp(curvedCol, 0.0, 1.0);
+}
+
+void colorManagement(float c, inout vec4 col) {
+    col = contrastSCurve(col, c);
+    col.rgb = pow(col.rgb, vec3(1.0 / 2.2));
+}
+
+// Image Params
+uniform float mainBufferIntensity;
+uniform float causticsIntensity;
+
+uniform float exposure;
+uniform float contrast;
+
+void main() {
+    idx = ivec2(gl_GlobalInvocationID.xy);
+
+    if(idx.x >= resX || idx.y >= resY) {
+        return;
+    }
+
+    x = float(idx.x);
+    y = float(idx.y);
+
+    vec4 accumCol = imageLoad(accumBuffer, idx);
+    vec4 causticsCol = imageLoad(causticsBuffer, idx);
+
+    if(!shouldSample) {
+        accumCol = vec4(0.0);
+        causticsCol = vec4(0.0);
+    }
+
+    if(!shouldSample || currentSample < maxSamples) {
+
+        for (int rays = 0; rays < raysPerPixel; rays++) {
+
+            seed = uint(idx.x) * 1973u + uint(idx.y) * 9277u + uint(time * 1000.0) * 2699u + uint(rays * 7193u) | 1u;
+
+            rayGeneration();
+
+            vec3 originalSrc = ray.src;
+            vec3 originalDir = ray.dir;
+            vec3 originalInvDir = ray.invDir;
+
+            vec3 currentRayColor = vec3(0.0);
+            vec3 currentCaustics = vec3(0.0);
+
+            if(rayMarcher) {
+                rayMarchingLogic();
+
+                if(pathTracer) {
+                    ray.src = originalSrc;
+                    ray.dir = originalDir;
+                    ray.invDir = originalInvDir;
+                }
+            }
+
+            if(pathTracer) {
+                pathTracingLogic();
+            }
+
+			currentRayColor += rayState.col;
+
+			if (rayMarcher) {
+
+				if (!rmPBR) {
+					float val = float(rayState.rmSteps) / 1000.0;
+
+					currentRayColor += val;
+				}
+			}
+
+            currentCaustics += rayState.causticsCol;
+
+            accumCol += vec4(currentRayColor, 1.0);
+            causticsCol += vec4(currentCaustics, 1.0);
+        }
+
+        imageStore(accumBuffer, idx, accumCol);
+        imageStore(causticsBuffer, idx, causticsCol);
+    }
+
+    float frameCount = max(float(currentSample), 1.0);
+
+    float totalSamples = frameCount * float(raysPerPixel);
+    float invSamples = 1.0 / totalSamples;
+
+    vec4 finalCol = ((accumCol * mainBufferIntensity) + (causticsCol * causticsIntensity)) * invSamples;
+
+	finalCol.rgb *= exposure;
+
+	finalCol = min(finalCol, 1.0);
+
+	colorManagement(contrast, finalCol);
+
+    imageStore(finalBuffer, idx, finalCol);
+}
