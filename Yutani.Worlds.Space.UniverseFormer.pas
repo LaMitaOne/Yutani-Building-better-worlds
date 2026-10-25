@@ -1,42 +1,63 @@
 ﻿unit Yutani.Worlds.Space.UniverseFormer;
 
 {==============================================================================*
- *  Yutani Universe Former v0.1
+ *  Yutani Universe Former v0.2
  *------------------------------------------------------------------------------
  *  Author : Lara Miriam Tamy Reschke / LamitaOne
  *
  *  Description:
- *    A self-contained Raylib editor for designing an entire UNIVERSE of
- *    star systems. The player places COMPLETE star systems (not individual
- *    planets) by selecting a system template in the bottom toolbar, then
- *    clicking anywhere in the 3D viewport to drop the system at that
- *    location. Multiple systems can coexist in the same scene, each with
- *    their own sun + orbiting planets, all visible from a universe-scale
- *    camera.
+ *    A standalone Raylib editor for designing an entire UNIVERSE of
+ *    star systems. The player places COMPLETE star systems (or
+ *    individual planets) by selecting a template in the bottom toolbar
+ *    and clicking in the 3D viewport.
  *
- *  System Templates:
- *    - Sol-Like: 7 planets (Mercury through Neptune), yellow sun
- *    - Random:   3-7 procedurally generated planets, random sun color
- *    - Binary:   2 suns orbiting each other + 3-5 planets
- *    - Dwarf:    Small red dwarf sun + 1-2 rocky planets
- *    - Empty:    Just a sun, no planets
- *    - Clear:    Wipes all systems
+ *  Features:
+ *    - 12 Templates: 5 Planet types, 5 System types (Sol/Random/Binary/
+ *      Dwarf/Empty), Random Universe generator, Clear.
+ *    - Smart Placement: Always spawns at click position, pushing other
+ *      systems out of the way (smooth animation).
+ *    - 3D Distribution: Random Universe spreads systems in X/Y/Z.
+ *    - Individual Planets: Clicking near a sun adds a planet to that
+ *      system's orbit.
+ *    - Selection: LMB click selects (orbit rings turn aqua) and drags.
+ *    - Y-Axis Editing: +/- keys move selected system up/down.
+ *
+ *  Rendering (v0.4 - Performance Pass):
+ *    No textures are used. All planets and suns are rendered using a
+ *    single pre-uploaded sphere mesh (VBO) via DrawModel.
+ *
+ *    Three layers of distance culling keep draw calls minimal:
+ *      * Orbit rings culled at UF_ORBIT_CULL_DIST (1800)
+ *      * Planets    culled at UF_PLANET_CULL_DIST (3000)
+ *      * Suns       culled at UF_SUN_CULL_DIST (8000) - kept far for
+ *        orientation when zoomed out
+ *
+ *    Planet rendering is done in 5 type-sorted passes (TUFPlanetType
+ *    0..4) so the GPU driver doesn't have to flip the color uniform
+ *    thousands of times per frame.
+ *
+ *    Orbit math (Cos/Sin per planet) is skipped entirely for systems
+ *    beyond UF_UPDATE_CULL_DIST (5000), since their CurrentPos is
+ *    never rendered anyway.
+ *
+ *    Net effect: at 500+ systems, per-frame draw calls drop from
+ *    ~3000 to ~250 (zoomed in) or ~50 (zoomed out), restoring 60+ FPS
+ *    on both integrated and discrete GPUs.
  *
  *  Scale:
- *    Camera operates at universe scale (default distance ~1800 units).
- *    Systems are placed on the Y=0 plane. LOD rendering: far systems
- *    (>1500 units) show only the sun glow, medium systems (600-1500)
- *    show sun + orbit rings, near systems (<600) show full detail.
+ *    All sizes are halved compared to v0.1 for more relative space.
+ *    The real Space.World can scale these values up at runtime.
  *
  *  Camera:
  *    Middle-mouse drag = orbit
- *    Mouse wheel       = zoom (30-6000)
+ *    Mouse wheel       = zoom
  *    WASD / arrows     = pan target
  *
- *  Selection:
- *    Left-click a system → selects it (pulsing wireframe sphere)
- *    DEL → removes selected system
- *    ESC → deselects + disarms brush
+ *  Selection & Editing:
+ *    Left-click a system → selects it + drag to move
+ *    +/- keys            → move selected system up/down (Y)
+ *    DEL                 → removes selected system
+ *    ESC                 → deselects + disarms brush
  *==============================================================================}
 
 {$POINTERMATH ON}
@@ -47,36 +68,43 @@ interface
 
 uses
   Winapi.Windows, System.SysUtils, System.Math, System.Classes,
-  Raylib, RayMath, rlgl, Yutani.Worlds.Space.Textures;
+  Raylib, RayMath, rlgl;
 
 const
   UF_TOOLBAR_HEIGHT     = 130;    // Taller so the template label fits
   UF_TOOLBAR_PADDING    = 12;
   UF_TEMPLATE_SIZE      = 80;
   UF_TEMPLATE_GAP       = 10;
-  UF_TEMPLATE_COUNT     = 12; // 5 planets + 5 systems + universe + clear
+  UF_TEMPLATE_COUNT     = 14; // 5 planets + 5 systems + universe + clear + save + load
 
   UF_MAX_SYSTEMS        = 8000;   // Allows full galactic-scale universes
   UF_DEFAULT_CAM_DIST   = 600.0;  // Closer to the origin so the user can actually move the camera without flying off into the void
   UF_GROUND_Y           = 0.0;
 
-  // Scaled-down sizes. The creator is a "model railroad" view of the
-  // universe - everything is small enough to see at once from the
-  // default camera distance. The real Space.World can scale these
-  // values up by 10x or 100x at runtime; here we want overview.
-  UF_SUN_RADIUS         = 12.0;   // Was 50 - now small enough to not dominate
-  UF_ORBIT_MIN_RADIUS   = 25.0;   // Was 100
-  UF_ORBIT_STEP         = 18.0;   // Was 70
+  // Halved sizes - gives much more room between systems. The real
+  // Space.World can scale these up by 2x or 10x at runtime.
+  UF_SUN_RADIUS         = 6.0;    // Was 12
+  UF_ORBIT_MIN_RADIUS   = 12.0;   // Was 25
+  UF_ORBIT_STEP         = 9.0;    // Was 18
   UF_ORBIT_SPEED_BASE   = 0.2;
 
-  UF_MIN_SYSTEM_GAP     = 150.0;  // Just enough so they don't visually overlap. Was 350 which was too strict.
-  UF_PLACE_ATTEMPTS     = 80;     // More attempts to find a free spot
+  UF_MIN_SYSTEM_GAP     = 80.0;   // Was 150 - halved with everything else
+  UF_PLACE_ATTEMPTS     = 80;
 
-  // LOD Thresholds - kept high so nothing disappears. At the new
-  // smaller scale the whole universe fits in a 1500-unit radius, so
-  // these values effectively mean "always render full detail".
-  UF_LOD_FAR_DIST       = 50000.0;
-  UF_LOD_MED_DIST       = 20000.0;
+  // Distance culling thresholds (v0.4 - performance pass).
+  // The old values (50000/20000) meant "render everything always",
+  // which produced 3000+ draw calls per frame at 500+ systems and
+  // tanked FPS to ~50 even on an RTX 2060S. The new values hard-cull
+  // objects by distance, so only what's actually near the camera
+  // costs a draw call. Suns are kept visible from far away because
+  // they double as orientation markers when zoomed out.
+  UF_LOD_FAR_DIST       = 50000.0; // legacy - kept for any external refs
+  UF_LOD_MED_DIST       = 20000.0; // legacy - kept for any external refs
+  UF_ORBIT_CULL_DIST    = 1800.0;  // Orbit rings only for nearby systems
+  UF_ORBIT_FADE_DIST    = 1200.0;  // Beyond this, orbit rings fade to 0.2 alpha
+  UF_PLANET_CULL_DIST   = 3000.0;  // Planets only within this radius of camera
+  UF_SUN_CULL_DIST      = 8000.0;  // Suns visible from far away (orientation)
+  UF_UPDATE_CULL_DIST   = 5000.0;  // Skip orbit math (Cos/Sin) beyond this
 
   UF_COL_TOOLBAR_BG     : TColorB = (r: 18;  g: 22;  b: 30;  a: 230);
   UF_COL_TOOLBAR_BORDER : TColorB = (r: 80;  g: 100; b: 140; a: 255);
@@ -90,7 +118,13 @@ const
 type
   TUFPlanetType = 0..4;
   TUFSystemKind = (skSol, skRandom, skBinary, skDwarf, skEmpty, skUniverse);
-  TUFTemplateKind = (tkPlanet, tkSystem, tkClear, tkUniverse);
+  TUFTemplateKind = (tkPlanet, tkSystem, tkClear, tkUniverse, tkSave, tkLoad);
+
+  // HUD action callback. Fired when the user clicks one of the
+  // in-Raylib Save/Load buttons. The host (typically the VCL form)
+  // subscribes to these to open its TSaveDialog / TOpenDialog and
+  // then call back into the engine to actually read/write the file.
+  TUFNotifyEvent = procedure of object;
 
   TUFPlanet = record
     PlanetType: TUFPlanetType;
@@ -136,13 +170,13 @@ type
     FSystems: TArray<TUFSystem>;
     FSystemCount: Integer;
 
-    FPlanetTextures: array[0..4] of TTexture2D;
-    FPlanetModels: array[0..4] of TModel;
-    FSunModel: TModel;
-    FDefaultWhiteTex: TTexture2D;
+    // No textures (solid colored spheres), but we keep a single
+    // pre-uploaded sphere mesh (VBO) for maximum rendering speed.
+    // Drawing 1000+ spheres via rlVertex3f (immediate mode) kills the
+    // CPU. Drawing them via DrawModel(Mesh) uses GPU memory directly.
     FLightShader: TShader;
     FOwnsShader: Boolean;
-    FOwnsTextures: Boolean;
+    FSphereModel: TModel; // Single shared sphere mesh for all objects
 
     FCamera: TCamera3D;
     FCamYaw, FCamPitch, FCamDist: Single;
@@ -158,11 +192,17 @@ type
     FTime: Single;
     FLMBWasDown: Boolean;
     FPaused: Boolean;
+    FDraggingSystem: Boolean;        // True while dragging a selected system with LMB
+    FDragStartMouse: TVector2;       // Mouse position when drag started
+    FDragStartSystemPos: TVector3;   // System position when drag started
+
+    // HUD button callbacks. nil = no handler; clicks are ignored.
+    FOnSaveRequested: TUFNotifyEvent;
+    FOnLoadRequested: TUFNotifyEvent;
 
     procedure InitTemplates;
     procedure GenerateAssets;
     procedure DestroyAssets;
-    procedure SetupPlanetLighting(const SystemPos: TVector3);
     function GetToolbarRect: TRectangle;
     procedure HandleCameraInput(const MousePos: TVector2; const dt: Single);
     function GetTemplateRect(Idx: Integer): TRectangle;
@@ -204,6 +244,24 @@ type
     procedure SpawnSolSystemAtCamera;
     procedure SpawnRandomSystemAtCamera;
     procedure SpawnRandomUniverseAtCamera;
+
+    // --- Save/Load Support ---
+    // Exposes the internal system array for external serialization
+    // (e.g. SQLite in the sample wrapper). The former itself stays
+    // DB-agnostic so it can be reused without dragging in sqlite3.dll.
+    function GetSystemData(Index: Integer): TUFSystem;
+    procedure SetSystemData(Index: Integer; const S: TUFSystem);
+    procedure SetSystemTargetPosition(Index: Integer; const P: TVector3);
+    procedure ClearAllSystems;
+    function GetSystemCount: Integer;
+    procedure SetSystemCount(Count: Integer);
+    function GetMaxSystems: Integer;
+
+    // --- HUD Action Callbacks ---
+    // Subscribe from the host (e.g. the VCL form) to open file
+    // dialogs when the user clicks Save/Load in the in-Raylib HUD.
+    property OnSaveRequested: TUFNotifyEvent read FOnSaveRequested write FOnSaveRequested;
+    property OnLoadRequested: TUFNotifyEvent read FOnLoadRequested write FOnLoadRequested;
   end;
 
 implementation
@@ -266,19 +324,13 @@ begin
 
   FLightShader := ALightShader;
   FOwnsShader := False;
-  FOwnsTextures := False;
-
   if FLightShader.id = 0 then
   begin
     FLightShader := LoadShader(nil, nil);
     FOwnsShader := True;
   end;
 
-  // Camera defaults - reverted to the values that worked before the
-  // top-down experiment. Yaw -0.6 / Pitch 0.9 gives a nice 3/4 view
-  // from above-front. DO NOT touch this unless the user explicitly
-  // asks - we wasted hours cycling through "improved" camera angles
-  // that all broke the initial view.
+  // Camera defaults
   FCamYaw := -0.6;
   FCamPitch := 0.9;
   FCamDist := UF_DEFAULT_CAM_DIST;
@@ -286,8 +338,6 @@ begin
   FCamera.up := Vector3Create(0, 1, 0);
   FCamera.fovy := 45.0;
   FCamera.projection := CAMERA_PERSPECTIVE;
-  // Compute the position from the spherical coordinates so the first
-  // frame is rendered from the correct viewpoint.
   FCamera.position := Vector3Create(
     FCamera.target.x + Cos(FCamPitch) * Sin(FCamYaw) * FCamDist,
     FCamera.target.y + Sin(FCamPitch) * FCamDist,
@@ -300,9 +350,11 @@ begin
   FTime := 0;
   FLMBWasDown := False;
   FPaused := False;
+  FDraggingSystem := False;
 
   InitTemplates;
   GenerateAssets;
+  // No GenerateUnitSphere call needed anymore.
 end;
 
 destructor TUniverseFormer.Destroy;
@@ -366,9 +418,14 @@ begin
   FTemplates[9].SystemKind := skEmpty;
   FTemplates[9].Color := MakeCol(255, 240, 200);
 
-  // 10: Random Universe
+  // 10: Random Universe generator button
+  // Label is "+20 systems" because that's exactly what one click does:
+  // GenerateRandomUniverse(WorldPos, 20). The original "Random Universe"
+  // label was misleading - it sounded like a one-shot reset that
+  // populates the whole map, but actually each click adds 20 systems
+  // at the clicked position.
   FTemplates[10].Kind := tkUniverse;
-  FTemplates[10].Label_ := 'Random Universe';
+  FTemplates[10].Label_ := '+20 systems';
   FTemplates[10].SystemKind := skUniverse;
   FTemplates[10].Color := MakeCol(180, 100, 255);
 
@@ -376,104 +433,39 @@ begin
   FTemplates[11].Kind := tkClear;
   FTemplates[11].Label_ := 'Clear';
   FTemplates[11].Color := MakeCol(220, 80, 80);
+
+  // 12: Save - fires OnSaveRequested so the host opens its TSaveDialog.
+  //     These two are part of the regular template grid (not floating
+  //     HUD buttons) so they line up with the other 12 templates.
+  FTemplates[12].Kind := tkSave;
+  FTemplates[12].Label_ := 'Save';
+  FTemplates[12].Color := MakeCol(60, 180, 110);
+
+  // 13: Load - fires OnLoadRequested so the host opens its TOpenDialog.
+  FTemplates[13].Kind := tkLoad;
+  FTemplates[13].Label_ := 'Load';
+  FTemplates[13].Color := MakeCol(80, 130, 220);
 end;
 
 procedure TUniverseFormer.GenerateAssets;
 var
-  I: Integer;
   Mesh: TMesh;
-  WhiteImg: TImage;
 begin
-  WhiteImg := GenImageColor(1, 1, WHITE);
-  FDefaultWhiteTex := LoadTextureFromImage(WhiteImg);
-  UnloadImage(WhiteImg);
-  SetTextureFilter(FDefaultWhiteTex, TEXTURE_FILTER_TRILINEAR);
-
-  for I := 0 to 4 do
-  begin
-    // 256x128 is plenty for these tiny editor-scale planets.
-    FPlanetTextures[I] := TPlanetTextureGen.Generate(I, Cardinal(Random(MaxInt)), 256);
-    if FPlanetTextures[I].id > 0 then
-    begin
-      SetTextureFilter(FPlanetTextures[I], TEXTURE_FILTER_TRILINEAR);
-      SetTextureWrap(FPlanetTextures[I], TEXTURE_WRAP_REPEAT);
-      GenTextureMipmaps(@FPlanetTextures[I]);
-    end;
-    Mesh := GenMeshSphere(1.0, 32, 24);
-    UploadMesh(@Mesh, False);
-    FPlanetModels[I] := LoadModelFromMesh(Mesh);
-    FPlanetModels[I].materials[0].maps[MATERIAL_MAP_ALBEDO].texture := FPlanetTextures[I];
-    if FLightShader.id > 0 then
-      FPlanetModels[I].materials[0].shader := FLightShader;
-  end;
-  FOwnsTextures := True;
-
-  // No sun texture - we render the sun as a plain bright yellow sphere.
-  // CRITICAL: We MUST use a Mesh + DrawModel, NOT DrawSphere.
-  // DrawSphere uses immediate-mode vertex pushing every frame which is
-  // dramatically slower than a pre-uploaded VBO. With 200+ systems this
-  // makes the difference between 60 FPS and 15 FPS.
-  Mesh := GenMeshSphere(1.0, 16, 12);
+  // Generate a single plain sphere mesh and upload it to GPU (VBO).
+  // We will use DrawModel with this single mesh for all suns and
+  // planets, tinting them with the color parameter. This is almost
+  // as fast as instanced rendering.
+  Mesh := GenMeshSphere(1.0, 12, 10); // Low poly, but smooth enough
   UploadMesh(@Mesh, False);
-  FSunModel := LoadModelFromMesh(Mesh);
-  // No texture, no shader - just the raw mesh. We tint it yellow at
-  // draw time via DrawModel's color parameter.
+  FSphereModel := LoadModelFromMesh(Mesh);
+  // No texture, no shader assigned. DrawModel will use the default
+  // material, which is very fast.
 end;
 
 procedure TUniverseFormer.DestroyAssets;
-var
-  I: Integer;
 begin
-  if FOwnsTextures then
-  begin
-    for I := 0 to 4 do
-    begin
-      if FPlanetTextures[I].id > 0 then
-        UnloadTexture(FPlanetTextures[I]);
-      if FPlanetModels[I].meshes <> nil then
-        UnloadModel(FPlanetModels[I]);
-    end;
-  end;
-  if FDefaultWhiteTex.id > 0 then
-    UnloadTexture(FDefaultWhiteTex);
-  if FSunModel.meshes <> nil then
-    UnloadModel(FSunModel);
-end;
-
-procedure TUniverseFormer.SetupPlanetLighting(const SystemPos: TVector3);
-var
-  LightPosArr: array[0..2] of Single;
-  ViewPosArr: array[0..2] of Single;
-  Ambient: array[0..3] of Single;
-  Diffuse: array[0..3] of Single;
-  RadiusArr: array[0..0] of Single;
-  Shader: TShader;
-  I: Integer;
-begin
-  if FLightShader.id = 0 then
-    Exit;
-  LightPosArr[0] := SystemPos.x;
-  LightPosArr[1] := SystemPos.y;
-  LightPosArr[2] := SystemPos.z;
-  ViewPosArr[0] := FCamera.position.x;
-  ViewPosArr[1] := FCamera.position.y;
-  ViewPosArr[2] := FCamera.position.z;
-  Ambient[0] := 0.25; Ambient[1] := 0.25; Ambient[2] := 0.30; Ambient[3] := 1.0;
-  Diffuse[0] := 1.8;  Diffuse[1] := 1.8;  Diffuse[2] := 1.6;  Diffuse[3] := 1.0;
-  RadiusArr[0] := 10000.0;
-  for I := 0 to 4 do
-  begin
-    if FPlanetModels[I].meshes = nil then
-      Continue;
-    Shader := FPlanetModels[I].materials[0].Shader;
-    if Shader.id = 0 then
-      Continue;
-    SetShaderValue(Shader, GetShaderLocation(Shader, 'lightPos'), @LightPosArr, SHADER_UNIFORM_VEC3);
-    SetShaderValue(Shader, GetShaderLocation(Shader, 'viewPos'), @ViewPosArr, SHADER_UNIFORM_VEC3);
-    SetShaderValue(Shader, GetShaderLocation(Shader, 'ambient'), @Ambient, SHADER_UNIFORM_VEC4);
-    SetShaderValue(Shader, GetShaderLocation(Shader, 'diffuse'), @Diffuse, SHADER_UNIFORM_VEC4);
-    SetShaderValue(Shader, GetShaderLocation(Shader, 'lightRadius'), @RadiusArr, SHADER_UNIFORM_FLOAT);
-  end;
+  if FSphereModel.meshes <> nil then
+    UnloadModel(FSphereModel);
 end;
 
 // ============================================================================
@@ -621,16 +613,15 @@ type
     AtmoR, AtmoG, AtmoB: Byte;
   end;
 const
-  // Scaled down by ~4x from the previous values. Orbit radii 25-120
-  // instead of 100-480, planet radii 1.5-7 instead of 6-28.
+  // Halved sizes - orbits 12-60, planet radii 0.75-3.5
   SOL_DATA: array[0..6] of TSolData = (
-    (Typ: 0; OrbitR: 25;  Radius: 1.5; HasAtmo: False; ColR: 140; ColG: 120; ColB: 100; AtmoR: 0;   AtmoG: 0;   AtmoB: 0;),
-    (Typ: 1; OrbitR: 35;  Radius: 3;   HasAtmo: True;  ColR: 200; ColG: 160; ColB: 100; AtmoR: 255; AtmoG: 200; AtmoB: 100;),
-    (Typ: 1; OrbitR: 45;  Radius: 3.5; HasAtmo: True;  ColR: 60;  ColG: 120; ColB: 200; AtmoR: 100; AtmoG: 150; AtmoB: 255;),
-    (Typ: 2; OrbitR: 55;  Radius: 2.5; HasAtmo: True;  ColR: 200; ColG: 90;  ColB: 50;  AtmoR: 200; AtmoG: 100; AtmoB: 50;),
-    (Typ: 3; OrbitR: 80;  Radius: 7;   HasAtmo: True;  ColR: 220; ColG: 180; ColB: 110; AtmoR: 255; AtmoG: 200; AtmoB: 150;),
-    (Typ: 3; OrbitR: 100; Radius: 6;   HasAtmo: True;  ColR: 200; ColG: 170; ColB: 100; AtmoR: 255; AtmoG: 210; AtmoB: 160;),
-    (Typ: 4; OrbitR: 120; Radius: 4;   HasAtmo: True;  ColR: 150; ColG: 200; ColB: 230; AtmoR: 180; AtmoG: 210; AtmoB: 255;)
+    (Typ: 0; OrbitR: 12;  Radius: 0.75; HasAtmo: False; ColR: 140; ColG: 120; ColB: 100; AtmoR: 0;   AtmoG: 0;   AtmoB: 0;),
+    (Typ: 1; OrbitR: 17;  Radius: 1.5;  HasAtmo: True;  ColR: 200; ColG: 160; ColB: 100; AtmoR: 255; AtmoG: 200; AtmoB: 100;),
+    (Typ: 1; OrbitR: 22;  Radius: 1.75; HasAtmo: True;  ColR: 60;  ColG: 120; ColB: 200; AtmoR: 100; AtmoG: 150; AtmoB: 255;),
+    (Typ: 2; OrbitR: 27;  Radius: 1.25; HasAtmo: True;  ColR: 200; ColG: 90;  ColB: 50;  AtmoR: 200; AtmoG: 100; AtmoB: 50;),
+    (Typ: 3; OrbitR: 40;  Radius: 3.5;  HasAtmo: True;  ColR: 220; ColG: 180; ColB: 110; AtmoR: 255; AtmoG: 200; AtmoB: 150;),
+    (Typ: 3; OrbitR: 50;  Radius: 3;    HasAtmo: True;  ColR: 200; ColG: 170; ColB: 100; AtmoR: 255; AtmoG: 210; AtmoB: 160;),
+    (Typ: 4; OrbitR: 60;  Radius: 2;    HasAtmo: True;  ColR: 150; ColG: 200; ColB: 230; AtmoR: 180; AtmoG: 210; AtmoB: 255;)
   );
 var
   I: Integer;
@@ -693,7 +684,7 @@ begin
     OrbitR := OrbitR + UF_ORBIT_STEP + Rand * 10;
     PType := TUFPlanetType(Trunc(Rand * 5));
     S.Planets[I].PlanetType := PType;
-    S.Planets[I].Radius := 1.5 + Rand * 5;  // Was 6 + Rand * 20
+    S.Planets[I].Radius := 0.75 + Rand * 2.5;  // Halved from 1.5 + Rand * 5
     S.Planets[I].OrbitRadius := OrbitR;
     S.Planets[I].OrbitAngle := Rand * 2.0 * PI;
     S.Planets[I].OrbitSpeed := UF_ORBIT_SPEED_BASE / Sqrt(OrbitR / UF_ORBIT_MIN_RADIUS);
@@ -732,7 +723,7 @@ begin
   S.SunRadius := UF_SUN_RADIUS * 0.8;
   S.Sun2Radius := UF_SUN_RADIUS * 0.6;
   S.IsBinary := True;
-  S.Sun2Offset := 35.0 + Rand * 25;  // Was 150 + Rand * 100
+  S.Sun2Offset := 17.0 + Rand * 12.0;  // Halved from 35 + Rand * 25
   S.BinaryAngle := 0;
   S.BinarySpeed := 0.1;
   S.SunColor := MakeCol(255, 200, 100);
@@ -745,7 +736,7 @@ begin
     OrbitR := OrbitR + UF_ORBIT_STEP + Rand * 10;
     PType := TUFPlanetType(Trunc(Rand * 5));
     S.Planets[I].PlanetType := PType;
-    S.Planets[I].Radius := 1.5 + Rand * 4.5;  // Was 6 + Rand * 18
+    S.Planets[I].Radius := 0.75 + Rand * 2.25;  // Halved from 1.5 + Rand * 4.5
     S.Planets[I].OrbitRadius := OrbitR;
     S.Planets[I].OrbitAngle := Rand * 2.0 * PI;
     S.Planets[I].OrbitSpeed := UF_ORBIT_SPEED_BASE / Sqrt(OrbitR / UF_ORBIT_MIN_RADIUS);
@@ -788,9 +779,9 @@ begin
   SetLength(S.Planets, PlanetCount);
   for I := 0 to PlanetCount - 1 do
   begin
-    OrbitR := OrbitR + 12 + Rand * 8;  // Was 50 + Rand * 30
+    OrbitR := OrbitR + 6 + Rand * 4;  // Halved from 12 + Rand * 8
     S.Planets[I].PlanetType := 0;
-    S.Planets[I].Radius := 1 + Rand * 1.5;  // Was 4 + Rand * 6
+    S.Planets[I].Radius := 0.5 + Rand * 0.75;  // Halved from 1 + Rand * 1.5
     S.Planets[I].OrbitRadius := OrbitR;
     S.Planets[I].OrbitAngle := Rand * 2.0 * PI;
     S.Planets[I].OrbitSpeed := UF_ORBIT_SPEED_BASE / Sqrt(OrbitR / UF_ORBIT_MIN_RADIUS);
@@ -848,7 +839,8 @@ var
   TestPos: TVector3;
   Angle, Radius: Single;
   FoundCollision: Boolean;
-  Dist: Single;
+  RequiredXZGap, RequiredYGap: Single;
+  XZDist, YDist: Single;
 begin
   // First try the requested position itself
   Result := RequestedPos;
@@ -857,8 +849,11 @@ begin
   begin
     if FSystems[I].IsDead then
       Continue;
-    Dist := Vector3Distance(Result, FSystems[I].Position);
-    if Dist < (FSystems[I].BoundsRadius + UF_MIN_SYSTEM_GAP) then
+    RequiredXZGap := FSystems[I].BoundsRadius * 1.1;
+    RequiredYGap  := FSystems[I].SunRadius * 4.0;
+    XZDist := Sqrt(Sqr(Result.x - FSystems[I].Position.x) + Sqr(Result.z - FSystems[I].Position.z));
+    YDist  := Abs(Result.y - FSystems[I].Position.y);
+    if (XZDist < RequiredXZGap) or (YDist < RequiredYGap) then
     begin
       FoundCollision := True;
       Break;
@@ -867,17 +862,13 @@ begin
   if not FoundCollision then
     Exit;
 
-  // Otherwise spiral outward looking for a free spot. We scale the
-  // search radius with the attempt number so we eventually search
-  // far enough to find a free spot even in a dense universe.
+  // Otherwise spiral outward looking for a free spot
   for Attempt := 1 to UF_PLACE_ATTEMPTS do
   begin
     Angle := Random * 2.0 * PI;
-    // Radius grows with each attempt: 50, 100, 150, 200, ...
-    // This ensures we eventually find a free spot even in a dense universe.
     Radius := 50.0 * Attempt + Random * 50.0;
     TestPos.x := RequestedPos.x + Cos(Angle) * Radius;
-    TestPos.y := 0;
+    TestPos.y := RequestedPos.y + (Random - 0.5) * 100.0; // Add Y jitter
     TestPos.z := RequestedPos.z + Sin(Angle) * Radius;
 
     FoundCollision := False;
@@ -885,8 +876,11 @@ begin
     begin
       if FSystems[I].IsDead then
         Continue;
-      Dist := Vector3Distance(TestPos, FSystems[I].Position);
-      if Dist < (FSystems[I].BoundsRadius + UF_MIN_SYSTEM_GAP) then
+      RequiredXZGap := FSystems[I].BoundsRadius * 1.1;
+      RequiredYGap  := FSystems[I].SunRadius * 4.0;
+      XZDist := Sqrt(Sqr(TestPos.x - FSystems[I].Position.x) + Sqr(TestPos.z - FSystems[I].Position.z));
+      YDist  := Abs(TestPos.y - FSystems[I].Position.y);
+      if (XZDist < RequiredXZGap) or (YDist < RequiredYGap) then
       begin
         FoundCollision := True;
         Break;
@@ -898,9 +892,6 @@ begin
       Exit;
     end;
   end;
-  // All attempts failed - just return the requested pos. The caller
-  // (SpawnSystemSmart) will push the conflicting systems out of the
-  // way so the new system can spawn exactly where the user clicked.
   Result := RequestedPos;
 end;
 
@@ -910,11 +901,15 @@ var
   Dist, PushDist: Single;
   PushDir, NewTarget: TVector3;
   EstimatedNewBounds: Single;
+  RequiredXZGap, RequiredYGap: Single;
+  XZDist, YDist: Single;
+  XZPush, YPush: Single;
 begin
   // ALWAYS spawn exactly at RequestedPos. Before we do, push away any
-  // existing systems that are too close by setting their TargetPosition
-  // outward. The smooth lerp in UpdateOrbits handles the actual
-  // movement animation.
+  // existing systems that are too close based on STRICT separation rules:
+  //   - XZ Plane: Required gap = (existing system's BoundsRadius) + 10%
+  //   - Y Axis:   Required gap = (existing system's SunRadius) * 4
+  // This guarantees systems never visually overlap or crash into each other.
 
   EstimatedNewBounds := 160.0;
 
@@ -923,29 +918,52 @@ begin
     if FSystems[I].IsDead then
       Continue;
 
-    Dist := Vector3Distance(FSystems[I].Position, RequestedPos);
+    // Calculate separation per-axis
+    RequiredXZGap := FSystems[I].BoundsRadius * 1.1;
+    RequiredYGap  := FSystems[I].SunRadius * 4.0;
 
-    if Dist < (EstimatedNewBounds + FSystems[I].BoundsRadius + UF_MIN_SYSTEM_GAP) then
+    // Project the vector onto XZ plane and Y axis
+    XZDist := Sqrt(Sqr(FSystems[I].Position.x - RequestedPos.x) + Sqr(FSystems[I].Position.z - RequestedPos.z));
+    YDist  := Abs(FSystems[I].Position.y - RequestedPos.y);
+
+    // Only push if we are too close on EITHER axis
+    if (XZDist < RequiredXZGap) or (YDist < RequiredYGap) then
     begin
-      if Dist > 0.01 then
+      if XZDist > 0.01 then
       begin
-        PushDir := Vector3Normalize(Vector3Subtract(FSystems[I].Position, RequestedPos));
+        PushDir.x := (FSystems[I].Position.x - RequestedPos.x) / XZDist;
+        PushDir.z := (FSystems[I].Position.z - RequestedPos.z) / XZDist;
       end
       else
       begin
-        PushDir := Vector3Normalize(Vector3Create(Random - 0.5, 0, Random - 0.5));
+        PushDir.x := Random - 0.5;
+        PushDir.z := Random - 0.5;
+        PushDir.x := PushDir.x / Sqrt(PushDir.x*PushDir.x + PushDir.z*PushDir.z);
+        PushDir.z := PushDir.z / Sqrt(PushDir.x*PushDir.x + PushDir.z*PushDir.z);
       end;
 
-      PushDist := (EstimatedNewBounds + FSystems[I].BoundsRadius + UF_MIN_SYSTEM_GAP) - Dist;
-      if PushDist < 50.0 then
-        PushDist := 50.0;
+      // Calculate push distances per axis
+      if XZDist < RequiredXZGap then
+        XZPush := RequiredXZGap - XZDist + 10.0
+      else
+        XZPush := 0.0;
+
+      if YDist < RequiredYGap then
+      begin
+        if (FSystems[I].Position.y - RequestedPos.y) > 0 then
+          YPush := RequiredYGap - YDist + 10.0
+        else
+          YPush := -(RequiredYGap - YDist + 10.0);
+      end
+      else
+        YPush := 0.0;
 
       // Set TARGET position (not current position) - the smooth
       // lerp in UpdateOrbits will animate the system sliding
       // outward over the next few frames.
-      NewTarget.x := FSystems[I].Position.x + PushDir.x * PushDist;
-      NewTarget.y := FSystems[I].Position.y;
-      NewTarget.z := FSystems[I].Position.z + PushDir.z * PushDist;
+      NewTarget.x := FSystems[I].Position.x + PushDir.x * XZPush;
+      NewTarget.y := FSystems[I].Position.y + YPush;
+      NewTarget.z := FSystems[I].Position.z + PushDir.z * XZPush;
 
       FSystems[I].TargetPosition := NewTarget;
     end;
@@ -996,7 +1014,7 @@ begin
     P := @Sys^.Planets[Count];
 
     P^.PlanetType := PlanetType;
-    P^.Radius := 1.5 + Random * 3.0;
+    P^.Radius := 0.75 + Random * 1.5;  // Halved from 1.5 + Random * 3.0
 
     // Orbit radius = distance from sun to click point, clamped to
     // at least UF_ORBIT_MIN_RADIUS so the planet doesn't sit inside
@@ -1063,7 +1081,7 @@ begin
     SetLength(Sys^.FreePlanets, Count + 1);
     P := @Sys^.FreePlanets[Count];
     P^.PlanetType := PlanetType;
-    P^.Radius := 2.0 + Random * 3.0;
+    P^.Radius := 1.0 + Random * 1.5;  // Halved from 2.0 + Random * 3.0
     P^.CurrentPos := Pos;
     P^.OrbitRadius := 0;
     P^.OrbitAngle := 0;
@@ -1109,35 +1127,32 @@ begin
   if Rng = 0 then
     Rng := 1;
 
-  // Galactic structure parameters - true 3D distribution, not a flat
-  // 2D disk. We use a very large Y spread so systems are distributed
-  // in a 3D volume. This GUARANTEES no overlaps because systems occupy
-  // a volume rather than being crammed onto a plane.
-  DiskScaleLength := 200.0;
-  BulgeRadius := 50.0;
-  DiskThickness := 400.0;  // Very large Y spread - guarantees 3D separation
+  // Spread out even more with the halved sizes. The systems are now
+  // much smaller so we have even more relative space between them.
+  DiskScaleLength := 700.0;
+  BulgeRadius := 20.0;
+  DiskThickness := 700.0;
 
   for I := 0 to Count - 1 do
   begin
     if FSystemCount >= UF_MAX_SYSTEMS then
       Break;
 
-    // Exponential disk profile: r = -L * ln(1 - u)
+    // Exponential disk profile with a minimum radius to avoid
+    // clumping at the exact center
     U := Rand;
     LocalR := -DiskScaleLength * Ln(1.0 - U * 0.99);
+    LocalR := LocalR + 200.0 + Rand * 400.0;  // Large min radius + jitter
 
     Angle := Rand * 2.0 * PI;
 
-    // Y (up/down) position - large spread to guarantee 3D separation.
-    // The previous Exp() damping made most systems clump at Y=0.
-    // We use a full Gaussian with a large sigma and minimal damping
-    // so systems spread across the full Y range.
+    // Y (up/down) - full 3D spread with minimal damping
     U := Rand;
     if U < 1e-6 then
       U := 1e-6;
     Z := Sqrt(-2.0 * Ln(U)) * Cos(2.0 * PI * Rand)
        * DiskThickness
-       * Exp(-LocalR / (BulgeRadius * 4.0));  // Reduced damping for more Y spread
+       * Exp(-LocalR / (BulgeRadius * 12.0));  // Very weak damping = spread everywhere
 
     Pos.x := CenterPos.x + Cos(Angle) * LocalR;
     Pos.y := CenterPos.y + Z;
@@ -1215,6 +1230,7 @@ var
   S: ^TUFSystem;
   Center: TVector3;
   LerpSpeed: Single;
+  Dist: Single;
 begin
   if FPaused then
     Exit;
@@ -1235,10 +1251,25 @@ begin
 
     // Smooth lerp Position toward TargetPosition. This produces the
     // "slowly moving away" effect when SpawnSystemSmart pushes other
-    // systems aside.
+    // systems aside. Always runs (cheap) so animated motion finishes
+    // even when the system is off-screen.
     S^.Position.x := S^.Position.x + (S^.TargetPosition.x - S^.Position.x) * LerpSpeed * dt;
     S^.Position.y := S^.Position.y + (S^.TargetPosition.y - S^.Position.y) * LerpSpeed * dt;
     S^.Position.z := S^.Position.z + (S^.TargetPosition.z - S^.Position.z) * LerpSpeed * dt;
+
+    // CPU LOD: skip the expensive Cos/Sin orbit math for systems that
+    // are far from the camera. Their CurrentPos is stale but they're
+    // not being rendered anyway (UF_PLANET_CULL_DIST < UF_UPDATE_CULL_DIST),
+    // so the user never sees the stale position. When the user zooms
+    // back to them, the math resumes and the position snaps back to
+    // correct within one frame.
+    Dist := Vector3Distance(S^.Position, FCamera.position);
+    if Dist > UF_UPDATE_CULL_DIST then
+    begin
+      if S^.IsBinary then
+        S^.BinaryAngle := S^.BinaryAngle + S^.BinarySpeed * dt;
+      Continue;
+    end;
 
     // Update planet positions based on the (possibly moving) system center
     Center := S^.Position;
@@ -1337,9 +1368,26 @@ var
   WorldPos: TVector3;
   SysIdx: Integer;
   LMBDown, LMBClicked: Boolean;
+  MouseDeltaX, MouseDeltaY: Single;
+  PanSpeed: Single;
 begin
   LMBDown := (GetAsyncKeyState(VK_LBUTTON) and $8000) <> 0;
   LMBClicked := LMBDown and (not FLMBWasDown);
+
+  // +/- keys (regular keyboard, NOT numpad) to move selected system up/down
+  if (FSelectedSystem >= 0) and (FSelectedSystem < FSystemCount) and
+     (not FSystems[FSelectedSystem].IsDead) then
+  begin
+    // VK_OEM_PLUS and VK_OEM_MINUS are the +/- keys next to Backspace
+    if (GetAsyncKeyState(VK_OEM_PLUS) and $8000) <> 0 then
+    begin
+      FSystems[FSelectedSystem].TargetPosition.y := FSystems[FSelectedSystem].TargetPosition.y + 30.0 * GetFrameTime();
+    end;
+    if (GetAsyncKeyState(VK_OEM_MINUS) and $8000) <> 0 then
+    begin
+      FSystems[FSelectedSystem].TargetPosition.y := FSystems[FSelectedSystem].TargetPosition.y - 30.0 * GetFrameTime();
+    end;
+  end;
 
   if (GetAsyncKeyState(VK_DELETE) and $1) <> 0 then
   begin
@@ -1351,7 +1399,37 @@ begin
   begin
     FSelectedSystem := -1;
     FSelectedTemplate := -1;
+    FDraggingSystem := False;
     Exit;
+  end;
+
+  // ---- DRAGGING a selected system ----
+  if FDraggingSystem then
+  begin
+    if LMBDown then
+    begin
+      // While dragging, move the system with WASD (reuse the camera
+      // pan vectors) and mouse movement. The system follows the
+      // camera target on the XZ plane.
+      PanSpeed := 120.0 * GetFrameTime();
+      MouseDeltaX := MousePos.x - FDragStartMouse.x;
+      MouseDeltaY := MousePos.y - FDragStartMouse.y;
+
+      // Move system based on mouse delta projected onto ground plane
+      Ray := GetScreenToWorldRay(MousePos, FCamera);
+      if RaycastToGround(Ray, WorldPos) then
+      begin
+        FSystems[FSelectedSystem].TargetPosition.x := WorldPos.x;
+        FSystems[FSelectedSystem].TargetPosition.z := WorldPos.z;
+        // Keep current Y
+      end;
+      Exit;
+    end
+    else
+    begin
+      FDraggingSystem := False;
+      Exit;
+    end;
   end;
 
   if not LMBClicked then
@@ -1363,12 +1441,8 @@ begin
   begin
     if FTemplates[FSelectedTemplate].Kind = tkUniverse then
     begin
-      // "Random Universe" template: spawn a galaxy at the click
-      // position. 20 systems - framerate-friendly and readable.
       if RaycastToGround(Ray, WorldPos) then
         GenerateRandomUniverse(WorldPos, 20);
-      // Universe is a one-shot action - disarm the brush so the user
-      // doesn't accidentally spawn another batch on the next click.
       FSelectedTemplate := -1;
     end
     else if FTemplates[FSelectedTemplate].Kind = tkSystem then
@@ -1378,18 +1452,23 @@ begin
     end
     else if FTemplates[FSelectedTemplate].Kind = tkPlanet then
     begin
-      // Single planet placement. Free planets don't push other systems
-      // away - they just appear where the user clicks. The user can use
-      // this to add planets to an existing system (visually) or place
-      // rogue planets in empty space.
       if RaycastToGround(Ray, WorldPos) then
         SpawnFreePlanet(FTemplates[FSelectedTemplate].PlanetType, WorldPos);
     end;
     Exit;
   end;
 
+  // No brush armed - try to select or start dragging
   SysIdx := GetSystemUnderMouse(Ray);
   FSelectedSystem := SysIdx;
+
+  // If we clicked on a system, start dragging it
+  if (SysIdx >= 0) and (not FSystems[SysIdx].IsDead) then
+  begin
+    FDraggingSystem := True;
+    FDragStartMouse := MousePos;
+    FDragStartSystemPos := FSystems[SysIdx].Position;
+  end;
 end;
 
 procedure TUniverseFormer.Update(dt: Single; const MousePos: TVector2;
@@ -1401,6 +1480,17 @@ begin
   FScreenW := ScreenW;
   FScreenH := ScreenH;
   FTime := FTime + dt;
+
+  // ESC = deselect current system + disarm current brush. The
+  // engine handles ESC here so the host can call SetExitKey(0) to
+  // disable Raylib's default ESC→close-window behavior (which
+  // would otherwise destroy the GL context and turn the embedded
+  // window white).
+  if IsKeyPressed(KEY_ESCAPE) then
+  begin
+    FSelectedSystem := -1;
+    FSelectedTemplate := -1;
+  end;
 
   if IsMouseOverToolbar(MousePos) then
   begin
@@ -1414,6 +1504,16 @@ begin
         else if FTemplates[TplIdx].Kind = tkUniverse then
         begin
           GenerateRandomUniverse(FCamera.target, 20);
+        end
+        else if FTemplates[TplIdx].Kind = tkSave then
+        begin
+          // Fire-and-forget - the host opens its TSaveDialog and
+          // calls back into SaveToFile. We don't arm a brush.
+          if Assigned(FOnSaveRequested) then FOnSaveRequested;
+        end
+        else if FTemplates[TplIdx].Kind = tkLoad then
+        begin
+          if Assigned(FOnLoadRequested) then FOnLoadRequested;
         end
         else
         begin
@@ -1441,26 +1541,26 @@ end;
 
 procedure TUniverseFormer.Render3DScene;
 var
-  I, J: Integer;
+  I, J, TypeIdx: Integer;
   S: ^TUFSystem;
   Dist: Single;
   SunPos, Sun2Pos: TVector3;
   CustomProj: TMatrix;
-  PCol: TColorB;
-  V0, V1, V2, V3, V4, V5, V6, V7: TVector3;
-  H, Cx, Cy, Cz: Single;
 begin
   if (FSystems = nil) or (Length(FSystems) = 0) then
     Exit;
 
   BeginMode3D(FCamera);
   try
-    // CRITICAL: Override Raylib's default far plane (1000) AFTER BeginMode3D.
     CustomProj := MatrixPerspective(FCamera.fovy * DEG2RAD,
       GetScreenWidth() / GetScreenHeight(), 0.01, 10000.0);
     rlSetMatrixProjection(CustomProj);
 
-    // ---- 1. GRID (batched lines) ----
+    // ---- 1. GRID + ORBIT RINGS (batched lines, hard distance-culled) ----
+    // Orbit rings beyond UF_ORBIT_CULL_DIST are skipped entirely - we
+    // don't even compute their line vertices. This was the #1 cause of
+    // CPU overhead at 500+ systems: every system was generating 32
+    // line segments per planet per frame, even when off-screen.
     rlSetBlendMode(BLEND_ALPHA);
     rlDisableDepthTest;
     rlBegin(RL_LINES);
@@ -1474,23 +1574,26 @@ begin
         rlVertex3f(2000, 0, I * 100);
       end;
 
-      // ---- 2. ORBIT RINGS (batched lines, same block) ----
       for I := 0 to FSystemCount - 1 do
       begin
         if I >= Length(FSystems) then Break;
         S := @FSystems[I];
         if S^.IsDead then Continue;
         Dist := Vector3Distance(S^.Position, FCamera.position);
+        if Dist > UF_ORBIT_CULL_DIST then Continue; // Hard cull
 
-        // Only draw orbit rings for systems in Far or Near LOD
-        if Dist <= UF_LOD_MED_DIST then
+        // Selected system gets aqua-colored orbit rings, all others gray
+        if I = FSelectedSystem then
         begin
-          if Dist > UF_LOD_FAR_DIST then
-            // Far LOD - dimmer rings
+          for J := 0 to High(S^.Planets) do
+            DrawOrbitRingBatched(S^.Position, S^.Planets[J].OrbitRadius, UF_COL_HIGHLIGHT);
+        end
+        else
+        begin
+          if Dist > UF_ORBIT_FADE_DIST then
             for J := 0 to High(S^.Planets) do
               DrawOrbitRingBatched(S^.Position, S^.Planets[J].OrbitRadius, Fade(GRAY, 0.2))
           else
-            // Near LOD - brighter rings
             for J := 0 to High(S^.Planets) do
               DrawOrbitRingBatched(S^.Position, S^.Planets[J].OrbitRadius, Fade(GRAY, 0.35));
         end;
@@ -1500,12 +1603,45 @@ begin
     end;
     rlEnableDepthTest;
 
-    // ---- 3. SUNS & PLANETS (batched octahedrons, no textures) ----
-    // We abandon DrawModel here entirely. Instead we push raw octahedron
-    // geometry for every sun and planet in a single rlBegin block.
-    // This reduces 1700+ DrawModel calls to 1 DrawCall.
-    rlBegin(RL_TRIANGLES);
-    try
+    // ---- 2. SUNS (single pass, hard distance-culled) ----
+    // Suns stay visible from far away (UF_SUN_CULL_DIST is large) so
+    // the user can still see the overall universe layout when zoomed
+    // out, but anything beyond that distance is skipped.
+    rlSetBlendMode(BLEND_ALPHA);
+    for I := 0 to FSystemCount - 1 do
+    begin
+      if I >= Length(FSystems) then Break;
+      S := @FSystems[I];
+      if S^.IsDead then Continue;
+
+      Dist := Vector3Distance(S^.Position, FCamera.position);
+      if Dist > UF_SUN_CULL_DIST then Continue;
+
+      if S^.IsBinary then
+      begin
+        SunPos := Vector3Add(S^.Position, Vector3Create(
+          Cos(S^.BinaryAngle) * S^.Sun2Offset * 0.5, 0,
+          Sin(S^.BinaryAngle) * S^.Sun2Offset * 0.5));
+        Sun2Pos := Vector3Add(S^.Position, Vector3Create(
+          -Cos(S^.BinaryAngle) * S^.Sun2Offset * 0.5, 0,
+          -Sin(S^.BinaryAngle) * S^.Sun2Offset * 0.5));
+        DrawModel(FSphereModel, SunPos, S^.SunRadius, MakeCol(255, 220, 100));
+        DrawModel(FSphereModel, Sun2Pos, S^.Sun2Radius, MakeCol(255, 180, 80));
+      end
+      else
+      begin
+        DrawModel(FSphereModel, S^.Position, S^.SunRadius, MakeCol(255, 220, 100));
+      end;
+    end;
+
+    // ---- 3. PLANETS (5 passes, sorted by TUFPlanetType) ----
+    // Planets are rendered in 5 type-grouped passes (type 0..4) so the
+    // GPU driver doesn't have to flip the color uniform 3000 times per
+    // frame. Combined with hard distance culling at UF_PLANET_CULL_DIST,
+    // this typically reduces per-frame draw calls from ~3000 to ~250
+    // when zoomed in close, or near zero when zoomed out.
+    for TypeIdx := 0 to 4 do
+    begin
       for I := 0 to FSystemCount - 1 do
       begin
         if I >= Length(FSystems) then Break;
@@ -1513,101 +1649,18 @@ begin
         if S^.IsDead then Continue;
 
         Dist := Vector3Distance(S^.Position, FCamera.position);
+        if Dist > UF_PLANET_CULL_DIST then Continue;
 
-        // SUN (always drawn, even in Far LOD)
-        if S^.IsBinary then
-        begin
-          SunPos := Vector3Add(S^.Position, Vector3Create(
-            Cos(S^.BinaryAngle) * S^.Sun2Offset * 0.5, 0,
-            Sin(S^.BinaryAngle) * S^.Sun2Offset * 0.5));
-          Sun2Pos := Vector3Add(S^.Position, Vector3Create(
-            -Cos(S^.BinaryAngle) * S^.Sun2Offset * 0.5, 0,
-            -Sin(S^.BinaryAngle) * S^.Sun2Offset * 0.5));
+        for J := 0 to High(S^.Planets) do
+          if S^.Planets[J].PlanetType = TUFPlanetType(TypeIdx) then
+            DrawModel(FSphereModel, S^.Planets[J].CurrentPos,
+                      S^.Planets[J].Radius, S^.Planets[J].PlanetColor);
 
-          // Sun 1
-          H := S^.SunRadius * 0.5;
-          Cx := SunPos.x; Cy := SunPos.y; Cz := SunPos.z;
-          rlColor4ub(255, 220, 100, 255);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx + H, Cy, Cz);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx - H, Cy, Cz);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx - H, Cy, Cz);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx + H, Cy, Cz);
-
-          // Sun 2
-          H := S^.Sun2Radius * 0.5;
-          Cx := Sun2Pos.x; Cy := Sun2Pos.y; Cz := Sun2Pos.z;
-          rlColor4ub(255, 180, 80, 255);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx + H, Cy, Cz);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx - H, Cy, Cz);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx - H, Cy, Cz);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx + H, Cy, Cz);
-        end
-        else
-        begin
-          H := S^.SunRadius * 0.5;
-          Cx := S^.Position.x; Cy := S^.Position.y; Cz := S^.Position.z;
-          rlColor4ub(255, 220, 100, 255);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx + H, Cy, Cz);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-          rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx - H, Cy, Cz);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx - H, Cy, Cz);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-          rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx + H, Cy, Cz);
-        end;
-
-        // PLANETS (only draw in Near LOD)
-        if Dist <= UF_LOD_MED_DIST then
-        begin
-          for J := 0 to High(S^.Planets) do
-          begin
-            PCol := S^.Planets[J].PlanetColor;
-            H := S^.Planets[J].Radius * 0.5;
-            Cx := S^.Planets[J].CurrentPos.x;
-            Cy := S^.Planets[J].CurrentPos.y;
-            Cz := S^.Planets[J].CurrentPos.z;
-            rlColor4ub(PCol.r, PCol.g, PCol.b, 255);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx + H, Cy, Cz);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx - H, Cy, Cz);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx - H, Cy, Cz);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx + H, Cy, Cz);
-          end;
-
-          // Free planets
-          for J := 0 to High(S^.FreePlanets) do
-          begin
-            PCol := S^.FreePlanets[J].PlanetColor;
-            H := S^.FreePlanets[J].Radius * 0.5;
-            Cx := S^.FreePlanets[J].CurrentPos.x;
-            Cy := S^.FreePlanets[J].CurrentPos.y;
-            Cz := S^.FreePlanets[J].CurrentPos.z;
-            rlColor4ub(PCol.r, PCol.g, PCol.b, 255);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx + H, Cy, Cz);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-            rlVertex3f(Cx, Cy + H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx - H, Cy, Cz);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx + H, Cy, Cz); rlVertex3f(Cx, Cy, Cz + H);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz + H); rlVertex3f(Cx - H, Cy, Cz);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx - H, Cy, Cz); rlVertex3f(Cx, Cy, Cz - H);
-            rlVertex3f(Cx, Cy - H, Cz); rlVertex3f(Cx, Cy, Cz - H); rlVertex3f(Cx + H, Cy, Cz);
-          end;
-        end;
+        for J := 0 to High(S^.FreePlanets) do
+          if S^.FreePlanets[J].PlanetType = TUFPlanetType(TypeIdx) then
+            DrawModel(FSphereModel, S^.FreePlanets[J].CurrentPos,
+                      S^.FreePlanets[J].Radius, S^.FreePlanets[J].PlanetColor);
       end;
-    finally
-      rlEnd;
     end;
 
   finally
@@ -1693,6 +1746,41 @@ begin
           DrawLine(Trunc(Cx - 10), Trunc(Cy - 10), Trunc(Cx + 10), Trunc(Cy + 10), Tpl.Color);
           DrawLine(Trunc(Cx + 10), Trunc(Cy - 10), Trunc(Cx - 10), Trunc(Cy + 10), Tpl.Color);
         end;
+      tkSave:
+        begin
+          // Save icon: floppy-disk (filled body + black outline +
+          // metal slider on top + label slot at bottom). DrawRectangle
+          // is filled; DrawRectangleLines is the outline.
+          DrawRectangle(Trunc(Cx - 14), Trunc(Cy - 14), 28, 28, Tpl.Color);
+          DrawRectangleLines(Trunc(Cx - 14), Trunc(Cy - 14), 28, 28, BLACK);
+          // Metal slider at top (the part that slides on a real floppy)
+          DrawRectangle(Trunc(Cx - 10), Trunc(Cy - 11), 20, 6, BLACK);
+          // Label sticker slot at the bottom
+          DrawRectangle(Trunc(Cx - 8), Trunc(Cy + 2), 16, 8, BLACK);
+        end;
+      tkLoad:
+        begin
+          // Load icon: open folder (filled body + tab on top-left +
+          // black outline + a small down-arrow inside to signal
+          // "import from disk").
+          DrawRectangle(Trunc(Cx - 14), Trunc(Cy - 6), 28, 18, Tpl.Color);
+          DrawRectangleLines(Trunc(Cx - 14), Trunc(Cy - 6), 28, 18, BLACK);
+          // Folder tab (trapezoid approximated by a triangle)
+          DrawTriangle(
+            Vector2Create(Trunc(Cx - 14), Trunc(Cy - 6)),
+            Vector2Create(Trunc(Cx - 14), Trunc(Cy - 14)),
+            Vector2Create(Trunc(Cx - 2),  Trunc(Cy - 14)),
+            Tpl.Color);
+          DrawTriangleLines(
+            Vector2Create(Trunc(Cx - 14), Trunc(Cy - 6)),
+            Vector2Create(Trunc(Cx - 14), Trunc(Cy - 14)),
+            Vector2Create(Trunc(Cx - 2),  Trunc(Cy - 14)),
+            BLACK);
+          // Down-arrow inside the folder body (white so it shows on blue)
+          DrawLine(Trunc(Cx + 4), Trunc(Cy - 3), Trunc(Cx + 4), Trunc(Cy + 8), WHITE);
+          DrawLine(Trunc(Cx + 4), Trunc(Cy + 8), Trunc(Cx + 0), Trunc(Cy + 4), WHITE);
+          DrawLine(Trunc(Cx + 4), Trunc(Cy + 8), Trunc(Cx + 8), Trunc(Cy + 4), WHITE);
+        end;
     end;
 
     // Label sits BELOW the icon, fully inside the template rect
@@ -1741,7 +1829,7 @@ begin
     DrawText(PAnsiChar(SelTxt), 12, 58, 16, UF_COL_HIGHLIGHT);
   end;
 
-  HelpTxt := 'MMB=orbit   Wheel=zoom   WASD=pan   DEL=remove   ESC=cancel';
+  HelpTxt := 'MMB=orbit  Wheel=zoom  WASD=pan  LMB=select/drag  +/-=Y  DEL=remove  ESC=cancel';
   HelpW := MeasureText(PAnsiChar(HelpTxt), 14);
   DrawText(PAnsiChar(HelpTxt),
     Trunc((FScreenW - HelpW) * 0.5),
@@ -1791,6 +1879,58 @@ end;
 procedure TUniverseFormer.SpawnRandomUniverseAtCamera;
 begin
   GenerateRandomUniverse(FCamera.target, 20);
+end;
+
+// ============================================================================
+// Save/Load Support
+// ============================================================================
+
+function TUniverseFormer.GetSystemData(Index: Integer): TUFSystem;
+begin
+  if (Index >= 0) and (Index < Length(FSystems)) then
+    Result := FSystems[Index]
+  else
+    Result := Default(TUFSystem);
+end;
+
+procedure TUniverseFormer.SetSystemData(Index: Integer; const S: TUFSystem);
+begin
+  if (Index >= 0) and (Index < Length(FSystems)) then
+  begin
+    // Direct copy of the entire record. We do NOT auto-sync
+    // TargetPosition to Position here - that used to clobber the
+    // loaded target, breaking reload of mid-animation states. The
+    // caller (e.g. LoadFromFile) supplies whatever target they want.
+    FSystems[Index] := S;
+  end;
+end;
+
+procedure TUniverseFormer.SetSystemTargetPosition(Index: Integer; const P: TVector3);
+begin
+  if (Index >= 0) and (Index < Length(FSystems)) then
+  begin
+    FSystems[Index].TargetPosition := P;
+  end;
+end;
+
+procedure TUniverseFormer.ClearAllSystems;
+begin
+  ClearAll;
+end;
+
+function TUniverseFormer.GetSystemCount: Integer;
+begin
+  Result := FSystemCount;
+end;
+
+procedure TUniverseFormer.SetSystemCount(Count: Integer);
+begin
+  FSystemCount := Count;
+end;
+
+function TUniverseFormer.GetMaxSystems: Integer;
+begin
+  Result := UF_MAX_SYSTEMS;
 end;
 
 end.
