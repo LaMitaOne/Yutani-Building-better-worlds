@@ -381,6 +381,7 @@ Yutani Skia Holographic Splash https://github.com/LaMitaOne/Yutani-Skia-Holograp
 Yutani CHAOS - Complete Holographic AI Operating System Interface https://github.com/LaMitaOne/Yutani.CHAOS      
 Yutani PathTracing https://github.com/LaMitaOne/Yutani.Render.PathTracing      
 Yutani Universe Former https://github.com/LaMitaOne/Yutani.UniverseFormer      
+Yutani GPU particle monster https://github.com/LaMitaOne/Yutani-GPU-Particles      
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
