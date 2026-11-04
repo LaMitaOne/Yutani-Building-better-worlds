@@ -21,7 +21,7 @@ Started as "sample" in Joltphysics4delphi repo, it got a bit too big, it had to 
 * **Procedural Textures & HUD :** Fully generated via **Skia4Delphi** inside memory buffers for crisp, transparent, high-DPI vector interfaces.    
 * **Cinematic Multimedia:** Integrated **libmpv** engine streaming hardware-accelerated video feeds straight into real-time 3D OpenGL textures.    
 * **Input Layer:** Multi-threaded **SDL3 Gamepad Core** featuring button mapping and zero-latency feedback.    
-* **Advanced Audio Engine:** A dual-engine setup providing full acoustic feedback. MiniAudio drives real-time 3D spatial sound and HRTF attenuation, while TinySoundFont handles on-the-fly SF2 synthesis for dynamic music sequences and retro soundtracks.
+* **Advanced Audio Engine:** A high-performance Tri-engine setup providing complete, asynchronous acoustic control. MiniAudio drives the low-level hardware communication, real-time 3D spatial sound, and HRTF room attenuation. TinySoundFont handles on-the-fly SF2 synthesis for dynamic music sequences and retro soundtracks. SedaiAudio completes the trio as a procedural sound-design laboratory, delivering real-time synthesis (FM, Subtractive, Additive, Wavetable) and Karplus-Strong physical modeling for generative sound effects without asset overhead. (Note: SedaiAudio is interfaces dynamically via sedaiaudio.dll under GPL-3.0, keeping the core Yutani engine framework under Apache-2.0).       
 * **AI Pathfinding & Navigation:** We will use **RecastNavigation** for automated 3D NavMesh generation directly from Jolt geometry, allowing smooth asynchronous entity pathfinding.    
 * **Dynamic Gameplay Scripting:** Embedded **VerySimpleLua** engine to script entity logic, triggers, and game rules at runtime without re-compiling the core.    
            
@@ -58,8 +58,7 @@ Status: Work in Progress (Alpha v0.649)
      
 ### 🪐 Multimedia & Video Pipeline (libmpv)     
 * **Direct GPU Texture Mapping:** Utilizes `libmpv`'s native OpenGL context rendering (`libMPV.Render_gl.pas`) to stream video feeds directly into Raylib 3D textures without crushing CPU or VRAM bandwidth.     
-* **Spatial Interactive Screens:** Interact with floating video panels using raycasts, move them in 3D space, and toss them around with Jolt physics while videos keep playing live.     
-     
+* **Spatial Interactive Screens:** Interact with floating video panels using raycasts, move them in 3D space, and toss them around with Jolt physics while videos keep playing live.          
 ### 🎨 Procedural UI, HUD & Texturing (Skia4Delphi)     
 * **Zero-Image Architecture:** Entirely procedural 2D/3D asset pipeline. No heavy `.png` or `.bmp` files needed—everything is drawn mathematically in memory.     
 * **High-DPI Vector HUD:** Crisp, modern, transparent HUD elements and custom menus drawn via Skia, avoiding restrictive legacy Win32 VCL styling blocks.
@@ -382,6 +381,7 @@ Yutani CHAOS - Complete Holographic AI Operating System Interface https://github
 Yutani PathTracing https://github.com/LaMitaOne/Yutani.Render.PathTracing      
 Yutani Universe Former https://github.com/LaMitaOne/Yutani.UniverseFormer      
 Yutani GPU particle monster https://github.com/LaMitaOne/Yutani-GPU-Particles      
+SedaiAudio for Delphi https://github.com/LaMitaOne/SedaiAudio4Delphi      
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
