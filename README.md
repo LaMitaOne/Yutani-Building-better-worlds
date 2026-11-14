@@ -381,7 +381,8 @@ Yutani CHAOS - Complete Holographic AI Operating System Interface https://github
 Yutani PathTracing https://github.com/LaMitaOne/Yutani.Render.PathTracing      
 Yutani Universe Former https://github.com/LaMitaOne/Yutani.UniverseFormer      
 Yutani GPU particle monster https://github.com/LaMitaOne/Yutani-GPU-Particles      
-SedaiAudio for Delphi https://github.com/LaMitaOne/SedaiAudio4Delphi      
+SedaiAudio for Delphi https://github.com/LaMitaOne/SedaiAudio4Delphi     
+Yutani GPU Info https://github.com/LaMitaOne/Yutani-GPUInfo       
        
 Get mpv2 dll: https://sourceforge.net/projects/mpv-player-windows/     
       
