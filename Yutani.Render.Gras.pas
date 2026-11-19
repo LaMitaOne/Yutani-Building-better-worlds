@@ -1,5 +1,5 @@
-{*******************************************************************************
-  Yutani.Render.Gras v0.2
+﻿{*******************************************************************************
+  Yutani.Render.Gras v0.3
 ********************************************************************************
   GPU compute-shader grass field renderer.
 
@@ -459,7 +459,29 @@ const
     '    // and a random natural lean direction (XZ) - this is the resting'#10 +
     '    // direction the blade leans even with zero wind, so the field does'#10 +
     '    // not look like a brush head of perfectly vertical blades.'#10 +
-    '    float heightFactor = 0.7 + bladeRand(index, 2u) * 0.6; // 0.7..1.3'#10 +
+    '    // === Non-linear height distribution ==='#10 +
+    '    // Two-stage distribution so the field does NOT collapse to a single'#10 +
+    '    // "average" blade height (which is what pow(h3,3.0) alone produced:'#10 +
+    '    // pow(0.5,3)=0.125, so half the blades were squeezed into 0.45..0.6 and'#10 +
+    '    // looked identical).'#10 +
+    '    //   - Base jitter (small-blade band): linear 0.5..0.9. Real undergrowth'#10 +
+    '    //     varies continuously, so we keep that linear here.'#10 +
+    '    //   - Tall outliers: pow(h3,3.0) skews the top of the distribution so the'#10 +
+    '    //     top ~20% shoot up to 2.0x bladeHeight and break the smooth surface.'#10 +
+    '    // h3 < 0.7  -> undergrowth, 0.5..0.9 (linear)'#10 +
+    '    // h3 >= 0.7 -> tall blades, 0.9 + pow((h3-0.7)/0.3, 3.0) * 1.1  => 0.9..2.0'#10 +
+    '    float h3 = bladeRand(index, 2u);'#10 +
+    '    float heightFactor;'#10 +
+    '    if (h3 < 0.7) {'#10 +
+    '        heightFactor = 0.5 + h3 * (0.4 / 0.7);          // 0.5..0.9 (linear, ± around 0.7)'#10 +
+    '    } else {'#10 +
+    '        float t = (h3 - 0.7) / 0.3;'#10 +
+    '        heightFactor = 0.9 + pow(t, 3.0) * 1.1;          // 0.9..2.0 (skewed, sparse outliers)'#10 +
+    '    }'#10 +
+    '    // Wilt roll: marks tall blades that have tipped over and gone yellow at'#10 +
+    '    // the tip. Same hash + slot must be used in the vertex shader so the'#10 +
+    '    // color block can pick these blades up.'#10 +
+    '    float h4 = bladeRand(index, 6u);'#10 +
     '    float phase        = bladeRand(index, 3u) * 6.2831;'#10 +
     '    vec2  leanDir      = vec2(bladeRand(index, 4u) * 2.0 - 1.0,'#10 +
     '                              bladeRand(index, 5u) * 2.0 - 1.0);'#10 +
@@ -485,7 +507,12 @@ const
     '    //     shape even when windStrength = 0.'#10 +
     '    //   - Wind bend: scaled by bendAmount (slider 0..1) and by windMag. The'#10 +
     '    //     total is clamped to maxBend so the tip never flies past 60% of height.'#10 +
+    '    //   - Wilt lean: the tall outlier blades (h4 > 0.85, the top ~15%) bend'#10 +
+    '    //     extra hard in their lean direction. Real tall grass does not stand'#10 +
+    '    //     straight - it droops under its own weight. This pulls the long'#10 +
+    '    //     blades visibly to one side, killing the neon-green-brush look.'#10 +
     '    float leanStrength = height * 0.15;'#10 +
+    '    if (h4 > 0.85) leanStrength *= (2.6 + (h4 - 0.85) * 8.0); // 2.6x .. 4.8x for the wilted outliers'#10 +
     '    vec2  leanOffset   = leanDir * leanStrength;'#10 +
     '    float windMag = length(wind);'#10 +
     '    vec2  windBendDir  = (windMag > 0.001) ? wind / windMag : vec2(0.0);'#10 +
@@ -643,7 +670,17 @@ const
     '    }'#10 +
     '    // Per-blade height (same formula as compute shader) - needed because we'#10 +
     '    // now reconstruct tip here instead of reading it from the SSBO.'#10 +
-    '    float heightFactor = 0.7 + bladeRand(uidx, 2u) * 0.6;'#10 +
+    '    // MUST match the compute shader exactly: two-stage distribution with a'#10 +
+    '    // linear undergrowth band (h3 < 0.7, 0.5..0.9) and a pow-skewed tall'#10 +
+    '    // outlier band (h3 >= 0.7, 0.9..2.0).'#10 +
+    '    float h3 = bladeRand(uidx, 2u);'#10 +
+    '    float heightFactor;'#10 +
+    '    if (h3 < 0.7) {'#10 +
+    '        heightFactor = 0.5 + h3 * (0.4 / 0.7);          // 0.5..0.9 (linear, ± around 0.7)'#10 +
+    '    } else {'#10 +
+    '        float t = (h3 - 0.7) / 0.3;'#10 +
+    '        heightFactor = 0.9 + pow(t, 3.0) * 1.1;          // 0.9..2.0 (skewed, sparse outliers)'#10 +
+    '    }'#10 +
     '    float height = heightFactor * bladeHeight;'#10 +
     '    // Reconstruct tip from totalBend + per-blade height (was written by the'#10 +
     '    // compute shader before; now computed here to save the SSBO slot).'#10 +
@@ -652,12 +689,19 @@ const
     '    float tParam = vertexPosition.x;'#10 +
     '    float side   = vertexPosition.y;'#10 +
     '    // === Bezier control point ==='#10 +
-    '    // Same as before: lower half of blade stays upright, upper half bends.'#10 +
+    '    // Same idea as before: lower half of blade stays upright, upper half'#10 +
+    '    // bends. BUT the control-point height is now tied to the PER-BLADE'#10 +
+    '    // height, not the global bladeHeight. The old bladeHeight*0.65 made the'#10 +
+    '    // control point sit at 1.3m for EVERY blade - for a short 0.9m undergrowth'#10 +
+    '    // blade that is ABOVE its own tip, so the Bezier curved up then back down,'#10 +
+    '    // over-curling the short blades (the "unteren kleineren werden zu stark'#10 +
+    '    // gekrümmt" bug). Tying the control point to height*0.65 keeps the curl'#10 +
+    '    // proportional for every blade.'#10 +
     '    // bendDir * bendDisp = totalBend (when bendDisp > 0), so we use totalBend'#10 +
     '    // directly - no need to normalize then multiply back. When bendDisp is'#10 +
     '    // ~0 the contribution collapses to ~0 anyway, matching the old fallback.'#10 +
     '    vec3 control = base + vec3(totalBend.x * 0.25,'#10 +
-    '                              bladeHeight * 0.65,'#10 +
+    '                              height * 0.65,'#10 +
     '                              totalBend.y * 0.25);'#10 +
     '    // Quadratic Bezier: P(t) = (1-t)^2 * base + 2*(1-t)*t * control + t^2 * tip'#10 +
     '    float omt = 1.0 - tParam;'#10 +
@@ -673,6 +717,24 @@ const
     '    // feel grounded and dense. At tParam = 0 we go to 25% of the base color,'#10 +
     '    // fading out by tParam = 0.3.'#10 +
     '    if (tParam < 0.3) col = mix(grassColorBase * 0.25, col, tParam / 0.3);'#10 +
+    '    // === Wilt color (tall outlier blades, h4 > 0.85) ==='#10 +
+    '    // The pow(h3,3) distribution pushes ~15% of blades up to 1.4..2.0x height.'#10 +
+    '    // These tall blades should not glow the same neon green as the short'#10 +
+    '    // undergrowth - real tall grass is sun-bleached at the tip and tips'#10 +
+    '    // toward warm ochre / straw yellow. Same h4 hash as the compute shader so'#10 +
+    '    // the blades we marked as "wilted" (extra lean) are also the ones that'#10 +
+    '    // get the warm shift. Blend only on the upper 60% of the blade so the'#10 +
+    '    // foot stays green and grounded.'#10 +
+    '    float h4 = bladeRand(uidx, 6u);'#10 +
+    '    if (h4 > 0.85 && tParam > 0.4) {'#10 +
+    '        // warm ochre / straw target: (0.62, 0.55, 0.18), i.e. yellow-green'#10 +
+    '        // pushed toward warm ochre. The 0.55 max blend keeps the green'#10 +
+    '        // visible at the very top of the blade - it reads as "sun-bleached",'#10 +
+    '        // not "dead".'#10 +
+    '        float wiltAmt = clamp((h4 - 0.85) / 0.15, 0.0, 1.0);'#10 +
+    '        wiltAmt *= clamp((tParam - 0.4) / 0.6, 0.0, 1.0);'#10 +
+    '        col = mix(col, vec3(0.62, 0.55, 0.18), wiltAmt * 0.55);'#10 +
+    '    }'#10 +
     '    // Fake light response: blades that are bent further get a subtle extra'#10 +
     '    // green + warm shift, mimicking the underside catching the light.'#10 +
     '    float bendFactor = clamp(bendNorm * 1.5, 0.0, 1.0);'#10 +
@@ -734,15 +796,19 @@ begin
   FBillboardVAO := 0; FBillboardVBO := 0;
   FTime := 0.0;
   FGPUInitialized := False;
-  // Field defaults: a 20x20 patch centred on the origin. The user overrides
-  // these from outside - this is just a sensible starting point.
-  FFieldOrigin := Vector3Create(-10.0, 0.0, -10.0);
-  FFieldWidth   := 20.0;
-  FFieldDepth   := 20.0;
+  // Field defaults: 60x60 patch centred on the origin. Tripled from the
+  // original 20x20 so the same blade count (500K default) spreads over 9x
+  // the area - more air between blades, room to drive an avatar or vehicle
+  // through tall grass. The GPU handles 500K blades comfortably, so widening
+  // the spacing costs nothing per-frame and is exactly the trick the user
+  // asked for to lose the dense-neon-carpet look.
+  FFieldOrigin := Vector3Create(-30.0, 0.0, -30.0);
+  FFieldWidth   := 60.0;
+  FFieldDepth   := 60.0;
   // 2m high blades are tall enough to read individual blades from the
-  // default camera distance. 0.06m width is half the previous 0.12 - the
-  // thinner blade plus the quadratic taper-to-tip in the vertex shader
-  // gives a much more grass-like silhouette (sharp tips, not chunky tips).
+  // default camera distance. With the pow(h3,3) skew the top ~20% of
+  // blades now reach up to ~4m (heightFactor up to 2.0), so the long
+  // outliers poke clearly above the short undergrowth.
   FBladeHeight  := 2.0;
   FBladeWidth   := 0.06;
   // Wind: gentle breeze blowing in +X direction. The defaults give a
