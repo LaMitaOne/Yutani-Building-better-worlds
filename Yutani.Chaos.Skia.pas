@@ -1,8 +1,7 @@
 unit Yutani.Chaos.Skia;
 
 {==============================================================================*
- *  Yutani C.H.A.O.S. Skia Version v0.1 - Complete Holographic AI Operating System
-
+ *  Yutani C.H.A.O.S. Skia VCL CPU Version v0.2 - Complete Holographic AI Operating System
  *------------------------------------------------------------------------------
  *  Module : Yutani.Chaos.Skia
  *  Type   : Complete Holographic AI Operating System - Interface
@@ -24,7 +23,7 @@ uses
   Winapi.Windows, Winapi.MMSystem, System.SysUtils, System.Classes, System.Types,
   System.UITypes, System.Math, System.Math.Vectors, System.SyncObjs,
   System.Diagnostics, System.Generics.Collections, System.Generics.Defaults,
-  Vcl.Forms, Vcl.Graphics, Vcl.Imaging.pngimage, Skia;
+  Vcl.Forms, Vcl.Graphics, Vcl.Imaging.pngimage, Skia, VCL.Skia;
 
 type
   TMouthState = (msClosed, msMin, msMid, msFull);
@@ -45,7 +44,6 @@ type
     ReachedTarget: Boolean;
     IsFading: Boolean; // NEW: Used for the tear-down / fade-out animation
   end;
-
   { TSkChaos }
   TSkChaos = class
   private
@@ -110,7 +108,6 @@ type
   end;
 
 implementation
-
 { TSkChaos }
 
 constructor TSkChaos.Create;
@@ -721,69 +718,35 @@ begin
     FSkCanvas.DrawCircle(Pos2D, Size * 1.2, Paint);
   end;
 
-  // 3. EXPORT SKIA SURFACE TO WINDOWS BITMAP BUFFER
-  // Create an image snapshot from the Skia surface
+  // 3. EXPORT SKIA SURFACE TO WINDOWS BITMAP BUFFER (Test mit Vcl.Skia)
   SkImage := FSkSurface.MakeImageSnapshot;
   if Assigned(SkImage) then
   begin
-    MemStream := TMemoryStream.Create;
-    try
-      // Encode the Skia image to a PNG stream
-      if SkImage.EncodeToStream(MemStream, TSkEncodedImageFormat.PNG) then
+    var NewBmp := SkImageToBitmap(SkImage);
+    TThread.Queue(nil,
+      procedure
       begin
-        if MemStream.Size > 0 then
-        begin
-          MemStream.Position := 0;
-          PngImage := TPngImage.Create;
-          try
-            // Load the PNG stream into a VCL PNG object
-            PngImage.LoadFromStream(MemStream);
-
-            // Draw it onto our transparent Windows bitmap buffer
-            FBuffer.Canvas.Lock;
-            try
-              FBuffer.Canvas.Brush.Color := clBlack;
-              FBuffer.Canvas.FillRect(Rect(0, 0, FFormWidth, FFormHeight));
-              FBuffer.Canvas.Draw(0, 0, PngImage);
-            finally
-              FBuffer.Canvas.Unlock;
-            end;
-
-            // Push the bitmap to the UI thread to update the layered window
-            TThread.Queue(nil,
-              procedure
-              begin
-                if Assigned(FForm) and FForm.Visible then
-                  UpdateWindow;
-              end);
-
-          finally
-            PngImage.Free;
-          end;
-        end;
-      end;
-    finally
-      MemStream.Free;
-    end;
+        FBuffer.Free;
+        FBuffer := NewBmp;
+        if Assigned(FForm) and FForm.Visible then
+          UpdateWindow;
+      end);
   end;
+
 end;
 
 procedure TSkChaos.Start;
 begin
   if FState = csForming then Exit; // Already starting
-
   // WICHTIG: Form wieder anzeigen, da sie beim Stop versteckt wurde!
   if Assigned(FForm) then
     FForm.Show;
-
   InitParticles;
   FState := csForming;
   FStateTimer := 0;
   FAlpha := 1.0;
-
   StartThread;
 end;
-
 procedure TSkChaos.Stop;
 begin
   // Allow tear-down from both Active and Forming states
@@ -810,7 +773,6 @@ begin
   // If the thread is somehow still active from a previous run,
   // we don't need to start a new one, it will pick up the csForming state.
   if FThreadActive then Exit;
-
   FThreadActive := True;
   FThread := TThread.CreateAnonymousThread(
     procedure
@@ -824,10 +786,8 @@ begin
         DeltaMS := NowTime - LastTime;
         if DeltaMS = 0 then DeltaMS := 1;
         LastTime := NowTime;
-
         FStateTimer := FStateTimer + (DeltaMS / 1000);
         FGlobalTime := FGlobalTime + (DeltaMS / 1000);
-
         case FState of
           csForming:
             begin
@@ -850,14 +810,11 @@ begin
           csIdle, csFinished:
             Break;
         end;
-
         // Render the current frame
         if Assigned(FForm) and FForm.Visible then
           RenderFrame;
-
         Sleep(16); // Roughly 60 FPS cap
       end;
-
       // Once tear-down is completely finished, hide the form
       if FState = csFinished then
       begin
