@@ -1,6 +1,6 @@
 # Yutani-Building-better-worlds (Alpha v0.649)    
 A high-performance, multi-threaded 3D Sandbox &amp; Multimedia Framework for Delphi.    
-Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, libmpv, RecastNavigation, VerySimpleLua, GameNetworkingSockets, and Skia4delphi.    
+Powered by Jolt Physics, Raylib, R3D, SDL3, MiniAudio, TinySoundFont, SedaiAudio, libmpv, RecastNavigation, VerySimpleLua, GameNetworkingSockets, and Skia4delphi.    
           
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LaMitaOne/Yutani-Building-better-worlds)    
         
