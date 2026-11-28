@@ -3,22 +3,18 @@ unit Yutani.AI.Client;
 interface
 
 uses
-  System.SysUtils, System.Classes, System.JSON, System.Net.HttpClient,
-  System.Net.URLClient;
+  System.SysUtils, System.Classes, System.JSON, System.Net.HttpClient, System.NetConsts,
+  System.Generics.Collections, System.Net.URLClient;
 
 type
   /// <summary>Event fired when an action tag like 'nod' or 'shake' was detected.</summary>
   TYutaniActionTagEvent = procedure(Sender: TObject; const ATag: string) of object;
-
   /// <summary>Event fired with the spoken text (tag stripped).</summary>
   TYutaniResponseEvent = procedure(Sender: TObject; const ASpokenText: string) of object;
-
   /// <summary>Event fired on error with a human-readable message.</summary>
   TYutaniErrorEvent = procedure(Sender: TObject; const AErrorMsg: string) of object;
-
   /// <summary>Simple notification event.</summary>
   TYutaniNotifyEvent = procedure(Sender: TObject) of object;
-
   /// <summary>
   ///   Slim, framework-independent async client for any OpenAI-compatible
   ///   chat/completions REST endpoint (Ollama, LM Studio, Groq, OpenRouter, OpenAI).
@@ -73,7 +69,6 @@ const
   DEFAULT_MODEL = 'llama3.2';
   DEFAULT_SYSTEM_PROMPT = 'You are C.H.A.O.S., a dry, witty AI living inside a 3D particle hologram. ' + 'Start EVERY reply with exactly one gesture tag from [neutral], [nod], ' + '[shake], [tilt], [think], [alert], followed by a concise spoken answer ' + '(max 2 sentences, no markdown or emojis).';
   ALLOWED_TAGS: array[0..5] of string = ('neutral', 'nod', 'shake', 'tilt', 'think', 'alert');
-
 { ---------------------------------------------------------------------------- }
 { Background worker                                                             }
 { ---------------------------------------------------------------------------- }
@@ -118,9 +113,17 @@ begin
     SetLength(Headers, 0);
     if FClient.ApiKey <> '' then
     begin
+      SetLength(Headers, 2);
+      Headers[0].Name := 'Content-Type';
+      Headers[0].Value := 'application/json';
+      Headers[1].Name := 'Authorization';
+      Headers[1].Value := 'Bearer ' + FClient.ApiKey;
+    end
+    else
+    begin
       SetLength(Headers, 1);
-      Headers[0].Name := 'Authorization';
-      Headers[0].Value := 'Bearer ' + FClient.ApiKey;
+      Headers[0].Name := 'Content-Type';
+      Headers[0].Value := 'application/json';
     end;
 
     try
@@ -128,7 +131,10 @@ begin
       if (Response.StatusCode >= 200) and (Response.StatusCode < 300) then
         FClient.ParseResponse(Response.ContentAsString(TEncoding.UTF8))
       else
-        FClient.FireError(Format('HTTP %d: %s', [Response.StatusCode, Response.StatusText]));
+        FClient.FireError(Format('HTTP %d: %s (%s)',
+          [Response.StatusCode, Response.StatusText,
+           Copy(Response.ContentAsString(TEncoding.UTF8), 1, 140)]));
+
     except
       on E: Exception do
         FClient.FireError(E.Message);
@@ -138,7 +144,6 @@ begin
     HttpClient.Free;
   end;
 end;
-
 { ---------------------------------------------------------------------------- }
 { TYutaniAIClient                                                              }
 { ---------------------------------------------------------------------------- }
@@ -323,7 +328,6 @@ begin
     Root.Free;
   end;
 end;
-
 { Thread-safe event firing ---------------------------------------------------- }
 
 procedure TYutaniAIClient.FireThinking;
